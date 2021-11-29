@@ -12,7 +12,7 @@ import platform.posix.iovec
 import platform.posix.open
 import platform.posix.strlen
 import simple.HasPosixErr
-import simple.simple.CZero.z
+import simple.CZero.z
 
 /* SPDX-License-Identifier: MIT */
 

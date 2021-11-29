@@ -3,7 +3,7 @@ import kotlinx.cinterop.*
 import linux_uring.*
 import platform.posix.waitpid
 import simple.HasPosixErr
-import simple.simple.CZero.nz
+import simple.CZero.nz
 
 /* SPDX-License-Identifier: MIT */
 //#include <stdint.h>

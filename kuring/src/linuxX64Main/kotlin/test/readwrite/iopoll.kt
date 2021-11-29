@@ -7,7 +7,7 @@ import linux_uring.include.t_create_buffers
 import linux_uring.include.t_create_file
 import linux_uring.include.t_create_ring
 import linux_uring.include.t_register_buffers
-import simple.simple.CZero.nz
+import simple.CZero.nz
 import test.readwrite.AppState.Companion.end.*
 
 /* SPDX-License-Identifier: MIT */

@@ -36,6 +36,13 @@ struct file_info {
     struct iovec iovecs[];      /* Referred by readv/writev */
 };
 
+ struct p_t{
+     int triggered  ;
+      int fd[2];
+ };
+ static int NFILES = 5000;
+ static struct p_t *p ;
+
 /* This is x86 specific
 #define read_barrier()  __asm__ __volatile__("":::"memory")
 #define write_barrier() __asm__ __volatile__("":::"memory") */

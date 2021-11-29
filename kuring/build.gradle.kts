@@ -1,6 +1,14 @@
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+
 plugins {
     kotlin("multiplatform") version "1.6.0"
 }
+kotlin.targets.withType(KotlinNativeTarget::class.java) {
+    binaries.all {
+        binaryOptions["memoryModel"] = "experimental"
+    }
+}
+
 kotlin {
     linuxX64 {
 
@@ -25,3 +33,4 @@ kotlin {
     };
     }
 }
+// build.gradle.kts

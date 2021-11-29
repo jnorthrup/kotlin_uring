@@ -9,7 +9,7 @@ import platform.posix.fprintf
 import platform.posix.iovec
 import platform.posix.stderr
 import simple.HasPosixErr
-import simple.simple.CZero.z
+import simple.CZero.z
 import kotlin.native.internal.NativePtr
 import linux_uring.printf as linux_uringPrintf
 

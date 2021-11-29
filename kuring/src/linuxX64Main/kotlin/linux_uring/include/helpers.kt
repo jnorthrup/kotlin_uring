@@ -23,7 +23,7 @@ import platform.posix.stderr
 import platform.posix.stdout
 import platform.posix.strerror
 import platform.posix.write
-import simple.simple.CZero.nz
+import simple.CZero.nz
 
 //import test.update.p
 

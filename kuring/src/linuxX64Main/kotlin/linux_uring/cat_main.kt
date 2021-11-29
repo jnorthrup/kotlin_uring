@@ -10,14 +10,14 @@ import linux_uring.include.UringSqeFlags.sqeIo_link
 import platform.linux.memalign
 import platform.posix.NULL
 import platform.posix.sigset_t
+import simple.CZero.nz
+import simple.CZero.z
 import simple.HasDescriptor.Companion.S_ISBLK
 import simple.HasDescriptor.Companion.S_ISREG
 import simple.HasPosixErr.Companion.posixRequires
 import simple.PosixFile.Companion.getDirFd
 import simple.PosixFile.Companion.namedDirAndFile
 import simple.mallocWithFlex
-import simple.simple.CZero.nz
-import simple.simple.CZero.z
 import kotlin.math.min
 import platform.linux.BLKGETSIZE64 as PlatformLinuxBLKGETSIZE64
 import platform.posix.free as posix_free

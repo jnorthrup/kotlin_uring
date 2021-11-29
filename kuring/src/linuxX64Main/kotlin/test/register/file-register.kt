@@ -6,8 +6,8 @@ import linux_uring.include.fromOctal
 import platform.linux.getrlimit
 import platform.linux.setrlimit
 import simple.HasPosixErr
-import simple.simple.CZero.nz
-import simple.simple.CZero.z
+import simple.CZero.nz
+import simple.CZero.z
 import linux_uring.pipe as linux_uringPipe
 
 /* SPDX-License-Identifier: MIT */

@@ -4,7 +4,7 @@ import kotlinx.cinterop.*
 import linux_uring.*
 import linux_uring.include.UringSqeFlags.sqeIo_link
 import platform.posix.POLLIN
-import simple.simple.CZero.nz
+import simple.CZero.nz
 import test.timeout.TimeoutAppState.Companion.end.err
 
 /* SPDX-License-Identifier: MIT */
