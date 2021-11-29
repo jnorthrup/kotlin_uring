@@ -26,47 +26,10 @@ repositories {
 // }
 
 kotlin {
-//    explicitApi()
-/*
-    targets {
-        jvm {
-            compilations.all {
-                kotlinOptions {
-                    jvmTarget = "1.8"
-                }
-            }
-        }
 
-        js(BOTH) {
-            compilations.all {
-                kotlinOptions {
-                    moduleKind = "commonjs"
-                }
-            }
-            browser()
-            nodejs()
-        }
-    }
-    iosX64()
-    iosArm64()
-    iosArm32()
-    iosSimulatorArm64()
-    macosArm64()
-    macosX64()
-    tvosArm64()
-    tvosSimulatorArm64()
-    tvosX64()
-    watchosArm32()
-    watchosArm64()
-    watchosSimulatorArm64()
-    // waiting on https://github.com/Kotlin/kotlinx.coroutines/pull/2679
-    //watchosX64()
-    watchosX86()
-    mingwX64()*/
     linuxX64 {
 
         binaries {
-
             "fixedlink".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.$it" } }
             "iopoll".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.readwrite.iopoll" } }
             "lfsopenat".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.$it" } }
@@ -75,7 +38,12 @@ kotlin {
             "teardown".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
             "update".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
             "timeout".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-            "uring_cat".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "linux_uring.cat_file" } }
+            "stdout".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
+            "uring_cat".let {
+                executable(it, listOf(DEBUG/*, RELEASE*/)) {
+                    baseName = it; entryPoint = "linux_uring.cat_file"
+                }
+            }
         }
         val main by compilations.getting {
             compilations["main"].cinterops {

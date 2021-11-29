@@ -227,6 +227,5 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         if (no_stable)
             break;
     }
-
     return 0;
 }

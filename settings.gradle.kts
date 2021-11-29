@@ -1,10 +1,8 @@
 
-rootProject.let {
-    it.name = rootDir.name
 //    it.group = "com.vsiwest"
 //    it.version = "1.0.2-SNAPSHOT"
 
-}
+rootProject.name = rootDir.name
 pluginManagement {
     repositories {
         mavenCentral()
@@ -14,7 +12,11 @@ pluginManagement {
 //        includeBuild("buildsrc")
 }
 dependencyResolutionManagement {
-    repositories { mavenCentral() }
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+        google()
+    }
 //    includeBuild("../somethingelse")
 }
 
