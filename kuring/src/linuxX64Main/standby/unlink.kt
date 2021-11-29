@@ -52,7 +52,7 @@ static stat_file:Int(buf:String) {
     return errno;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     char buf[32] = "./XXXXXX";
     ret:Int;

@@ -33,8 +33,8 @@
 #define CQ_CQES_OFFSET 320
 
 static :Longsyz_io_uring_setupvolatile :Longa0 volatile :Longa1
-                               volatile :Longa2 volatile :Longa3
-                               volatile :Longa4 volatile :Longa5 {
+        volatile :Longa2 volatile :Longa3
+        volatile :Longa4 volatile :Longa5 {
     entries:uint32_t = (uint32_t) a0;
     setup_params:CPointer<io_uring_params> = (s:io_uring_param *) a1;
     vma1:CPointer<ByteVar>  = (void *) a2;
@@ -58,7 +58,7 @@ static :Longsyz_io_uring_setupvolatile :Longa0 volatile :Longa1
 }
 
 static :Longsyz_io_uring_submitvolatile :Longa0 volatile :Longa1
-                                volatile :Longa2 volatile :Longa3 {
+        volatile :Longa2 volatile :Longa3 {
     ring_ptr:CPointer<ByteVar> = (char *) a0;
     sqes_ptr:CPointer<ByteVar> = (char *) a1;
     sqe:CPointer<ByteVar> = (char *) a2;
@@ -102,7 +102,7 @@ static :Longsyz_open_devvolatile :Longa0 volatile :Longa1 volatile :Longa2 {
 
 uint64_t r[4] = {0xffffffffffffffff, 0x0, 0x0, 0xffffffffffffffff};
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
 
     if (argc > 1)
         return 0;

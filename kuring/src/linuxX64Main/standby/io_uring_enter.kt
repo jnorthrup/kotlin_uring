@@ -52,7 +52,7 @@ expect_failed_submit(ring:CPointer<io_uring>, error:Int) {
 
 int
 expect_fail(fd:Int, to_submit:UInt, min_complete:UInt,
-            flags:UInt, sigset_t *sig, error:Int) {
+        flags:UInt, sigset_t *sig, error:Int) {
     ret:Int;
 
     ret = __sys_io_uring_enter(fd, to_submit, min_complete, flags, sig);
@@ -71,7 +71,7 @@ expect_fail(fd:Int, to_submit:UInt, min_complete:UInt,
 
 int
 try_io_uring_enter(fd:Int, to_submit:UInt, min_complete:UInt,
-                   flags:UInt, sigset_t *sig, expect:Int, error:Int) {
+        flags:UInt, sigset_t *sig, expect:Int, error:Int) {
     ret:Int;
 
     printf("io_uring_enter(%d, %u, %u, %u, %p)\n", fd, to_submit,

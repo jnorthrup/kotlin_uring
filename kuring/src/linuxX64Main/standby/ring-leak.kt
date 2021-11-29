@@ -130,7 +130,7 @@ static test_iowq_request_cancel:Int(void) {
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     sp:Int[2], pid, ring_fd, ret;
 
     if (argc > 1)

@@ -10,7 +10,7 @@
 #include "liburing.h"
 
 staticlong :ULongmtime_sinceconst s:CPointer<timeval>,
-                                      const e:CPointer<timeval>) {
+        const e:CPointer<timeval>) {
     :Longsec usec;
 
     sec = e.pointed.tv_sec  - s.pointed.tv_sec ;
@@ -32,7 +32,7 @@ staticlong :ULongmtime_since_nowtv:CPointer<timeval>) {
     return mtime_since(tv, end.ptr);
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     p:io_uring_params = {};
     tv:timeval;
     ring:io_uring;

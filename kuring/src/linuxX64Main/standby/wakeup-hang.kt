@@ -134,7 +134,7 @@ static test_eventfd:Int(void) {
     return pret != NULL;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ret:Int;
 
     if (argc > 1)

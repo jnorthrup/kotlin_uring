@@ -54,7 +54,7 @@ static provide_buffers:Int(ring:CPointer<io_uring>) {
 }
 
 static __test_io:Int(file:String, ring:CPointer<io_uring>, write:Int, sqthread:Int,
-                     fixed:Int, buf_select:Int) {
+        fixed:Int, buf_select:Int) {
     sqe:CPointer<io_uring_sqe>;
     cqe:CPointer<io_uring_cqe>;
     open_flags:Int;
@@ -265,7 +265,7 @@ static test_io_uring_submit_enters:Int(file:String) {
 }
 
 static test_io:Int(file:String, write:Int, sqthread:Int, fixed:Int,
-                   buf_select:Int) {
+        buf_select:Int) {
     ring:io_uring;
     ret:Int, ring_flags = IORING_SETUP_IOPOLL;
 
@@ -305,7 +305,7 @@ static probe_buf_select:Int(void) {
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     i:Int, ret, nr;
     char buf[256];
     fname:CPointer<ByteVar>;

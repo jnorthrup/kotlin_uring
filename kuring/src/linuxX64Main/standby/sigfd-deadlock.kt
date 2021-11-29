@@ -52,7 +52,7 @@ static test_uring:Int(sfd:Int) {
     return ret;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     sfd:Int, ret;
 
     if (argc > 1)

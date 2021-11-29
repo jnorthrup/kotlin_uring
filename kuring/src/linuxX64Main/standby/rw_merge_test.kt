@@ -15,7 +15,7 @@
 #include "liburing.h"
 #include "helpers.h"
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     sqe:CPointer<io_uring_sqe>;
     cqe:CPointer<io_uring_cqe>;
     ring:io_uring;

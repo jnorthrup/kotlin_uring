@@ -39,8 +39,8 @@ static void kill_and_wait(pid:Int, int *status) {
 uint64_t r[3] = {0xffffffffffffffff, 0x0, 0x0};
 
 static :Longsyz_io_uring_setupvolatile :Longa0 volatile :Longa1
-                               volatile :Longa2 volatile :Longa3 volatile :Longa4 volatile long
-                               a5) {
+        volatile :Longa2 volatile :Longa3 volatile :Longa4 volatile long
+a5) {
     entries:uint32_t = (uint32_t) a0;
     setup_params:CPointer<io_uring_params> = (s:io_uring_param *) a1;
     vma1:CPointer<ByteVar>  = (void *) a2;
@@ -63,7 +63,7 @@ static :Longsyz_io_uring_setupvolatile :Longa0 volatile :Longa1
 }
 
 static :Longsyz_io_uring_submitvolatile :Longa0 volatile :Longa1
-                                volatile :Longa2 volatile :Longa3 {
+        volatile :Longa2 volatile :Longa3 {
     ring_ptr:CPointer<ByteVar> = (char *) a0;
     sqes_ptr:CPointer<ByteVar> = (char *) a1;
     sqe:CPointer<ByteVar> = (char *) a2;
@@ -126,7 +126,7 @@ fun trigger_bug(void):Unit{
 
 }
 
-fun main(void):Int{
+int main(void) {
     mmap((void *) 0x20000000ul, 0x1000000ul, 7ul, 0x32ul, -1, 0ul);
     pid:Int = fork();
     if (pid < 0)

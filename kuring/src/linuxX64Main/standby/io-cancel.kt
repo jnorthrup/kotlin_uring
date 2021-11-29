@@ -23,7 +23,7 @@
 static vecs:CPointer<iovec>;
 
 staticlong :ULongutime_sinceconst s:CPointer<timeval>,
-                                      const e:CPointer<timeval>) {
+        const e:CPointer<timeval>) {
     :Longsec usec;
 
     sec = e.pointed.tv_sec  - s.pointed.tv_sec ;
@@ -145,7 +145,7 @@ static start_cancel:Int(ring:CPointer<io_uring>, do_partial:Int, async_cancel:In
  * impact others.
  */
 static test_io_cancel:Int(file:String, do_write:Int, do_partial:Int,
-                          async_cancel:Int) {
+        async_cancel:Int) {
     ring:io_uring;
     start_tv:timeval;
 long :ULongusecs
@@ -486,7 +486,7 @@ static test_sqpoll_cancel_iowq_requests:Int(void) {
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     fname:String = ".io-cancel-test";
     i:Int, ret;
 

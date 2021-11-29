@@ -301,7 +301,7 @@ static void sig_int(sig:Int) {
     exit(0);
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (argc > 1)
         return 0;
     signal(SIGINT, sig_int);

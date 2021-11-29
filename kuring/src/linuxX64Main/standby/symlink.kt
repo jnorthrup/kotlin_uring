@@ -42,7 +42,7 @@ static do_symlinkat:Int(ring:CPointer<io_uring>, oldname:String, const newname:C
     return 1;
 }
 
-fun test_link_contents(linkname:String, const expected_contents:CPointer<ByteVar>):Int{
+int test_link_contents(linkname:String, const expected_contents:CPointer<ByteVar>) {
     char buf[128];
     ret:Int = readlink(linkname, buf, 127);
     if (ret < 0) {
@@ -58,7 +58,7 @@ fun test_link_contents(linkname:String, const expected_contents:CPointer<ByteVar
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     static const char target[] = "io_uring-symlinkat-test-target";
     static const char linkname[] = "io_uring-symlinkat-test-link";
     ret:Int;

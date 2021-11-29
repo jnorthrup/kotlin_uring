@@ -54,7 +54,7 @@ static get_file_fd:Int(void) {
     return fd;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     sqe:CPointer<io_uring_sqe>;
     cqe:CPointer<io_uring_cqe>;

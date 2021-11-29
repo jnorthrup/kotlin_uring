@@ -206,7 +206,7 @@ static test_drained_files:Int(dfd:Int, fn:String, linked:Boolean, prepend:Boolea
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     fn:String = "io_uring_openat_test";
     ring:io_uring;
     ret:Int, dfd;

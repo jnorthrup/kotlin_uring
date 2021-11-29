@@ -16,7 +16,7 @@
 
 #define FILE_SIZE    (128 * 1024)
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     i:Int, fd, ret;
     sqe:CPointer<io_uring_sqe>;

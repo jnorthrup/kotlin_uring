@@ -40,7 +40,7 @@ static queue_n_nops:Int(ring:CPointer<io_uring>, n:Int) {
     return 1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     cqe:CPointer<io_uring_cqe>;
     p:io_uring_params;
     ring:io_uring;

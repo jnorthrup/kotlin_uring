@@ -95,7 +95,7 @@ static test_link_drain_one:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-fun test_link_drain_multi(ring:CPointer<io_uring>):Int{
+int test_link_drain_multi(ring:CPointer<io_uring>) {
     cqe:CPointer<io_uring_cqe>;
     sqe:CPointer<io_uring_sqe>[9];
     iovecs:iovec;
@@ -196,7 +196,7 @@ fun test_link_drain_multi(ring:CPointer<io_uring>):Int{
 
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     i:Int, ret;
 

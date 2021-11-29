@@ -31,7 +31,7 @@ fun delay_set_fd_from_thread(data:CPointer<ByteVar> ): CPointer<ByteVar> {
     return NULL;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     p:io_uring_params = {};
     ring:io_uring;
     loop_fd:Int, other_fd;

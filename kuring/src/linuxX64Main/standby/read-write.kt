@@ -42,8 +42,8 @@ static create_nonaligned_buffers:Int(void) {
 }
 
 static __test_io:Int(file:String, ring:CPointer<io_uring>, write:Int,
-                     buffered:Int, sqthread:Int, fixed:Int, nonvec:Int,
-                     buf_select:Int, seq:Int, exp_len:Int) {
+        buffered:Int, sqthread:Int, fixed:Int, nonvec:Int,
+        buf_select:Int, seq:Int, exp_len:Int) {
     sqe:CPointer<io_uring_sqe>;
     cqe:CPointer<io_uring_cqe>;
     open_flags:Int;
@@ -227,7 +227,7 @@ static __test_io:Int(file:String, ring:CPointer<io_uring>, write:Int,
 }
 
 static test_io:Int(file:String, write:Int, buffered:Int, sqthread:Int,
-                   fixed:Int, nonvec:Int, exp_len:Int) {
+        fixed:Int, nonvec:Int, exp_len:Int) {
     ring:io_uring;
     ret:Int, ring_flags = 0;
 
@@ -719,7 +719,7 @@ static test_write_efbig:Int(void) {
     return 1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     i:Int, ret, nr;
     char buf[256];
     fname:CPointer<ByteVar>;

@@ -12,7 +12,7 @@
 
 #include "liburing.h"
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     sqe:CPointer<io_uring_sqe>;
     ring:io_uring;
     ret:Int, i;

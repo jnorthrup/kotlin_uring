@@ -19,7 +19,7 @@
 #define MIN_LOOPS    10
 
 staticlong :ULongutime_sinceconst s:CPointer<timeval>,
-                                      const e:CPointer<timeval>) {
+        const e:CPointer<timeval>) {
     :Longsec usec;
 
     sec = e.pointed.tv_sec  - s.pointed.tv_sec ;
@@ -41,7 +41,7 @@ staticlong :ULongutime_since_nowtv:CPointer<timeval>) {
 }
 
 static do_fadvise:Int(ring:CPointer<io_uring>, fd:Int, offset:off_t, len:off_t,
-                      advice:Int) {
+        advice:Int) {
     sqe:CPointer<io_uring_sqe>;
     cqe:CPointer<io_uring_cqe>;
     ret:Int;
@@ -149,7 +149,7 @@ long :ULongcached_read uncached_read, cached_read2;
     return 2;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     ret:Int, i, good, bad;
     fname:CPointer<ByteVar>;

@@ -83,7 +83,7 @@ static test_barrier_nop:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     ret:Int;
 

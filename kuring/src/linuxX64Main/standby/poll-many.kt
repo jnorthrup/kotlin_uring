@@ -133,7 +133,7 @@ static arm_polls:Int(ring:CPointer<io_uring>) {
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     params:io_uring_params = {};
     rlim:rlimit;

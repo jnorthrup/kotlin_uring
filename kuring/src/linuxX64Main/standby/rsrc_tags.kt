@@ -36,7 +36,7 @@ static check_cq_empty:Boolean(ring:CPointer<io_uring>) {
  * but they may change, so hand-code to specifically test this ABI.
  */
 static register_rsrc:Int(ring:CPointer<io_uring>, type:Int, nr:Int,
-                         const arg:CPointer<ByteVar> , const __u64 *tags) {
+        const arg:CPointer<ByteVar> , const __u64 *tags) {
     reg:io_uring_rsrc_register;
     ret:Int, reg_type;
 
@@ -59,7 +59,7 @@ static register_rsrc:Int(ring:CPointer<io_uring>, type:Int, nr:Int,
  * but they may change, so hand-code to specifically test this ABI.
  */
 static update_rsrc:Int(ring:CPointer<io_uring>, type:Int, nr:Int, off:Int,
-                       const arg:CPointer<ByteVar> , const __u64 *tags) {
+        const arg:CPointer<ByteVar> , const __u64 *tags) {
     up:io_uring_rsrc_update2;
     ret:Int, up_type;
 
@@ -393,7 +393,7 @@ static test_notag:Int(void) {
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring_flags:Int[] = {0, IORING_SETUP_IOPOLL, IORING_SETUP_SQPOLL};
     i:Int, ret;
 

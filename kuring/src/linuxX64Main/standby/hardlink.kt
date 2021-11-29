@@ -42,7 +42,7 @@ static do_linkat:Int(ring:CPointer<io_uring>, oldname:String, const newname:CPoi
     return 1;
 }
 
-fun files_linked_ok(fn1:String, const fn2:CPointer<ByteVar>):Int{
+int files_linked_ok(fn1:String, const fn2:CPointer<ByteVar>) {
     s1:stat, s2;
 
     if (stat(fn1, s1.ptr)) {
@@ -64,7 +64,7 @@ fun files_linked_ok(fn1:String, const fn2:CPointer<ByteVar>):Int{
     return 1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     static const char target[] = "io_uring-linkat-test-target";
     static const char linkname[] = "io_uring-linkat-test-link";
     ret:Int;

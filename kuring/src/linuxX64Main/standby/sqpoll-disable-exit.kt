@@ -72,8 +72,8 @@ static write_file:Boolean(file:String, const what:CPointer<ByteVar>, ...) {
 #define CQ_CQES_OFFSET 320
 
 static :Longsyz_io_uring_setupvolatile :Longa0 volatile :Longa1
-                               volatile :Longa2 volatile :Longa3
-                               volatile :Longa4 volatile :Longa5 {
+        volatile :Longa2 volatile :Longa3
+        volatile :Longa4 volatile :Longa5 {
     entries:uint32_t = (uint32_t) a0;
     setup_params:CPointer<io_uring_params> = (s:io_uring_param *) a1;
     vma1:CPointer<ByteVar>  = (void *) a2;
@@ -178,7 +178,7 @@ fun execute_one(void):Unit{
     syz_io_uring_setup(0x74bc, 0x20000040, 0x20ffb000, 0x20ffc000, 0, 0);
 }
 
-fun main(void):Int{
+int main(void) {
     mmap((void *) 0x1ffff000ul, 0x1000ul, 0ul, 0x32ul, -1, 0ul);
     mmap((void *) 0x20000000ul, 0x1000000ul, 7ul, 0x32ul, -1, 0ul);
     mmap((void *) 0x21000000ul, 0x1000ul, 0ul, 0x32ul, -1, 0ul);

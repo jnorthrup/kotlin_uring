@@ -22,7 +22,7 @@
 static void sig_pipe(sig:Int) {
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     p_fd:Int[2], ret;
     recv_s0:int32_t;
     val:int32_t = 1;

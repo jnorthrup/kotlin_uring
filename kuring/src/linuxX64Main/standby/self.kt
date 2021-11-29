@@ -47,7 +47,7 @@ static io_openat2:Int(ring:CPointer<io_uring>, path:String, dfd:Int) {
     return -1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     char buf[64];
     ret:Int;

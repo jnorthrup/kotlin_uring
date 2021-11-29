@@ -69,7 +69,7 @@ long :ULongoff
     return i;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     rings:io_uring[NR_RINGS];
     rets:Int[NR_RINGS];
 long :ULongios

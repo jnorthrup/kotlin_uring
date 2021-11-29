@@ -15,7 +15,7 @@
 
 uint64_t r[1] = {0xffffffffffffffff};
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (argc > 1)
         return 0;
     mmap((void *) 0x20000000, 0x1000000, 3, 0x32, -1, 0);

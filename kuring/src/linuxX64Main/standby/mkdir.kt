@@ -50,7 +50,7 @@ static stat_file:Int(fn:String) {
     return errno;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     static const char fn[] = "io_uring-mkdirat-test";
     ret:Int;
     ring:io_uring;

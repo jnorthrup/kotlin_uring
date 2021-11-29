@@ -48,7 +48,7 @@ static queue_n_nops:Int(ring:CPointer<io_uring>, n:Int) {
     }\
 } while(0)
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     ret:Int;
     unsigned ready;

@@ -46,7 +46,7 @@ static client_ring:CPointer<io_uring>;
 
 static client_eventfd:Int = -1;
 
-fun setup_io_uring(ring:CPointer<io_uring>):Int{
+int setup_io_uring(ring:CPointer<io_uring>) {
     p:io_uring_params = {};
     ret:Int;
 
@@ -216,7 +216,7 @@ static void sig_alrm(sig:Int) {
     exit(0);
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     server_thread_t:pthread_t, client_thread_t;
     act:sigaction;
 

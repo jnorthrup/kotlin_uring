@@ -182,7 +182,7 @@ static test_openat:Int(ring:CPointer<io_uring>, path:String, dfd:Int) {
     return -1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     path:String, *path_rel;
     ret:Int, do_unlink;

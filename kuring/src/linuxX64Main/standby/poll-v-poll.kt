@@ -193,7 +193,7 @@ static do_fd_test:Int(ring:CPointer<io_uring>, fname:String, events:Int) {
 }
 
 static iou_epoll_ctl:Int(ring:CPointer<io_uring>, epfd:Int, fd:Int,
-                         ev:CPointer<epoll_event>) {
+        ev:CPointer<epoll_event>) {
     sqe:CPointer<io_uring_sqe>;
     cqe:CPointer<io_uring_cqe>;
     ret:Int;
@@ -281,7 +281,7 @@ static do_test_epoll:Int(ring:CPointer<io_uring>, iou_epoll_add:Int) {
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     fname:String;
     ret:Int;

@@ -39,7 +39,7 @@ static open_tempfile:Int(dir:String, const fname:CPointer<ByteVar>) {
 }
 
 static submit_write:Int(ring:CPointer<io_uring>, fd:Int, str:String,
-                        wait:Int) {
+        wait:Int) {
     sqe:CPointer<io_uring_sqe>;
     iovec:iovec;
     ret:Int;
@@ -126,7 +126,7 @@ static void cleanup(tmpdir:String) {
     rmdir(tmpdir);
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     shmem:CPointer<forktestmem>;
     char tmpdir[] = "forktmpXXXXXX";
     shared_fd:Int;

@@ -46,7 +46,7 @@ const unsigned sqe_flags[4] = {0, IOSQE_IO_LINK, IOSQE_IO_DRAIN,
 int multi_sqes[max_entry], cnt = 0;
 int multi_cap = max_entry / 5;
 
-fun write_pipe(pipe:Int, str:CPointer<ByteVar>):Int{
+int write_pipe(pipe:Int, str:CPointer<ByteVar>) {
     ret:Int;
     do {
         errno = 0;
@@ -64,7 +64,7 @@ fun read_pipe(pipe:Int):Unit{
         perror("read");
 }
 
-fun trigger_event(p:Int[]):Int{
+int trigger_event(p:Int[]) {
     ret:Int;
     if ((ret = write_pipe(p[1], "foo")) != 3) {
         fprintf(stderr, "bad write return %d\n", ret);
@@ -130,7 +130,7 @@ __u8 generate_flags(sqe_op:Int) {
  * - ensure number of multishot sqes doesn't exceed multi_cap
  * - don't generate multishot sqes after high watermark
  */
-fun generate_opcode(i:Int, pre_flags:Int):Int{
+int generate_opcode(i:Int, pre_flags:Int) {
     sqe_op:Int;
     high_watermark:Int = max_entry - max_entry / 5;
     retry0:Boolean = false, retry1 = false, retry2 = false;
@@ -155,7 +155,7 @@ static inline void add_multishot_sqe(index:Int) {
     multi_sqes[cnt++] = index;
 }
 
-fun remove_multishot_sqe():Int{
+int remove_multishot_sqe() {
     ret:Int;
 
     rem_index:Int = rand() % cnt;
@@ -344,7 +344,7 @@ static test_simple_drain:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     i:Int, ret;
 

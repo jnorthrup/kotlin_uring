@@ -79,7 +79,7 @@ static open_file:Int(path:String, const oflgs_t *oflgs) {
     return fd;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     fname:String = ".";
     ring:io_uring;
     ret:Int, i;

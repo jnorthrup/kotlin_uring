@@ -231,7 +231,7 @@ static test_accept_timeout:Int(do_connect:Int,long :ULongtimeout {
     return ret;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (argc > 1)
         return 0;
     if (test_accept_timeout(0, 200000000)) {

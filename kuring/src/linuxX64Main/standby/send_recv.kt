@@ -28,7 +28,7 @@ static char str[] = "This is a test of send and recv over io_uring!";
 #endif
 
 static recv_prep:Int(ring:CPointer<io_uring>, c:iove *iov, int *sock,
-                     registerfiles:Int) {
+        registerfiles:Int) {
     saddr:sockaddr_in;
     sqe:CPointer<io_uring_sqe>;
     sockfd:Int, ret, val, use_fd;
@@ -257,7 +257,7 @@ static test:Int(use_sqthread:Int, regfiles:Int) {
     return (int) (intptr_t) retval;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ret:Int;
 
     if (argc > 1)

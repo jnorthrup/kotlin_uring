@@ -59,7 +59,7 @@ static int *open_files(nr_files:Int, extra:Int, add:Int) {
 }
 
 static test_update_multiring:Int(r1:CPointer<io_uring>, g:io_urin *r2,
-                                 r3:CPointer<io_uring>, do_unreg:Int) {
+        r3:CPointer<io_uring>, do_unreg:Int) {
     int *fds, *newfds;
 
     fds = open_files(10, 0, 0);
@@ -132,7 +132,7 @@ static test_sqe_update:Int(ring:CPointer<io_uring>) {
     return ret != 10;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     r1:io_uring, r2, r3;
     ret:Int;
 

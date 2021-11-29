@@ -238,7 +238,7 @@ static test_overflow:Int(void) {
     return 1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     fname:String = ".cq-overflow";
     unsigned iters, drops;
 long :ULongusecs

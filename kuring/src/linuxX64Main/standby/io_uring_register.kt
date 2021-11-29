@@ -128,24 +128,24 @@ fun test_max_fds(uring_fd: Int): Int = nativeHeap.run {
     /* fill the fd table */
     nr_fds = 128 * 1024 * 1024 / sizeof(int)
     for (i in 0 until  nr_fds)
-    fds[i] = io_fd
+        fds[i] = io_fd
 
     /* map the file through the rest of the address space */
     nr_maps = (UINT_MAX * sizeof(int)) / (128 * 1024 * 1024)
     for (i in 0 until  nr_maps) {
-    fds = fds.ptr[nr_fds] /* advance fds by 128MiB */
-    fds = posixMmap(
-        fds, 128 * 1024 * 1024, PROT_READ or PROT_WRITE,
-        MAP_SHARED or MAP_FIXED, fdtable_fd, 0
-    )
-    if (fds == MAP_FAILED) {
-        printf(
-            "mmap failed at offset %lu\n",
-            (unsigned long)((char *) fd_as -(char *) fds)
+        fds = fds.ptr[nr_fds] /* advance fds by 128MiB */
+        fds = posixMmap(
+            fds, 128 * 1024 * 1024, PROT_READ or PROT_WRITE,
+            MAP_SHARED or MAP_FIXED, fdtable_fd, 0
         )
-        exit(1)
+        if (fds == MAP_FAILED) {
+            printf(
+                "mmap failed at offset %lu\n",
+                (unsigned long)((char *) fd_as -(char *) fds)
+            )
+            exit(1)
+        }
     }
-}
 
     /* Now fd_as points to the file descriptor array. */
     /*
@@ -265,9 +265,9 @@ fun test_iovec_nr(fd: Int): Int = nativeHeap.run {
     buf = t_malloc(pagesize)
 
     for (i in 0 until  nr) {
-    iovs[i].iov_base = buf
-    iovs[i].iov_len = pagesize
-}
+        iovs[i].iov_base = buf
+        iovs[i].iov_len = pagesize
+    }
 
     status | = expect_fail(fd, IORING_REGISTER_BUFFERS, iovs, nr, EINVAL)
 
@@ -328,7 +328,7 @@ fun test_iovec_size(fd: Int): Int = nativeHeap.run {
     buf = posixMmap(
         NULL, 2 * 1024 * 1024, PROT_READ or PROT_WRITE,
         MAP_PRIVATE or  MAP_HUGETLB or MAP_HUGE_2MB  or MAP_ANONYMOUS ,
-    -1, 0)
+        -1, 0)
     if (buf == MAP_FAILED) {
         printf(
             "Unable to map a huge page.  Try increasing "
@@ -499,7 +499,7 @@ static test_shmem:Int(void) {
         return 1
     }
     for (i in 0 until  len)
-    mem[i] = pattern
+        mem[i] = pattern
 
     iov.iov_base = mem
     iov.iov_len = len
@@ -652,8 +652,8 @@ fun expect_fail(fd: Int, opcode: UInt, arg: CPointer<ByteVar>, nr_args: UInt, er
 
         printf("expected %s, but call succeeded\n", strerror(error))
         when (opcode) {
- IORING_REGISTER_BUFFERS.pointed.ret2  = __sys_io_uring_register(fd, IORING_UNREGISTER_BUFFERS, NULL, 0)
- IORING_REGISTER_FILES.pointed.ret2  = __sys_io_uring_register(fd, IORING_UNREGISTER_FILES, NULL, 0)
+            IORING_REGISTER_BUFFERS.pointed.ret2  = __sys_io_uring_register(fd, IORING_UNREGISTER_BUFFERS, NULL, 0)
+                    IORING_REGISTER_FILES.pointed.ret2  = __sys_io_uring_register(fd, IORING_UNREGISTER_FILES, NULL, 0)
         }
 
         HasPosixErr.posixFailOn(ret2.nz) {

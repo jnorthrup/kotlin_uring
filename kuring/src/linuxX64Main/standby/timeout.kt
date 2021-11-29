@@ -27,7 +27,7 @@ static void msec_to_ts(ts:CPointer<__kernel_timespec>, msec:UInt) {
 }
 
 staticlong :ULongmtime_sinceconst s:CPointer<timeval>,
-                                      const e:CPointer<timeval>) {
+        const e:CPointer<timeval>) {
     :Longsec usec;
 
     sec = e.pointed.tv_sec  - s.pointed.tv_sec ;
@@ -179,7 +179,7 @@ static test_single_timeout_nr:Int(ring:CPointer<io_uring>, nr:Int) {
 }
 
 static test_single_timeout_wait:Int(ring:CPointer<io_uring>,
-                                    p:CPointer<io_uring_params>) {
+        p:CPointer<io_uring_params>) {
     cqe:CPointer<io_uring_cqe>;
     sqe:CPointer<io_uring_sqe>;
     ts:__kernel_timespec;
@@ -956,7 +956,7 @@ static test_timeout_flags3:Int(ring:CPointer<io_uring>) {
 }
 
 static test_update_timeout:Int(ring:CPointer<io_uring>,long :ULongms
-                               abs:Boolean, async:Boolean, linked:Boolean) {
+        abs:Boolean, async:Boolean, linked:Boolean) {
     sqe:CPointer<io_uring_sqe>;
     cqe:CPointer<io_uring_cqe>;
     ts:__kernel_timespec, ts_upd;
@@ -1306,7 +1306,7 @@ static test_not_failing_links:Int(void) {
 }
 
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring, sqpoll_ring;
     has_timeout_update:Boolean, sqpoll;
     p:io_uring_params = {};

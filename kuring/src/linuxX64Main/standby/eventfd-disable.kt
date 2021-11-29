@@ -14,7 +14,7 @@
 
 #include "liburing.h"
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     p:io_uring_params = {};
     sqe:CPointer<io_uring_sqe>;
     cqe:CPointer<io_uring_cqe>;

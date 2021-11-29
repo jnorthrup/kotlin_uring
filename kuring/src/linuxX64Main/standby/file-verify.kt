@@ -56,7 +56,7 @@ static verify_buf:Int(buf:CPointer<ByteVar> , size:size_t, off:off_t) {
 }
 
 static test_truncate:Int(ring:CPointer<io_uring>, fname:String, buffered:Int,
-                         vectored:Int, provide_buf:Int) {
+        vectored:Int, provide_buf:Int) {
     cqe:CPointer<io_uring_cqe>;
     sqe:CPointer<io_uring_sqe>;
     vec:iovec;
@@ -300,7 +300,7 @@ static provide_buffers:Int(ring:CPointer<io_uring>, void **buf) {
 }
 
 static test:Int(ring:CPointer<io_uring>, fname:String, buffered:Int,
-                vectored:Int, small_vecs:Int, registered:Int, provide:Int) {
+        vectored:Int, small_vecs:Int, registered:Int, provide:Int) {
     vecs:iovec[READ_BATCH][MAX_VECS];
     cqe:CPointer<io_uring_cqe>;
     sqe:CPointer<io_uring_sqe>;
@@ -503,7 +503,7 @@ static fill_pattern:Int(fname:String) {
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     fname:String;
     char buf[32];

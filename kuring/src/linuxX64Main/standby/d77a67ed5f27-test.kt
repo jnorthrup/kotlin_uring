@@ -12,7 +12,7 @@ static void sig_alrm(sig:Int) {
     exit(1);
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     sqe:CPointer<io_uring_sqe>;
     cqe:CPointer<io_uring_cqe>;
     p:io_uring_params;

@@ -53,7 +53,7 @@ static void alarm_sig(sig:Int) {
     exit(0);
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     serv_addr:sockaddr_in;
     cqe:CPointer<io_uring_cqe>;
     ret:Int, sock_listen_fd;

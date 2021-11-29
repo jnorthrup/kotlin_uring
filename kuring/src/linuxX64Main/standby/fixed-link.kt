@@ -12,7 +12,7 @@
 
 #define IOVECS_LEN 2
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     iovecs:iovec[IOVECS_LEN];
     ring:io_uring;
     i:Int, fd, ret;

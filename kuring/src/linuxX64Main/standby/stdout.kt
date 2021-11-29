@@ -2,8 +2,10 @@
 /*
  * Description: check that STDOUT write works
  */
+#include <errno.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
 
@@ -191,7 +193,7 @@ static test_stdout_io:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     ret:Int;
 

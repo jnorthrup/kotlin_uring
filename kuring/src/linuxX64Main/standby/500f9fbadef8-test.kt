@@ -15,7 +15,7 @@
 
 #define BLOCKS    4096
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     sqe:CPointer<io_uring_sqe>;
     cqe:CPointer<io_uring_cqe>;

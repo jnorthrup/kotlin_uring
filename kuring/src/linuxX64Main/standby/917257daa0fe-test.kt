@@ -13,7 +13,7 @@
 #include "liburing.h"
 #include "../src/syscall.h"
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (argc > 1)
         return 0;
 

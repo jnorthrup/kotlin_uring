@@ -115,7 +115,7 @@ static do_test_sq_poll_kthread_stopped:Int(do_exit:Boolean) {
     return ret;
 }
 
-fun test_sq_poll_kthread_stopped(do_exit:Boolean):Int{
+int test_sq_poll_kthread_stopped(do_exit:Boolean) {
     pid:pid_t;
     status:Int = 0;
 
@@ -139,7 +139,7 @@ fun test_sq_poll_kthread_stopped(do_exit:Boolean):Int{
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ret:Int;
 
     if (argc > 1)

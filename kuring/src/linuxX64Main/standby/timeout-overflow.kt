@@ -175,7 +175,7 @@ static test_timeout_overflow:Int(void) {
     return 1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ret:Int;
 
     if (argc > 1)

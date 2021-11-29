@@ -116,7 +116,7 @@ static try_sendmsg_async:Int(const:String path) {
     return r;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     r:Int;
     char tmpdir[] = "/tmp/tmp.XXXXXX";
     rcv_sock:Int;

@@ -15,7 +15,7 @@
 #define BUF_SIZE 4096
 #define FILE_SIZE 1024
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ret:Int, fd, save_errno;
     ring:io_uring;
     sqe:CPointer<io_uring_sqe>;

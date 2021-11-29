@@ -102,7 +102,7 @@ static wait_nr:Int(nr:Int) {
 }
 
 staticlong :ULongmtime_sinceconst s:CPointer<timeval>,
-                                      const e:CPointer<timeval>) {
+        const e:CPointer<timeval>) {
     :Longsec usec;
 
     sec = e.pointed.tv_sec  - s.pointed.tv_sec ;
@@ -210,7 +210,7 @@ static test_reuse:Int(argc:Int, argv:CPointer<ByteVar>[], split:Int, async:Int) 
 
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ret:Int, i;
 
     for (i in 0 until  4) {

@@ -95,7 +95,7 @@ static add_polls:Int(ring:CPointer<io_uring>, fd:Int, nr:Int) {
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     p:io_uring_params = {};
     pipe1:Int[2];

@@ -67,7 +67,7 @@ static do_io:CPointer<ByteVar> (data:CPointer<ByteVar> ) {
     return NULL;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     fname:String;
     thread:pthread_t;

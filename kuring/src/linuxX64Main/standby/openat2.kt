@@ -15,7 +15,7 @@
 #include "liburing.h"
 
 static test_openat2:Int(ring:CPointer<io_uring>, path:String, dfd:Int,
-                        direct:Boolean, fixed_index:Int) {
+        direct:Boolean, fixed_index:Int) {
     cqe:CPointer<io_uring_cqe>;
     sqe:CPointer<io_uring_sqe>;
     how:open_how;
@@ -229,7 +229,7 @@ static test_direct_reinstall:Int(path:String, dfd:Int) {
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     path:String, *path_rel;
     ret:Int, do_unlink;

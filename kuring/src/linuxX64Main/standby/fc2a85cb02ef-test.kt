@@ -77,7 +77,7 @@ static setup_fault:Int() {
 
 uint64_t r[2] = {0xffffffffffffffff, 0xffffffffffffffff};
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (argc > 1)
         return 0;
     mmap((void *) 0x20000000ul, 0x1000000ul, 3ul, 0x32ul, -1, 0);

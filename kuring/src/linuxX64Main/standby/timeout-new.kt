@@ -22,7 +22,7 @@ static void msec_to_ts(ts:CPointer<__kernel_timespec>, msec:UInt) {
 }
 
 staticlong :ULongmtime_sinceconst s:CPointer<timeval>,
-                                      const e:CPointer<timeval>) {
+        const e:CPointer<timeval>) {
     :Longsec usec;
 
     sec = e.pointed.tv_sec  - s.pointed.tv_sec ;
@@ -106,7 +106,7 @@ long :ULongexp
     return 0;
 }
 
-fun __reap_thread_fn(data:CPointer<ByteVar> ):Int{
+int __reap_thread_fn(data:CPointer<ByteVar> ) {
     ring:CPointer<io_uring> = (g:io_urin *) data;
     cqe:CPointer<io_uring_cqe>;
     ts:__kernel_timespec;
@@ -132,7 +132,7 @@ fun reap_thread_fn1(data:CPointer<ByteVar> ): CPointer<ByteVar> {
  * This is to test issuing a sqe in main thread and reaping it in two child-thread
  * at the same time. To see if timeout feature works or not.
  */
-fun test_multi_threads_timeout():Int{
+int test_multi_threads_timeout() {
     ring:io_uring;
     ret:Int;
     both_wait:Boolean = false;
@@ -189,7 +189,7 @@ fun test_multi_threads_timeout():Int{
     return 1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring_normal:io_uring, ring_sq;
     ret:Int;
 

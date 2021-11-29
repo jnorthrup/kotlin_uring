@@ -142,7 +142,7 @@ static rcv:CPointer<ByteVar> (arg:CPointer<ByteVar> ) {
                 else {
                     i:Int;
 
-                    for (i in 0 until  cqe.pointed.res ) {
+                    for (i in 0 until cqe.pointed.res ) {
                         if (buff[i] != expected_byte) {
                             fprintf(stderr,
                                     "Received %d, wanted %d\n",
@@ -272,7 +272,7 @@ static snd:CPointer<ByteVar> (arg:CPointer<ByteVar> ) {
     return NULL;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     p:params;
     t1:pthread_t, t2;
     res1:CPointer<ByteVar> , *res2;

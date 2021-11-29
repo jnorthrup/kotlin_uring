@@ -90,7 +90,7 @@ static test_open_write:Int(ring:CPointer<io_uring>, dfd:Int, fn:String) {
     return do_write(ring, fd, 1ULL << 32);
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     dfd:Int, ret;
 

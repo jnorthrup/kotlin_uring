@@ -127,10 +127,10 @@ static init_splice_ctx:Int(ctx:CPointer<test_ctx>) {
 }
 
 static do_splice_op:Int(ring:CPointer<io_uring>,
-                        fd_in:Int, off_in:loff_t,
-                        fd_out:Int, off_out:loff_t,
-                        len:UInt,
-                        __u8 opcode) {
+        fd_in:Int, off_in:loff_t,
+        fd_out:Int, off_out:loff_t,
+        len:UInt,
+        __u8 opcode) {
     cqe:CPointer<io_uring_cqe>;
     sqe:CPointer<io_uring_sqe>;
     ret:Int = -1;
@@ -176,15 +176,15 @@ static do_splice_op:Int(ring:CPointer<io_uring>,
 }
 
 static do_splice:Int(ring:CPointer<io_uring>,
-                     fd_in:Int, off_in:loff_t,
-                     fd_out:Int, off_out:loff_t,
-                     len:UInt) {
+        fd_in:Int, off_in:loff_t,
+        fd_out:Int, off_out:loff_t,
+        len:UInt) {
     return do_splice_op(ring, fd_in, off_in, fd_out, off_out, len,
                         IORING_OP_SPLICE);
 }
 
 static do_tee:Int(ring:CPointer<io_uring>, fd_in:Int, fd_out:Int,
-                  len:UInt) {
+        len:UInt) {
     return do_splice_op(ring, fd_in, 0, fd_out, 0, len, IORING_OP_TEE);
 }
 
@@ -420,7 +420,7 @@ static test_splice:Int(ring:CPointer<io_uring>, x:test_ct *ctx) {
     return 0;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     p:io_uring_params = {};
     ctx:test_ctx;

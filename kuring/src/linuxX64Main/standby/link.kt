@@ -422,7 +422,7 @@ static test_early_fail_and_wait:Int(void) {
     return 1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring, poll_ring;
     ret:Int;
 

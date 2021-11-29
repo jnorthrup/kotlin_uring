@@ -30,7 +30,7 @@ static t:CPointer<ByteVar> (data:CPointer<ByteVar> ) {
     return NULL;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     static char buf[BUFSIZE];
     ring:io_uring;
     thread:pthread_t;

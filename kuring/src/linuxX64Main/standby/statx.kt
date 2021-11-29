@@ -19,7 +19,7 @@
 #ifdef __NR_statx
 
 static do_statx:Int(dfd:Int, path:String, flags:Int, unsigned mask,
-                    statxbuf:CPointer<statx>) {
+        statxbuf:CPointer<statx>) {
     return syscall(__NR_statx, dfd, path, flags, mask, statxbuf);
 }
 
@@ -125,7 +125,7 @@ static test_statx_fd:Int(ring:CPointer<io_uring>, path:String) {
     return -1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     fname:String;
     ret:Int;

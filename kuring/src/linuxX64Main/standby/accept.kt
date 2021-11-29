@@ -404,7 +404,7 @@ static test_accept_sqpoll:Int(void) {
     return ret;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ret:Int;
 
     if (argc > 1)

@@ -558,7 +558,7 @@ static test_restrictions_rings_disabled:Int(void) {
     return TEST_OK;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ret:Int;
 
     if (argc > 1)

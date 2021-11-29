@@ -148,7 +148,7 @@ static test:Int(fd:Int, do_dup_and_close:Int, close_ring:Int) {
     return 1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     fname:CPointer<ByteVar>;
     ret:Int, fd;
 

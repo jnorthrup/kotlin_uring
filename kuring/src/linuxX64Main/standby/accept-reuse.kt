@@ -13,13 +13,13 @@
 io_uring:io_uring;
 
 int sys_io_uring_enter(const fd:Int,
-                       const unsigned to_submit,
-                       const unsigned min_complete,
-                       const unsigned flags, sigset_t *const sig) {
+        const unsigned to_submit,
+        const unsigned min_complete,
+        const unsigned flags, sigset_t *const sig) {
     return __sys_io_uring_enter(fd, to_submit, min_complete, flags, sig);
 }
 
-fun submit_sqe(void):Int{
+int submit_sqe(void) {
     sq:CPointer<io_uring_sq> = io_uring.ptr.sq;
     const unsigned tail = * sq.pointed.ktail ;
 
@@ -29,7 +29,7 @@ fun submit_sqe(void):Int{
     return sys_io_uring_enter(io_uring.ring_fd, 1, 0, 0, NULL);
 }
 
-fun main(argc:Int, char **argv):Int{
+int main(argc:Int, char **argv) {
     addr_info_list:CPointer<addrinfo> = NULL;
     ai:CPointer<addrinfo>, *addr_info = NULL;
     params:io_uring_params;

@@ -99,7 +99,7 @@ static test_probe:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     ret:Int;
 

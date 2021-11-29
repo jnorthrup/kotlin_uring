@@ -28,7 +28,7 @@ static char str[] = "This is a test of sendmsg and recvmsg over io_uring!";
 #define MAX_IOV_COUNT    10
 
 static recv_prep:Int(ring:CPointer<io_uring>, iov:iovec[], iov_count:Int,
-                     bgid:Int) {
+        bgid:Int) {
     saddr:sockaddr_in;
     msg:msghdr;
     sqe:CPointer<io_uring_sqe>;
@@ -95,7 +95,7 @@ a:recv_dat {
 };
 
 static do_recvmsg:Int(ring:CPointer<io_uring>, char buf[MAX_MSG + 1],
-                      rd:CPointer<recv_data>) {
+        rd:CPointer<recv_data>) {
     cqe:CPointer<io_uring_cqe>;
     ret:Int;
 
@@ -138,7 +138,7 @@ static do_recvmsg:Int(ring:CPointer<io_uring>, char buf[MAX_MSG + 1],
 }
 
 static void init_iov(iov:iovec[MAX_IOV_COUNT], iov_to_use:Int,
-                     char buf[MAX_MSG + 1]) {
+        char buf[MAX_MSG + 1]) {
     i:Int, last_idx = iov_to_use - 1;
 
     assert(0 < iov_to_use && iov_to_use <= MAX_IOV_COUNT);
@@ -304,7 +304,7 @@ static test:Int(buf_select:Int, no_buf_add:Int, iov_count:Int) {
     return ret;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ret:Int;
 
     if (argc > 1)

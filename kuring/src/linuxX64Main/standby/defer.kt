@@ -59,7 +59,7 @@ static wait_cqes:Int(ctx:CPointer<test_context>) {
     ret:Int, i;
     cqe:CPointer<io_uring_cqe>;
 
-    for (i in 0 until  ctx.pointed.nr ) {
+    for (i in 0 until ctx.pointed.nr ) {
         ret = io_uring_wait_cqe( ctx.pointed.ring , cqe.ptr);
 
         if (ret < 0) {
@@ -232,7 +232,7 @@ static test_dropped_hung:Int(ring:CPointer<io_uring>) {
     return run_drained(ring, nr);
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring, poll_ring, sqthread_ring;
     p:io_uring_params;
     ret:Int;

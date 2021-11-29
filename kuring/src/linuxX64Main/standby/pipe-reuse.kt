@@ -13,7 +13,7 @@
 #define BUFSIZE    16384
 #define BUFFERS    16
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     char buf[BUFSIZE], wbuf[BUFSIZE];
     iov:iovec[BUFFERS];
     p:io_uring_params = {};

@@ -4,9 +4,11 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 #include <assert.h>
 #include <pthread.h>
 #include <sys/socket.h>
+#include <netinet/tcp.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <arpa/inet.h>
@@ -26,7 +28,7 @@ static void signal_var(int *var) {
     pthread_mutex_unlock(mutex.ptr);
 }
 
-static void wait_for_var(const int *var) {
+static void wait_for_var(int *var) {
     pthread_mutex_lock(mutex.ptr);
 
     while (!*var)
@@ -91,7 +93,7 @@ fun recv_thread(arg:CPointer<ByteVar> ): CPointer<ByteVar> {
 
     i = 0;
     do {
- data.pointed.port  = htons(1025 + rand() % 64510);
+ data.pointed.port  = htons(1025 + (rand() % 64510));
         addr.sin_port = data.pointed.port ;
 
         if (bind(s0, (r:sockadd *) addr.ptr, sizeof(addr)) != -1)
@@ -202,7 +204,7 @@ static test_poll_timeout:Int(do_connect:Int,long :ULongtimeout {
     return ret;
 }
 
-fun main(argc:Int, __attribute__((unused)) argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (argc > 1)
         return 0;
 

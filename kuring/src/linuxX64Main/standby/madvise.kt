@@ -21,7 +21,7 @@
 #define MIN_LOOPS    10
 
 staticlong :ULongutime_sinceconst s:CPointer<timeval>,
-                                      const e:CPointer<timeval>) {
+        const e:CPointer<timeval>) {
     :Longsec usec;
 
     sec = e.pointed.tv_sec  - s.pointed.tv_sec ;
@@ -144,7 +144,7 @@ long :ULongcached_read uncached_read, cached_read2;
     return 2;
 }
 
-fun main(argc:Int, argv:CPointer<ByteVar>[]):Int{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
     ret:Int, i, good, bad;
     fname:CPointer<ByteVar>;
