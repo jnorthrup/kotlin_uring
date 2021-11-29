@@ -1,4 +1,4 @@
-package simple.simple
+package simple
 
 object CZero {
 // @formatter:off

@@ -3,13 +3,7 @@ plugins {
 }
 kotlin {
     linuxX64 {
-        val main by compilations.getting {
-            compilations["main"].cinterops {
-                create("native") {
-                    defFile = project.file("src/nativeInterop/cinterop/linux_uring.def")
-                }
-            }
-        };
+
         binaries {
 
             "fixedlink".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.$it" }}
@@ -18,9 +12,16 @@ kotlin {
             "link".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" }}
             "register".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" }}
             "teardown".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" }}
-//            "update".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" }}
+            "update".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" }}
             "timeout".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
             "uring_cat".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "linux_uring.cat_file" } }
         }
+        val main by compilations.getting {
+        compilations["main"].cinterops {
+            create("native") {
+                defFile = project.file("src/nativeInterop/cinterop/linux_uring.def")
+            }
+        }
+    };
     }
 }
