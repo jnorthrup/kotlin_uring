@@ -1,0 +1,6 @@
+*.klib
+gradle
+build
+gradlew*
+.idea
+.gradle
