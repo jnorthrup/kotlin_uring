@@ -1,0 +1,142 @@
+group 'com.vsiwest'
+version getDeployVersion()
+
+dokka {
+    multiplatform {
+        global {
+            perPackageOption {
+                prefix = project.group
+            }
+        }
+        common {}
+        jvm {}
+        register("native") {
+            platform = "native"
+            sourceRoot {
+                path = kotlin.sourceSets.nativeMain.kotlin.srcDirs[0]
+            }
+            sourceRoot {
+                path = kotlin.sourceSets.commonMain.kotlin.srcDirs[0]
+            }
+        }
+    }
+}
+
+def getDeployVersion() {
+    return project.findProperty('DEPLOY_VERSION') ?: "0.0.0.0"
+}
+
+def isReleaseBuild() {
+    return getDeployVersion().contains('SNAPSHOT') == false
+}
+
+def getReleaseRepositoryUrl() {
+    return hasProperty('RELEASE_REPOSITORY_URL') ? RELEASE_REPOSITORY_URL :
+            'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+}
+
+def getSnapshotRepositoryUrl() {
+    return hasProperty('SNAPSHOT_REPOSITORY_URL') ? SNAPSHOT_REPOSITORY_URL :
+            'https://oss.sonatype.org/content/repositories/snapshots/'
+}
+
+def getRepositoryUsername() {
+    return System.getenv('SONATYPE_USERNAME') ?: ''
+}
+
+def getRepositoryPassword() {
+    return System.getenv('SONATYPE_PASSWORD') ?: ''
+}
+
+task javadocsJar(type: Jar, dependsOn: dokka) {
+    classifier = 'javadoc'
+    from dokka.outputDirectory
+}
+
+publishing {
+    publications {
+        all {
+            artifact javadocsJar
+            groupId = group
+            version getDeployVersion()
+            pom.withXml {
+                def root = asNode()
+                root.children().last() + {
+                    resolveStrategy = Closure.DELEGATE_FIRST
+
+                    description 'Native coroutine-based workers'
+                    name project.name
+                    url 'https://gitlab.com/jnorthrup1/kuring'
+                    licenses {
+                        license {
+                            name 'The Apache Software License, Version 2.0'
+                            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                            distribution 'repo'
+                        }
+                    }
+                    scm {
+                        url 'https://gitlab.com/jnorthrup1/kuring'
+                        connection 'scm:git:git://gitlab.com/jnorthrup1/kuring.git'
+                        developerConnection 'scm:git:ssh://git@gitlab.com/jnorthrup1/kuring.git'
+                    }
+                    developers {
+                        developer {
+                            id 'autodesk'
+                            name 'Autodesk'
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            url isReleaseBuild() ? getReleaseRepositoryUrl() : getSnapshotRepositoryUrl()
+            credentials {
+                username getRepositoryUsername()
+                password getRepositoryPassword()
+            }
+        }
+    }
+}
+
+signing {
+    required { isReleaseBuild() }
+    def signingKeyId = System.getenv("SIGNING_KEYID")
+    def signingKey = System.getenv("SIGNING_KEY")
+    def signingPassword = System.getenv("SIGNING_PASSWORD")
+    useInMemoryPgpKeys(signingKeyId, signingKey, signingPassword)
+    sign(publishing.publications)
+}
+
+/*
+tasks.register('publishMac') {
+    dependsOn 'publishIosArm64PublicationToMavenRepository'
+    dependsOn 'publishIosArm32PublicationToMavenRepository'
+    dependsOn 'publishIosSimulatorArm64PublicationToMavenRepository'
+    dependsOn 'publishIosX64PublicationToMavenRepository'
+    dependsOn 'publishJsPublicationToMavenRepository'
+    dependsOn 'publishJvmPublicationToMavenRepository'
+    dependsOn 'publishKotlinMultiplatformPublicationToMavenRepository'
+    dependsOn 'publishMacosArm64PublicationToMavenRepository'
+    dependsOn 'publishMacosX64PublicationToMavenRepository'
+    dependsOn 'publishTvosArm64PublicationToMavenRepository'
+    dependsOn 'publishTvosSimulatorArm64PublicationToMavenRepository'
+    dependsOn 'publishTvosX64PublicationToMavenRepository'
+    dependsOn 'publishWatchosArm32PublicationToMavenRepository'
+    dependsOn 'publishWatchosArm64PublicationToMavenRepository'
+    dependsOn 'publishWatchosSimulatorArm64PublicationToMavenRepository'
+    // waiting on https://gitlab.com/Kotlin/kotlinx.coroutines/pull/2679
+    //dependsOn 'publishWatchosX64PublicationToMavenRepository'
+    dependsOn 'publishWatchosX86PublicationToMavenRepository'
+}
+
+tasks.register('publishWindows') {
+    dependsOn 'publishMingwX64PublicationToMavenRepository'
+}
+*/
+
+tasks.register('publishLinux') {
+    dependsOn 'publishLinuxX64PublicationToMavenRepository'
+}

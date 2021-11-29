@@ -1,10 +1,8 @@
 
 rootProject.let {
-    it.name = "kuring"
-/*
-    it.group = "columnar"
-    it.version = "1.0.2-SNAPSHOT"
-*/
+    it.name = rootDir.name
+//    it.group = "com.vsiwest"
+//    it.version = "1.0.2-SNAPSHOT"
 
 }
 pluginManagement {
