@@ -1,28 +1,26 @@
-package  aaaa
-
 /* SPDX-License-Identifier: MIT */
 /*
  * Description: test many files being polled for and updated
  *
  */
-//#include <errno.h>
-//#include <stdio.h>
-//#include <unistd.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <signal.h>
-//#include <sys/poll.h>
-//#include <sys/resource.h>
-//#include <fcntl.h>
-//#include <pthread.h>
-//
-//#include "liburing.h"
+#include <errno.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <signal.h>
+#include <sys/poll.h>
+#include <sys/resource.h>
+#include <fcntl.h>
+#include <pthread.h>
 
-#define	NFILES	5000
-#define BATCH	500
-#define NLOOPS	1000
+#include "liburing.h"
 
-#define RING_SIZE	512
+#define    NFILES    5000
+#define BATCH    500
+#define NLOOPS    1000
+
+#define RING_SIZE    512
 
 struct p {
     fd:Int[2];
@@ -31,8 +29,7 @@ struct p {
 
 static p:p[NFILES];
 
-static has_poll_update:Int(void)
-{
+static has_poll_update:Int(void) {
     ring:io_uring;
     cqe:CPointer<io_uring_cqe>;
     sqe:CPointer<io_uring_sqe>;
@@ -62,8 +59,7 @@ static has_poll_update:Int(void)
     return has_update;
 }
 
-static arm_poll:Int(ring:CPointer<io_uring>, off:Int)
-{
+static arm_poll:Int(ring:CPointer<io_uring>, off:Int) {
     sqe:CPointer<io_uring_sqe>;
 
     sqe = io_uring_get_sqe(ring);
@@ -77,8 +73,7 @@ static arm_poll:Int(ring:CPointer<io_uring>, off:Int)
     return 0;
 }
 
-static reap_polls:Int(ring:CPointer<io_uring>)
-{
+static reap_polls:Int(ring:CPointer<io_uring>) {
     cqe:CPointer<io_uring_cqe>;
     i:Int, ret, off;
     char c;
@@ -88,7 +83,7 @@ static reap_polls:Int(ring:CPointer<io_uring>)
 
         sqe = io_uring_get_sqe(ring);
         /* update event */
-        io_uring_prep_poll_update(sqe, (void *)(unsigned long)i, NULL,
+        io_uring_prep_poll_update(sqe, (void *) (unsigned long) i, NULL,
             POLLIN, IORING_POLL_UPDATE_EVENTS);
         sqe.pointed.user_data  = 0x12345678;
     }
@@ -127,8 +122,7 @@ static reap_polls:Int(ring:CPointer<io_uring>)
     return 0;
 }
 
-static trigger_polls:Int(void)
-{
+static trigger_polls:Int(void) {
     char c = 89;
     i:Int, ret;
 
@@ -152,14 +146,12 @@ static trigger_polls:Int(void)
     return 0;
 }
 
-static trigger_polls_fn:CPointer<ByteVar> (data:CPointer<ByteVar> )
-{
+static trigger_polls_fn:CPointer<ByteVar> (data:CPointer<ByteVar> ) {
     trigger_polls();
     return NULL;
 }
 
-static arm_polls:Int(ring:CPointer<io_uring>)
-{
+static arm_polls:Int(ring:CPointer<io_uring>) {
     ret:Int, to_arm = NFILES, i, off;
 
     off = 0;
@@ -189,10 +181,9 @@ static arm_polls:Int(ring:CPointer<io_uring>)
     return 0;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[])
-{
+int main(argc:Int, argv:CPointer<ByteVar>[]) {
     ring:io_uring;
-    params:io_uring_params = { };
+    params:io_uring_params = {};
     rlim:rlimit;
     thread:pthread_t;
     i:Int, j, ret;
