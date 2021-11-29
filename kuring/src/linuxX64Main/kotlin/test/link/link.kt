@@ -1,6 +1,5 @@
 package test.link
 
-
 import kotlinx.cinterop.*
 import linux_uring.*
 import platform.posix.NULL
@@ -8,8 +7,8 @@ import platform.posix.__s32
 import platform.posix.fprintf
 import platform.posix.iovec
 import platform.posix.stderr
+import simple.CZero.z
 import simple.HasPosixErr
-import simple.simple.CZero.z
 import kotlin.native.internal.NativePtr
 import linux_uring.printf as linux_uringPrintf
 
@@ -73,7 +72,6 @@ fun test_single_hardlink(ring: CPointer<io_uring>): Int = nativeHeap.run {
                 }
                 HasPosixErr.posixFailOn(cqe.pointed.pointed!!.user_data == 1UL && cqe.pointed.pointed!!.res != -platform.posix.ETIME) {
                     fprintf(stderr, "timeout failed with %d\n", cqe.pointed.pointed!!.res)
-
                 }
                 HasPosixErr.posixFailOn(cqe.pointed.pointed!!.user_data == 2UL && 0 != cqe.pointed.pointed!!.res) {
                     fprintf(stderr, "nop failed with %d\n", cqe.pointed.pointed!!.res)
@@ -132,7 +130,6 @@ fun test_double_hardlink(ring: CPointer<io_uring>): Int = nativeHeap.run {
             fprintf(stderr, "nop failed with %d\n", cqe.pointed?.res as __s32)
         }
         io_uring_cqe_seen(ring, cqe.value)
-
     }
     return 0
 }
@@ -158,11 +155,8 @@ fun test_single_link_fail(ring: CPointer<io_uring>): Int = nativeHeap.run {
     HasPosixErr.posixFailOn(ret <= 0) { "sqe submit failed: " + ret }
     val cqe: CPointerVar<io_uring_cqe> = alloc()
 
-
     for (i in 0 until 2/*; i++*/) {
         ret = io_uring_peek_cqe(ring, cqe.ptr)
-
-
 
         HasPosixErr.posixFailOn(ret < 0) {
             linux_uringPrintf("wait completion %d\n", ret)
@@ -186,7 +180,6 @@ fun test_double_chain(ring: CPointer<io_uring>): Int = nativeHeap.run {
     var ret: Int
 
     var sqe = io_uring_get_sqe(ring)!!
-
 
     io_uring_prep_nop(sqe)
     sqe.pointed.flags = sqe.pointed.flags.plus(IOSQE_IO_LINK).toUByte()
@@ -226,10 +219,7 @@ fun test_double_chain(ring: CPointer<io_uring>): Int = nativeHeap.run {
  */
 fun test_double_link(ring: CPointer<io_uring>): Int = nativeHeap.run {
 
-
     var sqe = io_uring_get_sqe(ring)!!
-
-
 
     io_uring_prep_nop(sqe)
     sqe.pointed.flags = sqe.pointed.flags.plus(IOSQE_IO_LINK).toUByte()
@@ -262,12 +252,10 @@ fun test_single_link(ring: CPointer<io_uring>): Int = nativeHeap.run {
 
     var sqe = io_uring_get_sqe(ring)!!
 
-
     io_uring_prep_nop(sqe)
     sqe.pointed.flags = sqe.pointed.flags.plus(IOSQE_IO_LINK).toUByte()
 
     sqe = io_uring_get_sqe(ring)!!
-
 
     io_uring_prep_nop(sqe)
 
@@ -295,10 +283,12 @@ fun test_early_fail_and_wait(): Int = nativeHeap.run {
 //        iov_base = NULL
 //        iov_len = 0.toULong()
 //    }
-    val iov = (alloc<iovec> {
-        iov_base = NULL
-        iov_len = 0.toULong()
-    }).ptr
+    val iov = (
+            alloc<iovec> {
+                iov_base = NULL
+                iov_len = 0.toULong()
+            }
+            ).ptr
     val ring: io_uring = alloc<io_uring>()
     /* create a new ring as it leaves it dirty */
     var ret = io_uring_queue_init(8, ring.ptr, 0)
@@ -355,7 +345,7 @@ fun main(): Unit = nativeHeap.run {
         ("test_double_chain failed\n")
     }
     read_barrier()
-    if (true) {//we see some NPE's from io_uring so ... defer
+    if (true) { // we see some NPE's from io_uring so ... defer
         ret = test_single_link_fail(poll_ring.ptr)
         HasPosixErr.posixRequires(ret.z) {
             ("test_single_link_fail failed\n")

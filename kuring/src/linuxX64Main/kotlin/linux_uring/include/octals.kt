@@ -2,7 +2,6 @@ package linux_uring.include
 
 import kotlin.math.pow
 
-
 /**
 >>> 64.toOctal()
 res87: kotlin.Int = 100

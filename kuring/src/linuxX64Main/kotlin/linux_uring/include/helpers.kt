@@ -23,24 +23,24 @@ import platform.posix.stderr
 import platform.posix.stdout
 import platform.posix.strerror
 import platform.posix.write
-import simple.simple.CZero.nz
+import simple.CZero.nz
 
-//import test.update.p
+// import test.update.p
 
 /* SPDX-License-Identifier: MIT */
 /*
  * Description: Helpers for tests.
  */
-//#include <stdlib.h>
-//#include <assert.h>
-//#include <string.h>
-//#include <stdio.h>
-//#include <fcntl.h>
-//#include <unistd.h>
-//#include <sys/types.h>
+// #include <stdlib.h>
+// #include <assert.h>
+// #include <string.h>
+// #include <stdio.h>
+// #include <fcntl.h>
+// #include <unistd.h>
+// #include <sys/types.h>
 //
-//#include "helpers.h"
-//#include "liburing.h"
+// #include "helpers.h"
+// #include "liburing.h"
 
 /*
  * Helper for allocating memory in tests.
@@ -71,8 +71,7 @@ fun t_calloc(nmemb: size_t, size: size_t): CPointer<ByteVar> {
 /*
  * Helper for creating file and write @size byte buf with 0xaa value in the file.
  */
-fun t_create_file(file: String, size: size_t): Unit {
-
+fun t_create_file(file: String, size: size_t) {
 
     val buf = t_malloc(size)
     memset(buf, 0xaa, size)
@@ -94,12 +93,11 @@ fun t_create_buffers(buf_num: size_t, buf_size: size_t): CPointer<iovec> {
 
     val calloc = calloc(buf_num, sizeOf<iovec>().toULong())
     val vec = calloc!!.reinterpret<iovec>()
-    repeat(buf_num.toInt()){i->
+    repeat(buf_num.toInt()) { i ->
         vec[i].iov_base = memalign(buf_size, buf_size)
-        vec[i].iov_len=buf_size
+        vec[i].iov_len = buf_size
     }
     return vec
-
 }
 
 /*
@@ -107,7 +105,6 @@ fun t_create_buffers(buf_num: size_t, buf_size: size_t): CPointer<iovec> {
  * allowed to.
  */
 fun t_create_ring_params(depth: Int, ring: CPointer<io_uring>, p: CPointer<io_uring_params>): t_setup_ret {
-
 
     val ret = io_uring_queue_init_params(depth.toUInt(), ring, p)
     if (!ret.nz)
@@ -147,5 +144,4 @@ fun t_register_buffers(ring: CPointer<io_uring>, iovecs: CValuesRef<linux_uring.
             return ret.toUInt()
         }
     }
-
 }

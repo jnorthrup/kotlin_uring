@@ -1,12 +1,8 @@
 
-rootProject.let {
-    it.name = "kuring"
-/*
-    it.group = "columnar"
-    it.version = "1.0.2-SNAPSHOT"
-*/
-
-}
+//    it.group = "com.vsiwest"
+//    it.version = "1.0.2-SNAPSHOT"
+ /*enableFeaturePreview("GRADLE_METADATA")*/
+rootProject.name = rootDir.name
 pluginManagement {
     repositories {
         mavenCentral()
@@ -16,12 +12,16 @@ pluginManagement {
 //        includeBuild("buildsrc")
 }
 dependencyResolutionManagement {
-    repositories { mavenCentral() }
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+        google()
+    }
 //    includeBuild("../somethingelse")
 }
 
 
 include(*(rootDir.listFiles()
-.filter(File::isDirectory)
 .filter { !it.isHidden }
+.filter(File::isDirectory)
 .map(File::getName)-"buildSrc"-"gradle"-"build").toTypedArray())

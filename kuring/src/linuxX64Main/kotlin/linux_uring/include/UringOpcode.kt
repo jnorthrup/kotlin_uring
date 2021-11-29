@@ -4,7 +4,6 @@ package linux_uring.include
 
 import linux_uring.*
 
-
 /**
 io_uring_enter() is used to initiate and complete I/O using the shared submission and completion queues setup by a cal
 l to io_uring_setup(2). A single call can both submit new I/O and wait for completions of I/O initiated by this call or
@@ -180,7 +179,7 @@ enum class UringOpcode(val opConstant: UInt) {
     Op_Epoll_ctl(IORING_OP_EPOLL_CTL),
 
     /** Issue the equivalent of a sync_file_range (2) on the file descriptor.
-     * @param  fd field is the file descriptor to sync,
+     * @param fd field is the file descriptor to sync,
      * @param off field holds the offset in bytes
      * @param len field holds the length in bytes
      * @param sync_range_flags field holds the flags for the command.
@@ -192,8 +191,8 @@ enum class UringOpcode(val opConstant: UInt) {
     /**Issue the equivalent of a sendmsg(2)system call
      * @param fd mustbe set to the socket file descriptor
      * @param addr must contain a pointer to the msghdr structure
-     * @param  msg_flags holds the flags associated with the system call.
-     * @see  sendmsg(2) for the general description of the related system call.
+     * @param msg_flags holds the flags associated with the system call.
+     * @see sendmsg(2) for the general description of the related system call.
      * @since 5.3.
      */
     Op_Sendmsg(IORING_OP_SENDMSG),
@@ -239,7 +238,6 @@ enum class UringOpcode(val opConstant: UInt) {
      */
     Op_Timeout(IORING_OP_TIMEOUT),
 
-
     /**If set, the n the clocksource used is `CLOCK_BOOTTIME` instead of CLOCK_MONOTONIC. This clocksource differs in
      * that it includes time elapsed if the system was suspend while having a timeout request in-flight.*/
     TiMEout_boottime(IORING_TIMEOUT_BOOTTIME),
@@ -263,7 +261,7 @@ enum class UringOpcode(val opConstant: UInt) {
      * not a relative one.
      *
      * @since 5.11.
-     * @param   timeout_flags if  zero, then it attempts to remove an existing timeout operation
+     * @param timeout_flags if  zero, then it attempts to remove an existing timeout operation
      * @param addr must contain the  user_datafield of the previously issued timeout operation. */
     Op_Timeout_remove(IORING_OP_TIMEOUT_REMOVE),
 
@@ -274,11 +272,11 @@ enum class UringOpcode(val opConstant: UInt) {
      *  at thisindex, the request will fail with `-EBADF` .Only io_uring has access to such files and no other syscall
      *  can use them. See `IOSQE_FIXED_FILE` and `IORING_REGISTER_FILES`
      *
-     * @param  fd must be set to the socket file descriptor
+     * @param fd must be set to the socket file descriptor
      * @param addr must contain the pointer to the sockaddr structure
      * @param addr2 must contain a pointer to the socklen_t addrlen field.
      * @param accept_flagsfield Flags can be passed
-     * @see  accept4(2) for the general description of the related system call.
+     * @see accept4(2) for the general description of the related system call.
      * @since 5.15.
      */
     Op_Accept(IORING_OP_ACCEPT),
@@ -322,7 +320,7 @@ enum class UringOpcode(val opConstant: UInt) {
 
     /** Issue the equivalent of a posix_fadvise(2) system call
      * @param fd mustbe set to the file descriptor
-     * @param  off  must contain the offset on which to operate
+     * @param off  must contain the offset on which to operate
      * @param len must contain the length
      * @param fadv ise_advice must contain the advice associated with the operation.
      * @see posix_fadvise(2) for the general description of the related system call.
@@ -359,7 +357,7 @@ enum class UringOpcode(val opConstant: UInt) {
      *
      * @since 5.6.
      *
-     * @exception  EBADF*-1  If there is already a file registered at this index, the request will fail
+     * @exception EBADF*-1  If there is already a file registered at this index, the request will fail
      * @see IOSQE_FIXED_FILE and
      * @see IORING_REGISTER_FILES
      * @since 5.15
@@ -376,7 +374,7 @@ enum class UringOpcode(val opConstant: UInt) {
      * @param addr must contain a pointer to the  pathname argument,
      * @param len should contain the size of the open_how structure
      * @param off should be set to the address of the open_how structure.
-     * @see  openat2  for the general description of the related system call.
+     * @see openat2  for the general description of the related system call.
      * @since 5.6.
      * @param file_index if set to a positive number, the file won't be installed into the normal
      * file table as usual but will be placed into the fixed file table at index `file_index - 1`. In this case,
@@ -459,9 +457,9 @@ enum class UringOpcode(val opConstant: UInt) {
      * @param splice_fd_in is the file descriptor to read from
      * @param fd is the file descriptor to write to
      * @param len contains the number of bytes to copy
-     * @param  splice_flagscontains a bit mask for the
+     * @param splice_flagscontains a bit mask for the
      *  flag field associated with the system call.
-     *@see  tee(2) for the general description of the related system call.
+     *@see tee(2) for the general description of the related system call.
      *
      * @since 5.8.
      */
@@ -510,7 +508,7 @@ enum class UringOpcode(val opConstant: UInt) {
      * @param fd must contain the number of buffers to remove
      * @param buf_group must contain the buffer group ID from which to remove the buffers.
      *
-     * @since  5.7.
+     * @since 5.7.
      */
     Op_Remove_buffers(IORING_OP_REMOVE_BUFFERS),
 
@@ -525,7 +523,7 @@ enum class UringOpcode(val opConstant: UInt) {
      * @param fdshould be set to the old dirfd
      * @param addr should be set to the oldpath
      * @param lenshould be set to thenewdirfd
-     * @param  addrshould be set to theoldpath
+     * @param addrshould be set to theoldpath
      * @param addr2 should be set to thenewpath
      * @param rename_flags should be set to the flagspassed in to renameat2(2).
      * @since 5.11.
@@ -535,7 +533,7 @@ enum class UringOpcode(val opConstant: UInt) {
     /**Issue the equivalent of a unlinkat2(2)system call
      * @param fdshould be set to the dirfd
      * @param addr should be set to the pathname
-     * @param  unlink_flags should be set to the flags being passed in to unlinkat(2).
+     * @param unlink_flags should be set to the flags being passed in to unlinkat(2).
      * @since 5.11.
      */
     Op_Unlinkat(IORING_OP_UNLINKAT),
@@ -549,9 +547,9 @@ enum class UringOpcode(val opConstant: UInt) {
     Op_Mkdirat(IORING_OP_MKDIRAT),
 
     /** Issue the equivalent of a symlinkat2(2) system call.
-     * @param  fd should be set to the new dir fd
+     * @param fd should be set to the new dir fd
      * @param addr should be set to the target
-     * @param  addr2 should be set to the link path being passed in to symlinkat(2).
+     * @param addr2 should be set to the link path being passed in to symlinkat(2).
      * @since 5.15.
      */
     Op_Symlinkat(IORING_OP_SYMLINKAT),
