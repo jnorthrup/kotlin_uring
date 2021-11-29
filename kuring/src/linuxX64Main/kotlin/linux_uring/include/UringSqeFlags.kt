@@ -2,14 +2,14 @@
 
 package linux_uring.include
 
-import linux_uring.IOSQE_FIXED_FILE
 import linux_uring.*
+import linux_uring.IOSQE_FIXED_FILE
 
 /**
 The flagsfield is a bit mask. The supported flags are:
  */
 
-enum class UringSqeFlags(val src:UInt) {
+enum class UringSqeFlags(val src: UInt) {
     /** When this flag is specified, fd is an index into the files array registered with the io_uring instance (see
      * the `IORING_REGISTER_FILES` section of the io_uring_register(2) man page). Note that this isn't always available
      * for all command s. If used on a command that doesn't support fixed files, the `SQE` will error with-EBADF.
@@ -54,8 +54,9 @@ enum class UringSqeFlags(val src:UInt) {
      *  the kernel pool. The application must re-register the given buffer again when it is ready to recycle it (eg has
      *  completed using it).
      *  Available since 5.7. */
-    sqeBuffer_select(IOSQE_BUFFER_SELECT),;
-    val ub get()=src.toUByte()
-    val ul get()=src.toULong()
-    val i get()=src.toInt()
+    sqeBuffer_select(IOSQE_BUFFER_SELECT), ;
+
+    val ub get() = src.toUByte()
+    val ul get() = src.toULong()
+    val i get() = src.toInt()
 }

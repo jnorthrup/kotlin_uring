@@ -1,8 +1,8 @@
 package simple
 
-import platform.posix.*
 import kotlinx.cinterop.*
 import linux_uring.AT_FDCWD
+import platform.posix.*
 import simple.HasPosixErr.Companion.posixRequires
 import simple.HasPosixErr.Companion.reportErr
 import simple.HasPosixErr.Companion.warning
@@ -13,7 +13,8 @@ import platform.posix.open as posix_open
 opens file for syncronous read/write
  */
 class PosixFile(
-    val path: String?, O_FLAGS: Int = O_RDWR or O_SYNC,
+    val path: String?,
+    O_FLAGS: Int = O_RDWR or O_SYNC,
     override val fd: Int = run {
         posix_open(path, O_FLAGS)
     },
@@ -39,7 +40,6 @@ class PosixFile(
         return write.toULong()
     }
 
-
     /**lseek [manpage](https://www.man7.org/linux/man-pages/man2/lseek.2.html) */
     override fun seek(offset: __off_t, whence: Int): ULong {
         val offr: __off_t = lseek(fd, offset, whence)
@@ -56,16 +56,17 @@ class PosixFile(
     ): COpaquePointer? = mmap_base(fd = -1, __len = len, __prot = prot, __flags = flags, __offset = offset)
 
     /** mmap [manpage](https://www.man7.org/linux/man-pages/man2/mmap.2.html) */
-    fun mmap(len: ULong, prot: Int = PROT_READ, flags: Int = MAP_SHARED, offset: off_t = 0L) = mmap_base(fd = fd,
+    fun mmap(len: ULong, prot: Int = PROT_READ, flags: Int = MAP_SHARED, offset: off_t = 0L) = mmap_base(
+        fd = fd,
         __len = len,
         __prot = prot,
         __flags = flags,
-        __offset = offset).reinterpret<CArrayPointerVar<ByteVar>>()
+        __offset = offset
+    ).reinterpret<CArrayPointerVar<ByteVar>>()
 
     /** lseek [manpage](https://www.man7.org/linux/man-pages/man2/leek.2.html) */
     fun at(offset: __off_t, whence: Int) {
         lseek(fd, offset /* = kotlin.Long */, __whence = whence)
-
     }
 
     companion object {
@@ -124,8 +125,6 @@ class PosixFile(
             }
 
             return cPointer!!
-
-
         }
         fun getDirFd(namedDirAndFile: List<String>): Int = if (namedDirAndFile.first().isNullOrEmpty()) {
             AT_FDCWD

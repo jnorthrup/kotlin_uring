@@ -5,9 +5,9 @@ import linux_uring.*
 import linux_uring.include.fromOctal
 import platform.linux.getrlimit
 import platform.linux.setrlimit
-import simple.HasPosixErr
 import simple.CZero.nz
 import simple.CZero.z
+import simple.HasPosixErr
 import linux_uring.pipe as linux_uringPipe
 
 /* SPDX-License-Identifier: MIT */
@@ -15,46 +15,46 @@ import linux_uring.pipe as linux_uringPipe
  * Description: run various file registration tests
  *
  */
-//#include <errno.h>
-//#include <stdio.h>
-//#include <unistd.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <fcntl.h>
-//#include <sys/resource.h>
+// #include <errno.h>
+// #include <stdio.h>
+// #include <unistd.h>
+// #include <stdlib.h>
+// #include <string.h>
+// #include <fcntl.h>
+// #include <sys/resource.h>
 
-//#include "helpers.h"
-//#include "liburing.h"
+// #include "helpers.h"
+// #include "liburing.h"
 
 var no_update: Int = 0
 
 fun close_files(files: IntArray?, nr_files: Int, add: Int) = nativeHeap.run {
-     repeat(nr_files) { i ->
+    repeat(nr_files) { i ->
 
         files?.let {
             val __fd = files[i]
-            if(__fd >2) {
+            if (__fd > 2) {
                 close(__fd)
             }
         }
-        val fname= if (add.z)
+        val fname = if (add.z)
             ".reg.$i"
         else
             ".add.${i + add}"
-        unlink(fname )
+        unlink(fname)
     }
 }
 
 fun open_files(nr_files: Int, extra: Int, add: Int): IntArray {
 
-    val files = IntArray(nr_files+extra)
+    val files = IntArray(nr_files + extra)
 
     for (i in 0 until nr_files) {
-      val __file: String =    if (add.z)
-             (  ".reg.$i" )
+        val __file: String = if (add.z)
+            (".reg.$i")
         else
-             (  ".add.${ i + add}")
-        files[i] = open(__file, O_RDWR or O_CREAT  , 644.fromOctal())
+            (".add.${i + add}")
+        files[i] = open(__file, O_RDWR or O_CREAT, 644.fromOctal())
         if (files[i] < 0) {
             perror("open $__file")
             break
@@ -75,7 +75,6 @@ fun test_shrink(ring: CPointer<io_uring>): Int = nativeHeap.run {
     var ret = io_uring_register_files(ring, files.toCValues(), 50)
     HasPosixErr.posixFailOn(ret.nz) {
         fprintf(stderr, "%s: register ret=%d\n", "test_shrink", ret)
-
     }
 
     var off = 0
@@ -98,9 +97,7 @@ fun test_shrink(ring: CPointer<io_uring>): Int = nativeHeap.run {
 
     close_files(files, 50, 0)
     return 0
-
 }
-
 
 fun test_grow(ring: CPointer<io_uring>): Int {
 //    ret:Int, off;
@@ -200,7 +197,6 @@ fun test_removals(ring: CPointer<io_uring>): Int {
 
     val fds = IntArray(10) { -1 }
 
-
     ret = io_uring_register_files_update(ring, 50, fds.refTo(0), 10)
     HasPosixErr.posixFailOn(ret != 10) {
         fprintf(stderr, "%s: update ret=%d\n", __FUNCTION__, ret)
@@ -253,10 +249,9 @@ fun test_sparse(ring: CPointer<io_uring>): Int {
             if (ret == -EBADF) {
                 fprintf(stdout, "Sparse files not supported\n")
                 no_update = 1
-                break;
+                break
             }
-            HasPosixErr.posixFailOn(ret.nz)
-            {  "$__FUNCTION__: register ret=$ret " }
+            HasPosixErr.posixFailOn(ret.nz) { "$__FUNCTION__: register ret=$ret " }
         }
         ret = io_uring_unregister_files(ring)
         HasPosixErr.posixFailOn(ret.nz) {
@@ -274,7 +269,7 @@ fun test_basic_many(ring: CPointer<io_uring>): Int {
     val files = open_files(768, 0, 0)
     var ret = io_uring_register_files(ring, files.toCValues(), 768)
     HasPosixErr.posixFailOn(ret.nz) {
-         "$__FUNCTION__: register $ret"
+        "$__FUNCTION__: register $ret"
     }
     ret = io_uring_unregister_files(ring)
     HasPosixErr.posixFailOn(ret.nz) {
@@ -298,7 +293,6 @@ fun test_basic(ring: CPointer<io_uring>, fail: Int): Int {
         }
 
         HasPosixErr.posixFailOn(true) { fprintf(stderr, "%s: register %d\n", __FUNCTION__, ret) }
-
     }
     HasPosixErr.posixFailOn(fail.nz) {
         fprintf(stderr, "Registration succeeded, but expected fail\n")
@@ -335,7 +329,6 @@ fun test_zero(ring: CPointer<io_uring>): Int {
         fprintf(stderr, "%s: unregister ret=%d\n", __FUNCTION__, ret)
     }
 
-
     close_files(fds, 1, 1)
     return 0
 }
@@ -370,7 +363,7 @@ fun test_fixed_read_write(ring: CPointer<io_uring>, index: Int): Int = nativeHea
     HasPosixErr.posixFailOn(cqe.value!!.pointed.res != 4096) {
         fprintf(stderr, "%s: write cqe.pointed.res =%d\n", __FUNCTION__, cqe.value!!.pointed.res)
     }
-    io_uring_cqe_seen(ring, cqe.value!!.pointed.ptr )
+    io_uring_cqe_seen(ring, cqe.value!!.pointed.ptr)
     println("cqe succeeded")
     sqe = io_uring_get_sqe(ring)!!
 
@@ -423,20 +416,19 @@ fun test_huge(ring: CPointer<io_uring>): Int {
     val __FUNCTION__ = "test_huge"
     adjust_nfiles(16384)
 
-
     do {
         val files = open_files(0, 8192, 0)
         var ret = io_uring_register_files(ring, files.toCValues(), 8192)
         if (ret.nz) {
             /* huge sets not supported */
-            if(ret == -EMFILE) {
+            if (ret == -EMFILE) {
                 fprintf(stdout, "%s: No huge file set support, skipping\n", __FUNCTION__)
                 break
             }
-           HasPosixErr.posixFailOn(true) { "$__FUNCTION__: register ret=$ret"   }
+            HasPosixErr.posixFailOn(true) { "$__FUNCTION__: register ret=$ret" }
         }
 
-        files[7193] = open(".reg.7193", O_RDWR or O_CREAT,  644.fromOctal())
+        files[7193] = open(".reg.7193", O_RDWR or O_CREAT, 644.fromOctal())
         HasPosixErr.posixFailOn(files[7193] < 0) {
             fprintf(stderr, "%s: open=%d\n", __FUNCTION__, errno)
         }
@@ -465,7 +457,7 @@ fun test_huge(ring: CPointer<io_uring>): Int {
 fun test_skip(ring: CPointer<io_uring>): Int {
 //    int * files
 //    ret:Int
-val __FUNCTION__="test_skip"
+    val __FUNCTION__ = "test_skip"
     val files = open_files(100, 0, 0)
     var ret = io_uring_register_files(ring, files.toCValues(), 100)
     do {
@@ -474,22 +466,22 @@ val __FUNCTION__="test_skip"
         }
 
         files[90] = IORING_REGISTER_FILES_SKIP
-        ret = io_uring_register_files_update(ring, 90, files.sliceArray( 90 until files.size).toCValues(), 1)
+        ret = io_uring_register_files_update(ring, 90, files.sliceArray(90 until files.size).toCValues(), 1)
         if (ret != 1) {
             if (ret == -EBADF) {
                 fprintf(stdout, "Skipping files not supported\n")
                 break
             }
-             HasPosixErr.posixFailOn(true) { fprintf(stderr, "%s: update ret=%d\n", __FUNCTION__, ret) }
+            HasPosixErr.posixFailOn(true) { fprintf(stderr, "%s: update ret=%d\n", __FUNCTION__, ret) }
         }
 
         /* verify can still use file index 90 */
         if (test_fixed_read_write(ring, 90).nz)
-                    ret = io_uring_unregister_files(ring)
+            ret = io_uring_unregister_files(ring)
         if (ret.nz) {
             fprintf(stderr, "%s: unregister ret=%d\n", __FUNCTION__, ret)
         }
-    }while (false)
+    } while (false)
 
 //    done:
     close_files(files, 100, 0)
@@ -499,8 +491,8 @@ val __FUNCTION__="test_skip"
 //    return 1
 }
 
-fun test_sparse_updates(): Int= memScoped{
-val     ring:io_uring=alloc()
+fun test_sparse_updates(): Int = memScoped {
+    val ring: io_uring = alloc()
 //    ret:Int, i, *fds, newfd
 
     var ret = io_uring_queue_init(8, ring.ptr, 0)
@@ -509,7 +501,7 @@ val     ring:io_uring=alloc()
         return ret
     }
 
-    val fds = IntArray(256){-1}
+    val fds = IntArray(256) { -1 }
 
     ret = io_uring_register_files(ring.ptr, fds.refTo(0), 256)
     if (ret.nz) {
@@ -517,8 +509,8 @@ val     ring:io_uring=alloc()
         return ret
     }
 
-    val newfd: IntVarOf<Int> = alloc<IntVar>{value=1}
-    for (i in 0 until  256 ) {
+    val newfd: IntVarOf<Int> = alloc<IntVar> { value = 1 }
+    for (i in 0 until 256) {
         ret = io_uring_register_files_update(ring.ptr, i.toUInt(), newfd.ptr, 1)
         if (ret != 1) {
             fprintf(stderr, "file_update: %d\n", ret)
@@ -527,8 +519,7 @@ val     ring:io_uring=alloc()
     }
     io_uring_unregister_files(ring.ptr)
 
-
-    fds .fill(1)
+    fds.fill(1)
 
     ret = io_uring_register_files(ring.ptr, fds.refTo(0), 256)
     if (ret.nz) {
@@ -536,8 +527,8 @@ val     ring:io_uring=alloc()
         return ret
     }
 
-    newfd .value=-1
-    for (i in 0 until 256 ) {
+    newfd.value = -1
+    for (i in 0 until 256) {
         ret = io_uring_register_files_update(ring.ptr, i.toUInt(), newfd.ptr, 1)
         if (ret != 1) {
             fprintf(stderr, "file_update: %d\n", ret)
@@ -550,11 +541,10 @@ val     ring:io_uring=alloc()
     return 0
 }
 
-fun test_fixed_removal_ordering( ) : Int=memScoped{
-    val buffer=ByteArray(128)
-    val ring:io_uring=alloc()
-    val ts:__kernel_timespec = alloc()
-
+fun test_fixed_removal_ordering(): Int = memScoped {
+    val buffer = ByteArray(128)
+    val ring: io_uring = alloc()
+    val ts: __kernel_timespec = alloc()
 
     var ret = io_uring_queue_init(8, ring.ptr, 0)
     if (ret < 0) {
@@ -563,7 +553,7 @@ fun test_fixed_removal_ordering( ) : Int=memScoped{
     }
 //    val __pipedes = IntArray(2)
 //    val __pipedes1 = __pipedes.refTo(0)
-    val fds=allocArray<IntVar>(2)
+    val fds = allocArray<IntVar>(2)
     val linuxUringpipe = linux_uringPipe(fds)
     if (linuxUringpipe.nz) {
         perror("pipe")
@@ -599,7 +589,7 @@ fun test_fixed_removal_ordering( ) : Int=memScoped{
     }
 
     /* remove unused pipe end */
-    var fd :IntVar =alloc{ value =  -1 }
+    var fd: IntVar = alloc { value = -1 }
     ret = io_uring_register_files_update(ring.ptr, 0, fd.ptr, 1)
     if (ret != 1) {
         fprintf(stderr, "update off=0 failed\n")
@@ -614,9 +604,9 @@ fun test_fixed_removal_ordering( ) : Int=memScoped{
         return -1
     }
 
-    val cqe  =alloc<CPointerVar<io_uring_cqe>>()
-    repeat(2){i->
-        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr )
+    val cqe = alloc<CPointerVar<io_uring_cqe>>()
+    repeat(2) { i ->
+        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr)
         if (ret < 0) {
             fprintf(stderr, "%s: io_uring_wait_cqe=%d\n", "test_fixed_removal_ordering", ret)
             return 1
@@ -628,38 +618,37 @@ fun test_fixed_removal_ordering( ) : Int=memScoped{
     return 0
 }
 
-
 fun main(): Unit = nativeHeap.run {
     val ring: io_uring = alloc()
 
     val __buf = malloc(1024)
-    val getcwd = getcwd(__buf!!.reinterpret() ,1024 )
+    val getcwd = getcwd(__buf!!.reinterpret(), 1024)
     println("cwd: ${getcwd!!.toKString()}")
 
     var ret = io_uring_queue_init(8, ring.ptr, 0)
-    HasPosixErr.posixFailOn (ret.nz) {
+    HasPosixErr.posixFailOn(ret.nz) {
         printf("ring setup failed\n")
     }
 
     ret = test_basic(ring.ptr, 0)
-    HasPosixErr.posixFailOn (ret.nz) {
+    HasPosixErr.posixFailOn(ret.nz) {
         printf("test_basic failed\n")
     }
 
     ret = test_basic(ring.ptr, 1)
-    HasPosixErr.posixFailOn (ret.nz) {
+    HasPosixErr.posixFailOn(ret.nz) {
         printf("test_basic failed\n")
     }
 
     ret = test_basic_many(ring.ptr)
-    HasPosixErr.posixFailOn (ret.nz) {
+    HasPosixErr.posixFailOn(ret.nz) {
         printf("test_basic_many failed\n")
     }
 
     ret = test_sparse(ring.ptr)
-   HasPosixErr.posixFailOn (ret.nz) {
-       printf("test_sparse failed\n")
-   }
+    HasPosixErr.posixFailOn(ret.nz) {
+        printf("test_sparse failed\n")
+    }
     if (no_update.nz)
         return
 

@@ -19,15 +19,21 @@ import linux_uring.IORING_ENTER_SQ_WAKEUP
  * that the SQE may in fact not have been submitted yet. If the kernel requires later use of a particular SQE entry, it
  * will have made a private copy of it.
  */
-enum class UringEnter(public val modeFlag: UInt) {/**If this flag is set, then the system call will wait for the specificied number of events in min_complete before
-returning. This flag can be set along with to_submit to both submit and complete events in a single system call.
-*/ GetEvents (IORING_ENTER_GETEVENTS),
-/**If this flag is set, then the system call will wait for the specified number of events in min_complete before
-returning. This flag can be set along with to_submit to both submit and complete events in a single system call.
-*/ Sq_Wakeup (IORING_ENTER_SQ_WAKEUP),
-/**If the ring has been created with IORING_SETUP_SQPOLL, then the application has no real insight into when the SQ kernel
-thread has consumed entries from the SQ ring. This can lead to a situation where the application can no longer get a
-free SQE entry to submit, without knowing when   one becomes available as the SQ kernel thread consumes them. If the
-system call is used with this flag set, then it will wait until at least one entry is free in the SQ ring.
-*/ Sq_Wait (IORING_ENTER_SQ_WAIT),
+enum class UringEnter(public val modeFlag: UInt) {
+    /**If this flag is set, then the system call will wait for the specificied number of events in min_complete before
+    returning. This flag can be set along with to_submit to both submit and complete events in a single system call.
+     */
+    GetEvents(IORING_ENTER_GETEVENTS),
+
+    /**If this flag is set, then the system call will wait for the specified number of events in min_complete before
+    returning. This flag can be set along with to_submit to both submit and complete events in a single system call.
+     */
+    Sq_Wakeup(IORING_ENTER_SQ_WAKEUP),
+
+    /**If the ring has been created with IORING_SETUP_SQPOLL, then the application has no real insight into when the SQ kernel
+    thread has consumed entries from the SQ ring. This can lead to a situation where the application can no longer get a
+    free SQE entry to submit, without knowing when   one becomes available as the SQ kernel thread consumes them. If the
+    system call is used with this flag set, then it will wait until at least one entry is free in the SQ ring.
+     */
+    Sq_Wait(IORING_ENTER_SQ_WAIT),
 }

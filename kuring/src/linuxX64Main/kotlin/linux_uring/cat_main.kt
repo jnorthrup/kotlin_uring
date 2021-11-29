@@ -28,40 +28,42 @@ import platform.posix.off_t as posix_off_t
 import platform.posix.stat as posix_stat
 import platform.posix.syscall as posix_syscall
 
-//class app_io_sq_ring(
+// class app_io_sq_ring(
 //    val head: CPointer<UIntVar>?,
 //    val tail: CPointer<UIntVar>?,
 //    val ring_mask: CPointer<UIntVar>?,
 //    val ring_entries: CPointer<UIntVar>?,
 //    val flags: CPointer<UIntVar>?,
 //    val array: CPointer<UIntVar>?,
-//)
+// )
 
-//class app_io_cq_ring(
+// class app_io_cq_ring(
 //    val head: CPointer<UIntVar>?,
 //    val tail: CPointer<UIntVar>?,
 //    val ring_mask: CPointer<UIntVar>?,
 //    val ring_entries: CPointer<UIntVar>?,
 //    val cqes: CPointer<io_uring_cqe>?
-//)
+// )
 
-
-class KioUring {
+public class KioUring {
     val p: io_uring_params = nativeHeap.alloc()
-    val ring_fd =io_uring_setup(CATQUEUE_DEPTH.toUInt(), p.ptr).also { ring_fd -> posixRequires(ring_fd >= 0, { ring_fd }) }
+    val ring_fd =
+        io_uring_setup(CATQUEUE_DEPTH.toUInt(), p.ptr).also { ring_fd -> posixRequires(ring_fd >= 0, { ring_fd }) }
     val featuresInUse: Set<UringSetupFeatures> by lazy {
-        (UringSetupFeatures.values().fold(setOf<UringSetupFeatures>()) { a, x ->
-            when {
-                (x.feat_const and p.features).nz -> a + x
-                else -> a
+        (
+                UringSetupFeatures.values().fold(setOf<UringSetupFeatures>()) { a, x ->
+                    when {
+                        (x.feat_const and p.features).nz -> a + x
+                        else -> a
+                    }
+                }
+                ).also {
+                fprintf(stderr, "p.sq_entries: ${p.sq_entries}")
+                fprintf(stderr, "io_uring features: $it")
             }
-        }).also {
-            fprintf(stderr, "p.sq_entries: ${p.sq_entries}")
-            fprintf(stderr, "io_uring features: $it")
-        }
     }
 
-    val singleMmap get()= featSingle_mmap in featuresInUse
+    val singleMmap get() = featSingle_mmap in featuresInUse
 
     val sring_sz = (p.sq_off.array + p.sq_entries * UInt.SIZE_BYTES.toUInt())
     val cring_sz = (p.cq_off.cqes + p.cq_entries * sizeOf<io_uring_cqe>().toUInt())
@@ -70,7 +72,7 @@ class KioUring {
         posix_mmap(
             NULL,
             (p.sq_entries * sizeOf<io_uring_sqe>().toUInt()).toULong(),
-             platform.posix.PROT_READ + platform.posix.PROT_WRITE,
+            platform.posix.PROT_READ + platform.posix.PROT_WRITE,
             platform.posix.MAP_SHARED + platform.posix.MAP_POPULATE,
             ring_fd,
             IORING_OFF_SQES.toLong()
@@ -111,15 +113,15 @@ class KioUring {
     }
 
     inner class appIOCqRing(cqptr1: CPointer<ByteVar>, val cqptr: Long = cqptr1.toLong()) {
-        public final val cqes  get() = (cqptr + p.cq_off.cqes.toLong()).toCPointer<io_uring_cqe>()!!
-        public final val flags  get() = (cqptr + p.cq_off.flags.toLong()).toCPointer<__u32Var>()!!
-        public final val head  get() = (cqptr + p.cq_off.head.toLong()).toCPointer<__u32Var>()!!
-        public final val overflow  get() = (cqptr + p.cq_off.overflow.toLong()).toCPointer<__u32Var>()!!
-        public final val resv1  get() = (cqptr + p.cq_off.resv1.toLong()).toCPointer<__u32Var>()!!
-        public final val resv2  get() = (cqptr + p.cq_off.resv2.toLong()).toCPointer<__u64Var>()!!
-        public final val ring_entries  get() = (cqptr + p.cq_off.ring_entries.toLong()).toCPointer<__u32Var>()!!
-        public final val ring_mask  get() = (cqptr + p.cq_off.ring_mask.toLong()).toCPointer<__u32Var>()!!
-        public final val tail  get() = (cqptr + p.cq_off.tail.toLong()).toCPointer<__u32Var>()!!
+        public final val cqes get() = (cqptr + p.cq_off.cqes.toLong()).toCPointer<io_uring_cqe>()!!
+        public final val flags get() = (cqptr + p.cq_off.flags.toLong()).toCPointer<__u32Var>()!!
+        public final val head get() = (cqptr + p.cq_off.head.toLong()).toCPointer<__u32Var>()!!
+        public final val overflow get() = (cqptr + p.cq_off.overflow.toLong()).toCPointer<__u32Var>()!!
+        public final val resv1 get() = (cqptr + p.cq_off.resv1.toLong()).toCPointer<__u32Var>()!!
+        public final val resv2 get() = (cqptr + p.cq_off.resv2.toLong()).toCPointer<__u64Var>()!!
+        public final val ring_entries get() = (cqptr + p.cq_off.ring_entries.toLong()).toCPointer<__u32Var>()!!
+        public final val ring_mask get() = (cqptr + p.cq_off.ring_mask.toLong()).toCPointer<__u32Var>()!!
+        public final val tail get() = (cqptr + p.cq_off.tail.toLong()).toCPointer<__u32Var>()!!
     }
 
     fun mapIORingQueue(__len: ULong, __prot: Int, __flags: Int, __offset: Long): CPointer<ByteVar> {
@@ -132,18 +134,18 @@ class KioUring {
     fun opReadWholeFile(file_fd: Int) = memScoped {
         val triple = sqePreamble()
         val sqe: CPointer<io_uring_sqe> = sqes[triple.third.toInt()].ptr
-        //---opcode
+        // ---opcode
         createfileInfoReaderSqe(file_fd, sqe)
-        //---end opcode
+        // ---end opcode
         sqeSubmit(triple)
     }
 
-    fun opCloseCatFile(file_fd: Int): Unit =memScoped{
+    fun opCloseCatFile(file_fd: Int): Unit = memScoped {
         val triple = sqePreamble()
         val sqe: CPointer<io_uring_sqe> = sqes[triple.third.toInt()].ptr
-        //---opcode
+        // ---opcode
         createfileInfoReaderSqe(file_fd, sqe)
-        //---end opcode
+        // ---end opcode
         sqeSubmit(triple)
     }
 
@@ -156,8 +158,7 @@ class KioUring {
         Triple(tail, next_tail, index)
     }
 
-    fun   sqeSubmit(triple: Triple<UIntVar, UInt, UInt>): Unit =triple.let {
-        (tail, next_tail, index)->
+    fun sqeSubmit(triple: Triple<UIntVar, UInt, UInt>): Unit = triple.let { (tail, next_tail, index) ->
         write_barrier()
         sqRing.array[index.toInt()] = index
         tail.value = next_tail
@@ -211,8 +212,8 @@ class KioUring {
     fun opCloseFd(
         sqe: CPointer<io_uring_sqe>,
         file_fd: Int,
-    ): Unit = memScoped{
-        val triple=sqePreamble()
+    ): Unit = memScoped {
+        val triple = sqePreamble()
         sqe.pointed.run {
             fd = file_fd
             flags = sqeIo_link.ub.toUByte()
@@ -221,7 +222,6 @@ class KioUring {
         sqeSubmit(triple)
     }
 }
-
 
 /** This code is written in the days when io_uring-related system calls are not
  *  part of standard C libraries. So, we roll our own system call wrapper
@@ -251,16 +251,14 @@ private fun MemScope.getBlockDeviceBlockSize(fd: Int): platform.posix.off_t {
     return bytes.value /* = kotlin.Long */
 }
 
-
 /**
  * Output a string of characters of len length to stdout.
  * We use buffered output here to be efficient,
  * since we need to output character-by-character.
  * */
-fun output_to_console(buf: CPointer<ByteVar>, len: Int): Unit {
+fun output_to_console(buf: CPointer<ByteVar>, len: Int) {
     print(buf.toKStringFromUtf8().take(len))
 }
-
 
 /**
  * Read from completion queue.
@@ -307,7 +305,7 @@ fun completionQueues(s: KioUring) {
 
 const val tehBlockSize: Long = BLOCK_SZ.toLong()
 const val pvtHandleSpec = 2113U
-val pvtHandle: UInt   = pvtHandleSpec.dec()
+val pvtHandle: UInt = pvtHandleSpec.dec()
 
 /*
  * Submit to submission queue.
@@ -316,11 +314,10 @@ val pvtHandle: UInt   = pvtHandleSpec.dec()
  * specify via IORING_OP_READV. */
 fun createSubmission(file_path: String, s: KioUring): Int {
     val namedDirAndFile1: List<String> = namedDirAndFile(file_path)
-        val dirfd = getDirFd(namedDirAndFile1)// never closed
-        val file_fd = openat(dirfd, file_path, platform.posix.O_RDONLY)// never closed
-        posixRequires(file_fd >= 0) { "fileopen $file_fd" }
-        s.opReadWholeFile(file_fd)
-
+    val dirfd = getDirFd(namedDirAndFile1) // never closed
+    val file_fd = openat(dirfd, file_path, platform.posix.O_RDONLY) // never closed
+    posixRequires(file_fd >= 0) { "fileopen $file_fd" }
+    s.opReadWholeFile(file_fd)
 
     /***************************************************************************
      * Tell the kernel we have submitted events with the io_uring_enter() system
@@ -335,10 +332,8 @@ fun createSubmission(file_path: String, s: KioUring): Int {
         posixRequires(0 != ret) { "io_uring_enter $ret" }
     }
 
-
     return 0
 }
-
 
 fun cat_file(argv1: Array<String>): Unit = memScoped {
     val argv = argv1.takeIf { it.isNotEmpty() } ?: arrayOf("/etc/sysctl.conf")
@@ -348,13 +343,13 @@ fun cat_file(argv1: Array<String>): Unit = memScoped {
 
     println("---success setting up uring with args ${argv.toList()}")
     for (arg in argv) {
-        //will block
+        // will block
         posixRequires(!(0 != createSubmission(arg, s))) { "Error reading file" }
 
-        println("---calling read_from_cq(${s})")
-        //done blocking
+        println("---calling read_from_cq($s)")
+        // done blocking
         completionQueues(s)
-        println("---back from read_from_cq(${s})")
+        println("---back from read_from_cq($s)")
     }
     println("---exiting")
     return

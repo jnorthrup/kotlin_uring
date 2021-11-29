@@ -1,37 +1,34 @@
 package test.update
 
 import kotlinx.cinterop.*
-
 import linux_uring.*
 import platform.posix.POLLIN
 import platform.posix.exit
 import platform.posix.pthread_tVar
 import simple.CZero.nz
-import test.update.PollMshotUpdate.Companion.end.*
-
+import test.update.PollMshotUpdate.end.*
 
 /* SPDX-License-Identifier: MIT */
 /*
  * Description: test many files being polled for and updated
  *
  */
-//#include <errno.h>
-//#include <stdio.h>
-//#include <unistd.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <signal.h>
-//#include <sys/poll.h>
-//#include <sys/resource.h>
-//#include <fcntl.h>
-//#include <pthread.h>
+// #include <errno.h>
+// #include <stdio.h>
+// #include <unistd.h>
+// #include <stdlib.h>
+// #include <string.h>
+// #include <signal.h>
+// #include <sys/poll.h>
+// #include <sys/resource.h>
+// #include <fcntl.h>
+// #include <pthread.h>
 //
-//#include "liburing.h"
-fun main() {
-    val __status = PollMshotUpdate().main().toInt()
+// #include "liburing.h"
+fun main(args: Array<String>) {
+    val __status = PollMshotUpdate().main(args).toInt()
     println("success")
     exit(__status = __status)
-
 }
 
 private const val NFILES = 5000
@@ -40,15 +37,17 @@ private const val NLOOPS = 1000
 private const val RING_SIZE = 512
 
 class PollMshotUpdate : NativePlacement by nativeHeap {
+    enum class end { seen, err_noring, err_nofail, err }
 
-//    val p: Array<p_t> = Array<p_t>(NFILES) { p_t() }
+    inner class p_t(var fd: IntArray = IntArray(2), var triggered: Int = 0)
+
+    val p: Array<p_t> = Array<p_t>(NFILES) { p_t() }
 
     private fun has_poll_update(): Int {
         val ring: io_uring = alloc()
         val cqe: CPointerVar<io_uring_cqe> = alloc()
 
         var has_update = 0
-
 
         var ret = io_uring_queue_init(8, ring.ptr, 0)
         if (ret.nz)
@@ -76,18 +75,20 @@ class PollMshotUpdate : NativePlacement by nativeHeap {
 
     private fun arm_poll(ring: CPointer<io_uring>, off: Int): Int {
 
+        var sqe = io_uring_get_sqe(ring)!!
+        if (sqe == null) {
+            fprintf(stderr, "failed getting sqe\n")
+            return 1
+        }
 
-        val sqe = io_uring_get_sqe(ring)!!
-
-
-        io_uring_prep_poll_multishot(sqe, p!![off].fd[0], POLLIN)
+        io_uring_prep_poll_multishot(sqe, p[off].fd[0], POLLIN)
         sqe.pointed.user_data = off.toULong()
         return 0
     }
 
     private fun reap_polls(ring: CPointer<io_uring>): Int {
         val cqe: CPointerVar<io_uring_cqe> = alloc()
-        val c: ByteVar = alloc()
+        var c: ByteVar = alloc()
 
         for (i in 0 until BATCH) {
             val sqe = io_uring_get_sqe(ring)!!
@@ -108,26 +109,25 @@ class PollMshotUpdate : NativePlacement by nativeHeap {
         var i = 0
 
         for (i1 in 0 until 2 * BATCH) {
-            var goto: end? = null;i = i1;do {
+            var goto: end? = null; i = i1; do {
                 ret = io_uring_wait_cqe(ring, cqe.ptr)
                 if (ret.nz) {
                     fprintf(stderr, "wait cqe %d\n", ret)
                     return ret
                 }
                 val pointed = cqe.pointed!!
-                val off = pointed.user_data
+                var off = pointed.user_data
                 if (off == 0x12345678UL) {
-                    goto = end.seen;break
+                    goto = end.seen; break
                 }
-                ret = read(p!![off.toInt()].fd[0], c.ptr, 1).toInt()
+                ret = read(p[off.toInt()].fd[0], c.ptr, 1).toInt()
                 if (ret != 1) {
                     if (ret == -1 && errno == EAGAIN) {
-                        goto = end.seen;break
+                        goto = end.seen; break
                     }
                     fprintf(stderr, "read got %d/%d\n", ret, errno)
                     break
                 }
-
             } while (false)
             if (goto == null) break
             io_uring_cqe_seen(ring, cqe.value)
@@ -141,6 +141,33 @@ class PollMshotUpdate : NativePlacement by nativeHeap {
         return 0
     }
 
+    private fun trigger_polls(): Int {
+        val c: ByteVar = alloc { value = 89 }
+
+        for (i in 0 until BATCH) {
+            var off: Int
+
+            do {
+                off = rand() % NFILES
+                if (!p[off].triggered.nz)
+                    break
+            } while (1.nz)
+
+            p[off].triggered = 1
+            var ret = write(p[off].fd[1], c.ptr, 1)
+            if (ret != 1L) {
+                fprintf(stderr, "write got %d/%d\n", ret, errno)
+                return 1
+            }
+        }
+
+        return 0
+    }
+
+    private fun trigger_polls_fn(dat: CPointer<ByteVar>): CPointer<ByteVar>? {
+        trigger_polls()
+        return null
+    }
 
     private fun arm_polls(ring: CPointer<io_uring>): Int {
 
@@ -161,7 +188,7 @@ class PollMshotUpdate : NativePlacement by nativeHeap {
                 off++
             }
 
-            val ret = io_uring_submit(ring)
+            var ret = io_uring_submit(ring)
             if (ret != this_arm) {
                 fprintf(stderr, "submitted %d, %d\n", ret, this_arm)
                 return 1
@@ -172,14 +199,13 @@ class PollMshotUpdate : NativePlacement by nativeHeap {
         return 0
     }
 
-    fun main(): Int =memScoped{
-        val reinterpret = allocArray<linux_uring.p_t>(NFILES)
-        p = reinterpret
+    fun main(ignored: Array<String>): Int {
+
         var goto: end? = null
         val ring: io_uring = alloc()
-        val params: io_uring_params = alloc()
-        val rlim: rlimit = alloc()
-        val thread: pthread_tVar = alloc()
+        var params: io_uring_params = alloc()
+        var rlim: rlimit = alloc()
+        var thread: pthread_tVar = alloc()
 
         var ret = has_poll_update()
         do {
@@ -201,19 +227,19 @@ class PollMshotUpdate : NativePlacement by nativeHeap {
                 rlim.rlim_max = rlim.rlim_cur
                 if (setrlimit(RLIMIT_NOFILE, rlim.ptr) < 0) {
                     if (errno == EPERM) {
-                        goto = err_nofail;break
+                        goto = err_nofail; break
                     }
                     perror("setrlimit")
-                    goto = err_noring;break
+                    goto = err_noring; break
                 }
             }
 
             for (i in 0 until NFILES) {
-                if (pipe(p!![i].fd ) < 0) {
+                if (pipe(p[i].fd.refTo(0)) < 0) {
                     perror("pipe")
-                    goto = err_noring;break
+                    goto = err_noring; break
                 }
-                fcntl(p!![i].fd[0], F_SETFL, O_NONBLOCK)
+                fcntl(p[i].fd[0], F_SETFL, O_NONBLOCK)
             }
             if (goto != null) break
 
@@ -234,15 +260,16 @@ class PollMshotUpdate : NativePlacement by nativeHeap {
             if (arm_polls(ring.ptr).nz) {
                 goto = err
             }
+
             for (i in 0 until NLOOPS) {
                 pthread_create(thread.ptr, null, staticCFunction(::trigger_polls_fn).reinterpret(), null)
                 ret = reap_polls(ring.ptr)
-                if (ret.nz) {
-                    goto = err;break
-                }
+                if (ret.nz)
+                    goto = err; break
                 pthread_join(thread.value, null)
 
-                for (j in 0 until NFILES) p!![j].triggered = 0
+                for (j in 0 until NFILES)
+                    p[j].triggered = 0
             }
             if (goto != null) break
             io_uring_queue_exit(ring.ptr)
@@ -266,34 +293,4 @@ class PollMshotUpdate : NativePlacement by nativeHeap {
         }
         return 0
     }
-
-    companion object {
-        enum class end { seen, err_noring, err_nofail, err }
-        class p_t(var fd: IntArray = IntArray(2), var triggered: Int = 0)
-
-    }
-}
-
-fun trigger_polls_fn(@Suppress("UNUSED_PARAMETER") dat: CPointer<ByteVar>): CPointer<ByteVar>? {
-    trigger_polls()
-    return null
-}
-
-fun trigger_polls(): Int {
-    val c: ByteVar = nativeHeap.alloc { value = 89 }
-    for (i in 0 until BATCH) {
-        var off: Int
-        do {
-            off = rand() % NFILES
-            if (!p!![off].triggered.nz)
-                break
-        } while (1.nz)
-        p!![off].triggered = 1
-        val ret = write(p!![off].fd[1], c.ptr, 1)
-        if (ret != 1L) {
-            fprintf(stderr, "write got %d/%d\n", ret, errno)
-            return 1
-        }
-    }
-    return 0
 }

@@ -1,6 +1,5 @@
 package test.readwrite
 
-
 import kotlinx.cinterop.*
 import linux_uring.*
 import linux_uring.include.t_create_buffers
@@ -14,30 +13,28 @@ import test.readwrite.AppState.Companion.end.*
 /*
  * Description: basic read/write tests with polled IO
  */
-//#include <errno.h>
-//#include <stdio.h>
-//#include <unistd.h>
-//#include <stdlib.h>
-//#include <string.h>
-//#include <fcntl.h>
-//#include <sys/types.h>
-//#include <sys/poll.h>
-//#include <sys/eventfd.h>
-//#include <sys/resource.h>
-//#include "helpers.h"
-//#include "liburing.h"
-//#include "../src/syscall.h"
+// #include <errno.h>
+// #include <stdio.h>
+// #include <unistd.h>
+// #include <stdlib.h>
+// #include <string.h>
+// #include <fcntl.h>
+// #include <sys/types.h>
+// #include <sys/poll.h>
+// #include <sys/eventfd.h>
+// #include <sys/resource.h>
+// #include "helpers.h"
+// #include "liburing.h"
+// #include "../src/syscall.h"
 
 const val FILE_SIZE = (128 * 1024)
 const val BS = 4096
 const val BUFFERS = (FILE_SIZE / BS)
 
-
 class AppState() : NativePlacement by nativeHeap {
-    var vecs:  CValuesRef<iovec>  = cValue()
+    var vecs: CValuesRef<iovec> = cValue()
     var no_buf_select: IntVar = alloc()
     var no_iopoll: IntVar = alloc()
-
 
     fun provide_buffers(ring: CPointer<io_uring>): Int {
 
@@ -45,10 +42,9 @@ class AppState() : NativePlacement by nativeHeap {
         var sqe: CPointer<io_uring_sqe>
         var ret = io_uring_submit(ring)
 
-
         for (i in 0 until BUFFERS) {
             sqe = io_uring_get_sqe(ring)!!
-            memScoped{
+            memScoped {
                 val iovec = vecs.getPointer(this)[i]
                 io_uring_prep_provide_buffers(
                     sqe,
@@ -82,171 +78,167 @@ class AppState() : NativePlacement by nativeHeap {
     fun __test_io(file: String, ring: CPointer<io_uring>, write: Int, sqthread: Int, fixed: Int, buf_select: Int): Int =
         memScoped {
             val vp = vecs.getPointer(this)
-        val fd: IntVar = alloc()
-        val cqe: CPointerVar<io_uring_cqe> = alloc()
+            val fd: IntVar = alloc()
+            val cqe: CPointerVar<io_uring_cqe> = alloc()
 
-        val offset: off_tVar = alloc()
-        var write = write
-        var fixed = fixed
-        if (buf_select.nz) {
-            write = 0
-            fixed = 0
-        }
-        if (buf_select.nz && provide_buffers(ring).nz)
-            return 1
+            val offset: off_tVar = alloc()
+            var write = write
+            var fixed = fixed
+            if (buf_select.nz) {
+                write = 0
+                fixed = 0
+            }
+            if (buf_select.nz && provide_buffers(ring).nz)
+                return 1
 
-        var open_flags = if (write.nz)
-            O_WRONLY
-        else
-            O_RDONLY
-        open_flags = open_flags.or(__O_DIRECT)
+            var open_flags = if (write.nz)
+                O_WRONLY
+            else
+                O_RDONLY
+            open_flags = open_flags.or(__O_DIRECT)
 
-        var goto: end? = null
+            var goto: end? = null
 
+            do {
+                if (fixed.nz) {
+                    val ret = t_register_buffers(ring, vecs, BUFFERS.toUInt())
+                    if (ret == T_SETUP_SKIP) return 0
+                    if (ret != T_SETUP_OK) {
+                        fprintf(stderr, "buffer reg failed: %d\n", ret)
+                        goto = err
+                        break
+                    }
+                }
 
-        do {
-            if (fixed.nz) {
-                val ret = t_register_buffers(ring, vecs , BUFFERS.toUInt())
-                if (ret == T_SETUP_SKIP) return 0
-                if (ret != T_SETUP_OK) {
-                    fprintf(stderr, "buffer reg failed: %d\n", ret)
+                fd.value = open(file, open_flags)
+                if (fd.value < 0) {
+                    perror("file open")
                     goto = err
                     break
                 }
-            }
-
-            fd.value = open(file, open_flags)
-            if (fd.value < 0) {
-                perror("file open")
-                goto = err
-                break
-            }
-            if (sqthread.nz) {
-                val ret = io_uring_register_files(ring, fd.ptr, 1)
-                if (ret.nz) {
-                    fprintf(stderr, "file reg failed: %d\n", ret)
-                    goto = err
-                    break
+                if (sqthread.nz) {
+                    val ret = io_uring_register_files(ring, fd.ptr, 1)
+                    if (ret.nz) {
+                        fprintf(stderr, "file reg failed: %d\n", ret)
+                        goto = err
+                        break
+                    }
                 }
-            }
 
-            offset.value = 0
-            var do_fixed: Int
-            var use_fd: Int
-            for (i in 0 until BUFFERS) {
-                val sqe = io_uring_get_sqe(ring)!!
+                offset.value = 0
+                var do_fixed: Int
+                var use_fd: Int
+                for (i in 0 until BUFFERS) {
+                    val sqe = io_uring_get_sqe(ring)!!
 
-                offset.value = (BS * (rand() % BUFFERS)).toLong()
-                if (write.nz) {
-                    do_fixed = fixed
-                    use_fd = fd.value
+                    offset.value = (BS * (rand() % BUFFERS)).toLong()
+                    if (write.nz) {
+                        do_fixed = fixed
+                        use_fd = fd.value
 
-                    if (sqthread.nz)
-                        use_fd = 0
-                    if (fixed.nz && (i and 1).nz)
-                        do_fixed = 0
-                    if (do_fixed.nz) {
-                        val iovec = vp[i]
-                        io_uring_prep_write_fixed(
-                            sqe, use_fd, iovec.iov_base,
-                            iovec.iov_len.toUInt(),
-                            offset.value.toULong(), i
-                        )
+                        if (sqthread.nz)
+                            use_fd = 0
+                        if (fixed.nz && (i and 1).nz)
+                            do_fixed = 0
+                        if (do_fixed.nz) {
+                            val iovec = vp[i]
+                            io_uring_prep_write_fixed(
+                                sqe, use_fd, iovec.iov_base,
+                                iovec.iov_len.toUInt(),
+                                offset.value.toULong(), i
+                            )
+                        } else {
+                            io_uring_prep_writev(
+                                sqe, use_fd, vp[i].reinterpret(), 1,
+                                offset.value.toULong()
+                            )
+                        }
                     } else {
-                        io_uring_prep_writev(
-                            sqe, use_fd, vp[i].reinterpret(), 1,
-                            offset.value.toULong()
-                        )
-                    }
-                } else {
-                    do_fixed = fixed
-                    use_fd = fd.value
+                        do_fixed = fixed
+                        use_fd = fd.value
 
+                        if (sqthread.nz)
+                            use_fd = 0
+                        if (fixed.nz && (i and 1).nz)
+                            do_fixed = 0
+                        if (do_fixed.nz) {
+                            io_uring_prep_read_fixed(
+                                sqe, use_fd, vecs.getPointer(memScope)[i].iov_base,
+                                vp[i].iov_len.toUInt(),
+                                offset.value.toULong(), i
+                            )
+                        } else {
+                            io_uring_prep_readv(
+                                sqe, use_fd, vp[i].ptr, 1,
+                                offset.value.toULong()
+                            )
+                        }
+                    }
                     if (sqthread.nz)
-                        use_fd = 0
-                    if (fixed.nz && (i and 1).nz)
-                        do_fixed = 0
-                    if (do_fixed.nz) {
-                        io_uring_prep_read_fixed(
-                            sqe, use_fd, vecs.getPointer(memScope)[i].iov_base,
-                            vp[i].iov_len.toUInt(),
-                            offset.value.toULong(), i
-                        )
+                        sqe.pointed.flags = sqe.pointed.flags.plus(IOSQE_FIXED_FILE).toUByte()
+                    if (buf_select.nz) {
+                        sqe.pointed.flags = sqe.pointed.flags.plus(IOSQE_BUFFER_SELECT).toUByte()
+                        sqe.pointed.buf_group = buf_select.toUShort()
+                        sqe.pointed.user_data = i.toULong()
+                    }
+                }
+
+                var ret = io_uring_submit(ring)
+                if (ret != BUFFERS) {
+                    fprintf(stderr, "submit got %d, wanted %d\n", ret, BUFFERS)
+                    goto = err; break
+                }
+
+                for (i in 0 until BUFFERS) {
+                    ret = io_uring_wait_cqe(ring, cqe.ptr)
+                    if (ret.nz) {
+                        fprintf(stderr, "wait_cqe=%d\n", ret)
+                        goto = err; break
                     } else {
-                        io_uring_prep_readv(
-                            sqe, use_fd, vp[i].ptr, 1,
-                            offset.value.toULong()
-                        )
+                        val variadicArguments = cqe.value!!.pointed.res
+                        if (variadicArguments == -EOPNOTSUPP) {
+                            fprintf(stdout, "File/device/fs doesn't support polled IO\n")
+                            no_iopoll.value = 1
+                            goto = out; break
+                        } else if (variadicArguments != BS) {
+                            fprintf(stderr, "cqe res %d, wanted %d\n", variadicArguments, BS)
+                            goto = err; break
+                        }
                     }
-
+                    io_uring_cqe_seen(ring, cqe.value)
                 }
-                if (sqthread.nz)
-                    sqe.pointed.flags = sqe.pointed.flags.plus(IOSQE_FIXED_FILE).toUByte()
-                if (buf_select.nz) {
-                    sqe.pointed.flags = sqe.pointed.flags.plus(IOSQE_BUFFER_SELECT).toUByte()
-                    sqe.pointed.buf_group = buf_select.toUShort()
-                    sqe.pointed.user_data = i.toULong()
-                }
-            }
 
-            var ret = io_uring_submit(ring)
-            if (ret != BUFFERS) {
-                fprintf(stderr, "submit got %d, wanted %d\n", ret, BUFFERS)
-                goto = err;break
-            }
-
-            for (i in 0 until BUFFERS) {
-                ret = io_uring_wait_cqe(ring, cqe.ptr)
-                if (ret.nz) {
-                    fprintf(stderr, "wait_cqe=%d\n", ret)
-                    goto = err;break
-                } else {
-                    val variadicArguments = cqe.value!!.pointed.res
-                    if (variadicArguments == -EOPNOTSUPP) {
-                        fprintf(stdout, "File/device/fs doesn't support polled IO\n")
-                        no_iopoll.value = 1
-                        goto = out;break
-                    } else if (variadicArguments != BS) {
-                        fprintf(stderr, "cqe res %d, wanted %d\n", variadicArguments, BS)
-                        goto = err;break
+                if (fixed.nz) {
+                    ret = io_uring_unregister_buffers(ring)
+                    if (ret.nz) {
+                        fprintf(stderr, "buffer unreg failed: %d\n", ret)
+                        goto = err; break
                     }
                 }
-                io_uring_cqe_seen(ring, cqe.value)
-            }
-
-            if (fixed.nz) {
-                ret = io_uring_unregister_buffers(ring)
-                if (ret.nz) {
-                    fprintf(stderr, "buffer unreg failed: %d\n", ret)
-                    goto = err;break
+                if (sqthread.nz) {
+                    ret = io_uring_unregister_files(ring)
+                    if (ret.nz) {
+                        fprintf(stderr, "file unreg failed: %d\n", ret)
+                        goto = err; break
+                    }
                 }
-            }
-            if (sqthread.nz) {
-                ret = io_uring_unregister_files(ring)
-                if (ret.nz) {
-                    fprintf(stderr, "file unreg failed: %d\n", ret)
-                    goto = err;break
-                }
-            }
-        } while (false)
+            } while (false)
 
-        return run {
-            if (goto != err) {
-                close(fd.value)
-                0
-            } else
-                if (fd.value != -1)
+            return run {
+                if (goto != err) {
                     close(fd.value)
-            1
-        }.also { goto = null }
-    }
-
+                    0
+                } else if (fd.value != -1)
+                    close(fd.value)
+                1
+            }.also { goto = null }
+        }
 
     /*
      * if we are polling io_uring_submit needs to always enter the
      * kernel to fetch events
      */
-    fun test_io_uring_submit_enters(file: String): Int = memScoped{
+    fun test_io_uring_submit_enters(file: String): Int = memScoped {
         var vp = vecs.getPointer(this)
         val ring: io_uring = alloc()
         if (no_iopoll.value.nz)
@@ -265,11 +257,11 @@ class AppState() : NativePlacement by nativeHeap {
         do {
             if (fd < 0) {
                 perror("file open")
-                goto = err;break
+                goto = err; break
             }
 
             for (i in 0 until BUFFERS) {
-                if(goto!=null)break;
+                if (goto != null) break
 
                 val offset: off_t = (BS * (rand() % BUFFERS)).toLong()
                 val sqe: CPointer<io_uring_sqe> = io_uring_get_sqe(ring.ptr)!!
@@ -284,22 +276,22 @@ class AppState() : NativePlacement by nativeHeap {
                 0.toUInt(), null
             )
             if (ret < 0) {
-                goto = err;break
+                goto = err; break
             }
 
             for (i in 0 until 500) {
-                if(goto!=null)break;
+                if (goto != null) break
                 ret = io_uring_submit(ring.ptr)
                 if (ret != 0) {
                     fprintf(stderr, "still had %d sqes to submit, this is unexpected", ret)
-                    goto = err;break
+                    goto = err; break
                 }
-                //io_uring_for_each_cqe translated
-                //io_uring_for_each_cqe translated
-                //io_uring_for_each_cqe translated
-                //io_uring_for_each_cqe translated
-                //io_uring_for_each_cqe translated
-                //io_uring_for_each_cqe translated
+                // io_uring_for_each_cqe translated
+                // io_uring_for_each_cqe translated
+                // io_uring_for_each_cqe translated
+                // io_uring_for_each_cqe translated
+                // io_uring_for_each_cqe translated
+                // io_uring_for_each_cqe translated
 
                 val cq: io_uring_cq = ring.cq
                 var head: UInt = cq.khead?.pointed?.value ?: 0U
@@ -329,18 +321,16 @@ class AppState() : NativePlacement by nativeHeap {
                 }
                 goto ?: usleep(10000)
             }
-
         } while (false)
 
-        return when(goto) {
-            err-> {
-
+        return when (goto) {
+            err -> {
 
                 if (fd != -1)
                     close(fd)
-            1
+                1
             }
-            else-> {
+            else -> {
                 io_uring_queue_exit(ring.ptr)
                 ret
             }
@@ -397,7 +387,8 @@ class AppState() : NativePlacement by nativeHeap {
         } else {
             srand(time(null).toUInt())
             fname = (
-                    ".basic-rw-${rand()}-${getpid()}")
+                    ".basic-rw-${rand()}-${getpid()}"
+                    )
             t_create_file(fname, FILE_SIZE.toULong())
         }
 
@@ -424,7 +415,7 @@ class AppState() : NativePlacement by nativeHeap {
                         stderr, "test_io failed %d/%d/%d/%d\n",
                         write, sqthread, fixed, buf_select
                     )
-                    goto = err;break
+                    goto = err; break
                 }
                 if (no_iopoll.value.nz)
                     break
@@ -433,7 +424,7 @@ class AppState() : NativePlacement by nativeHeap {
             val ret = test_io_uring_submit_enters(fname)
             if (ret.nz) {
                 fprintf(stderr, "test_io_uring_submit_enters failed\n")
-                goto = err;break
+                goto = err; break
             }
         } while (false)
         if (fname != args[1])
@@ -471,7 +462,6 @@ class AppState() : NativePlacement by nativeHeap {
             write_barrier()
             sq.pointed.ktail!!.pointed.value = ktail
             write_barrier()
-
         } while (false)
 
         /*
@@ -490,8 +480,8 @@ class AppState() : NativePlacement by nativeHeap {
 
     companion object {
         enum class end {
-           err  ,
-           out
+            err,
+            out
         }
     }
 }
