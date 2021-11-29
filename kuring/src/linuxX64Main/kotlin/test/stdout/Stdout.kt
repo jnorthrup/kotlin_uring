@@ -1,9 +1,14 @@
 package test.stdout
 
-import linux_uring.*
 import kotlinx.cinterop.*
-import linux_uring.include.t_posix_memalign
-import platform.posix.*
+import linux_uring.*
+import platform.posix.fprintf
+import simple.CZero.nz
+import linux_uring.memcmp as linux_uringMemcmp
+import linux_uring.memcpy as linux_uringMemcpy
+import linux_uring.strerror as strerror1
+import platform.posix.stderr as posixStderr
+import platform.posix.strlen as posixStrlen
 
 /* SPDX-License-Identifier: MIT */
 /*
@@ -20,233 +25,229 @@ import platform.posix.*
 //#include "liburing.h"
 class Stdout : NativeFreeablePlacement by nativeHeap {
 
-    fun test_pipe_io_fixed(ring: CPointer<io_uring>): Int {
-        var str: String = "This is a fixed pipe test\n";
-        var vecs: CPointer<iovec> = allocArray<iovec>(2);
+    fun test_pipe_io_fixed(ring: CPointer<io_uring>): Int = memScoped {
+        val str: String = "This is a fixed pipe test\n"
+        val vecs: CPointer<iovec> = allocArray<iovec>(2)
         val cqe: CPointerVar<io_uring_cqe> = alloc()
-        var buffer = ByteArray(128);
-        var fds = IntArray(2);
+        val buffer = ByteArray(128)
+        val fds = IntArray(2)
 
-        t_posix_memalign(vecs[0].iov_base!!.reinterpret(), 4096u, 4096u);
-        memcpy(vecs[0].iov_base, str.cstr, strlen(str));
-        vecs[0].iov_len = strlen(str);
+
+
+        vecs[0].iov_base = malloc(4096)
+        linux_uringMemcpy(vecs[0].iov_base, str.cstr, posixStrlen(str))
+        vecs[0].iov_len = posixStrlen(str)
 
         if (pipe(fds.refTo(0)) < 0) {
-            perror("pipe");
-            return 1;
+            perror("pipe")
+            return 1
         }
 
-        var ret = io_uring_register_buffers(ring, vecs, 1);
-        if (ret) {
-            fprintf(stderr, "Failed to register buffers: %d\n", ret);
-            return 1;
+        var ret = io_uring_register_buffers(ring, vecs, 1)
+        if (ret.nz) {
+            fprintf(posixStderr, "Failed to register buffers: %d\n", ret)
+            return 1
         }
 
-        sqe = io_uring_get_sqe(ring);
-        if (!sqe) {
-            fprintf(stderr, "get sqe failed\n");
-            goto err;
-        }
+        var sqe: CPointer<io_uring_sqe> = io_uring_get_sqe(ring)!!
         io_uring_prep_write_fixed(
             sqe, fds[1], vecs[0].iov_base,
-            vecs[0].iov_len, 0, 0
-        );
-        sqe.pointed.user_data = 1;
+            vecs[0].iov_len.toUInt(), 0, 0
+        )
+        sqe.pointed.user_data = 1uL
 
-        sqe = io_uring_get_sqe(ring);
-        if (!sqe) {
-            fprintf(stderr, "get sqe failed\n");
-            goto err;
-        }
-        vecs[1].iov_base = buffer;
-        vecs[1].iov_len = sizeof(buffer);
-        io_uring_prep_readv(sqe, fds[0], vecs.ptr[1], 1, 0);
-        sqe.pointed.user_data = 2;
+        sqe = io_uring_get_sqe(ring)!!
 
-        ret = io_uring_submit(ring);
-        if (ret < 0) {
-            fprintf(stderr, "sqe submit failed: %d\n", ret);
-            goto err;
-        } else if (ret != 2) {
-            fprintf(stderr, "Submitted only %d\n", ret);
-            goto err;
-        }
+        vecs[1].iov_base = buffer.refTo(0).getPointer(this)
+        vecs[1].iov_len = buffer.size.toULong()
+        io_uring_prep_readv(sqe, fds[0], vecs[1].ptr, 1, 0)
+        sqe.pointed.user_data = 2u
 
-        for (i in 0 until 2) {
-            ret = io_uring_wait_cqe(ring, cqe.ptr);
+        var goto: end? = null
+        do {
+            ret = io_uring_submit(ring)
             if (ret < 0) {
-                fprintf(stderr, "wait completion %d\n", ret);
-                goto err;
+                fprintf(posixStderr, "sqe submit failed: %d\n", ret)
+                goto = end.err;break
+            } else if (ret != 2) {
+                fprintf(posixStderr, "Submitted only %d\n", ret)
+                goto = end.err;break
             }
-            if (cqe.pointed.res < 0) {
+
+            for (i in 0 until 2) {
+                ret = io_uring_wait_cqe(ring, cqe.ptr)
+                if (ret < 0) {
+                    fprintf(posixStderr, "wait completion %d\n", ret)
+                    goto = end.err;break
+                }
+                val pointed = cqe.pointed!!
+                if (pointed.res < 0) {
+                    fprintf(
+                        posixStderr, "I/O write error on %lu: %s\n",
+                        pointed.user_data,
+                        strerror1(-pointed.res)
+                    )
+                    goto = end.err;break
+                }
+                if (pointed.res != posixStrlen(str).toInt()) {
+                    fprintf(
+                        posixStderr, "Got %d bytes, wanted %d on %lu\n",
+                        pointed.res, strlen(str),
+                        pointed.user_data
+                    )
+                    goto = end.err;break
+                }
+                if ((pointed.user_data == 2UL) && linux_uringMemcmp(
+                        str.cstr,
+                        buffer.toCValues(), posixStrlen(str)
+                    ).nz
+                ) {
+                    fprintf(posixStderr, "read data mismatch\n")
+                    goto = end.err;break
+                }
+                io_uring_cqe_seen(ring, cqe.value)
+            }
+            if (goto != null) break
+            io_uring_unregister_buffers(ring)
+        } while (false)
+        return if (goto == null) 0 else 1
+    }
+
+    fun test_stdout_io_fixed(ring: CPointer<io_uring>): Int = memScoped {
+        val str = "This is a fixed pipe test\n"
+        val cqe: CPointerVar<io_uring_cqe> = alloc()
+        val vecs: iovec = alloc()
+        var ret: Int
+
+
+        vecs.iov_base = malloc(4096)
+        println("memaligned")
+        val __n = posixStrlen(str)
+        val __src = str.cstr
+        val linuxUringmemcpy = linux_uringMemcpy(vecs.iov_base, __src, __n)
+        println("memcp'd")
+        vecs.iov_len = __n
+
+
+        ret = io_uring_register_buffers(ring, vecs.ptr, 1)
+        if (ret.nz) {
+            fprintf(posixStderr, "Failed to register buffers: %d\n", ret)
+            return 1
+        }
+        println("buffers registered")
+        val sqe = io_uring_get_sqe(ring)!!
+
+        io_uring_prep_write_fixed(sqe, linux_uring.STDOUT_FILENO, vecs.iov_base, vecs.iov_len.toUInt(), 0, 0)
+        println("io_uring_prep_write_fixed done")
+        var goto: end? = null
+        ret = io_uring_submit(ring)
+        do {
+            if (ret < 0) {
+                fprintf(posixStderr, "sqe submit failed: %d\n", ret)
+                goto = end.err;break
+            } else if (ret < 1) {
+                fprintf(posixStderr, "Submitted only %d\n", ret)
+                goto = end.err;break
+            }
+
+            ret = io_uring_wait_cqe(ring, cqe.ptr)
+            if (ret < 0) {
+                fprintf(posixStderr, "wait completion %d\n", ret)
+                goto = end.err;break
+            }
+            val pointed = cqe.pointed!!
+            if (pointed.res < 0) {
+                fprintf(posixStderr, "STDOUT write error: %s\n", strerror1(-pointed.res))
+                goto = end.err;break
+            }
+            if (pointed.res != vecs.iov_len.toInt()) {
+                fprintf(posixStderr, "Got %d write, wanted %d\n", pointed.res, vecs.iov_len)
+                goto = end.err;break
+            }
+            io_uring_cqe_seen(ring, cqe.value)
+            io_uring_unregister_buffers(ring)
+        } while (false)
+
+        return if (null == goto) 0 else 1
+    }
+
+    fun test_stdout_io(ring: CPointer<io_uring>): Int = memScoped {
+        val cqe: CPointerVar<io_uring_cqe> = alloc()
+        val s = "This is a pipe test\n"
+        val vecs: iovec = alloc {
+            iov_base = s.cstr.ptr
+            iov_len = posixStrlen(s)
+        }
+        val sqe = io_uring_get_sqe(ring)!!
+        var goto: end? = null
+        do {
+            io_uring_prep_writev(sqe, linux_uring.STDOUT_FILENO, vecs.ptr, 1, 0)
+
+            var ret = io_uring_submit(ring)
+            if (ret < 0) {
+                fprintf(posixStderr, "sqe submit failed: %d\n", ret)
+                goto = end.err;break
+            } else if (ret < 1) {
+                fprintf(posixStderr, "Submitted only %d\n", ret)
+                goto = end.err;break
+            }
+
+            ret = io_uring_wait_cqe(ring, cqe.ptr)
+            if (ret < 0) {
+                fprintf(posixStderr, "wait completion %d\n", ret)
+                goto = end.err;break
+            }
+            val pointed = cqe.pointed!!
+            if (pointed.res < 0) {
                 fprintf(
-                    stderr, "I/O write error on %lu: %s\n",
-                    (unsigned long) cqe . pointed . user_data,
-                    strerror(-cqe.pointed.res)
-                );
-                goto err;
+                    posixStderr, "STDOUT write error: %s\n",
+                    strerror1(-pointed.res)
+                )
+                goto = end.err;break
             }
-            if (cqe.pointed.res != strlen(str)) {
+            if (pointed.res != vecs.iov_len.toInt()) {
                 fprintf(
-                    stderr, "Got %d bytes, wanted %d on %lu\n",
-                    cqe.pointed.res, (int) strlen (str),
-                    (unsigned long) cqe . pointed . user_data
-                );
-                goto err;
+                    posixStderr, "Got %d write, wanted %d\n", pointed.res,
+                    vecs.iov_len
+                )
+                goto = end.err;break
             }
-            if (cqe.pointed.user_data == 2 && memcmp(str, buffer, strlen(str))) {
-                fprintf(stderr, "read data mismatch\n");
-                goto err;
-            }
-            io_uring_cqe_seen(ring, cqe);
-        }
-        io_uring_unregister_buffers(ring);
-        return 0;
-        err:
-        return 1;
+            io_uring_cqe_seen(ring, cqe.value)
+        } while (false)
+        return if (goto == null) 0 else 1
     }
 
-    fun test_stdout_io_fixed(ring: CPointer<io_uring>) {
-        var str = "This is a fixed pipe test\n"
-        var cqe: CPointer<io_uring_cqe>= alloc();
-        var sqe: CPointer<io_uring_sqe>= alloc();
-        var vecs: iovec = alloc();
-        var ret: Int;
-
-        t_posix_memalign(vecs.ptr.iov_base, 4096, 4096);
-        memcpy(vecs.iov_base, str, strlen(str));
-        vecs.iov_len = strlen(str);
-
-        ret = io_uring_register_buffers(ring, vecs.ptr, 1);
-        if (ret) {
-            fprintf(stderr, "Failed to register buffers: %d\n", ret);
-            return 1;
+    fun main(): Int {
+        val ring: io_uring = alloc()
+        var ret = io_uring_queue_init(8, ring.ptr, 0)
+        if (ret.nz) {
+            fprintf(posixStderr, "ring setup failed\n")
+            exit(1)
         }
 
-        sqe = io_uring_get_sqe(ring);
-        if (!sqe) {
-            fprintf(stderr, "get sqe failed\n");
-            goto err;
-        }
-        io_uring_prep_write_fixed(sqe, STDOUT_FILENO, vecs.iov_base, vecs.iov_len, 0, 0);
-
-        ret = io_uring_submit(ring);
-        if (ret < 0) {
-            fprintf(stderr, "sqe submit failed: %d\n", ret);
-            goto err;
-        } else if (ret < 1) {
-            fprintf(stderr, "Submitted only %d\n", ret);
-            goto err;
+        ret = test_stdout_io(ring.ptr)
+        if (ret.nz) {
+            fprintf(posixStderr, "test_pipe_io failed\n")
+            exit(ret)
         }
 
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
-        if (ret < 0) {
-            fprintf(stderr, "wait completion %d\n", ret);
-            goto err;
-        }
-        if (cqe.pointed.res < 0) {
-            fprintf(stderr, "STDOUT write error: %s\n", strerror(-cqe.pointed.res));
-            goto err;
-        }
-        if (cqe.pointed.res != vecs.iov_len) {
-            fprintf(stderr, "Got %d write, wanted %d\n", cqe.pointed.res, (int) vecs . iov_len);
-            goto err;
-        }
-        io_uring_cqe_seen(ring, cqe);
-        io_uring_unregister_buffers(ring);
-        return 0;
-        err:
-        return 1;
-    }
-
-    fun test_stdout_io(ring: CPointer<io_uring>) {
-        cqe:CPointer<io_uring_cqe>;
-        sqe:CPointer<io_uring_sqe>;
-        vecs:iovec;
-        ret:Int;
-
-        vecs.iov_base = "This is a pipe test\n";
-        vecs.iov_len = strlen(vecs.iov_base);
-
-        sqe = io_uring_get_sqe(ring);
-        if (!sqe) {
-            fprintf(stderr, "get sqe failed\n");
-            goto err;
-        }
-        io_uring_prep_writev(sqe, STDOUT_FILENO, vecs.ptr, 1, 0);
-
-        ret = io_uring_submit(ring);
-        if (ret < 0) {
-            fprintf(stderr, "sqe submit failed: %d\n", ret);
-            goto err;
-        } else if (ret < 1) {
-            fprintf(stderr, "Submitted only %d\n", ret);
-            goto err;
+        ret = test_stdout_io_fixed(ring.ptr)
+        if (ret.nz) {
+            fprintf(posixStderr, "test_pipe_io_fixed failed\n")
+            return ret
         }
 
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
-        if (ret < 0) {
-            fprintf(stderr, "wait completion %d\n", ret);
-            goto err;
-        }
-        if (cqe.pointed.res < 0) {
-            fprintf(
-                stderr, "STDOUT write error: %s\n",
-                strerror(-cqe.pointed.res)
-            );
-            goto err;
-        }
-        if (cqe.pointed.res != vecs.iov_len) {
-            fprintf(
-                stderr, "Got %d write, wanted %d\n", cqe.pointed.res,
-                (int) vecs . iov_len
-            );
-            goto err;
-        }
-        io_uring_cqe_seen(ring, cqe);
-
-        return 0;
-        err:
-        return 1;
-    }
-
-    int main(argc:Int, argv:CPointer<ByteVar>[])
-    {
-        ring:io_uring;
-        ret:Int;
-
-        if (argc > 1)
-            return 0;
-
-        ret = io_uring_queue_init(8, ring.ptr, 0);
-        if (ret) {
-            fprintf(stderr, "ring setup failed\n");
-            return 1;
+        ret = test_pipe_io_fixed(ring.ptr)
+        if (ret.nz) {
+            fprintf(posixStderr, "test_pipe_io_fixed failed\n")
+            return ret
         }
 
-        ret = test_stdout_io(ring.ptr);
-        if (ret) {
-            fprintf(stderr, "test_pipe_io failed\n");
-            return ret;
-        }
-
-        ret = test_stdout_io_fixed(ring.ptr);
-        if (ret) {
-            fprintf(stderr, "test_pipe_io_fixed failed\n");
-            return ret;
-        }
-
-        ret = test_pipe_io_fixed(ring.ptr);
-        if (ret) {
-            fprintf(stderr, "test_pipe_io_fixed failed\n");
-            return ret;
-        }
-
-        return 0;
+        return 0
     }
 
     companion object {
-        enum class end {}
+        enum class end { err }
     }
 }
 
