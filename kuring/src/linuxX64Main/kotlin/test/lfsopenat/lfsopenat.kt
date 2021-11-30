@@ -43,7 +43,7 @@ const val _FILE_OFFSET_BITS = 64
 const val RSIZE: Int = 2
 const val OPEN_FLAGS: Int = O_RDWR or platform.posix.O_CREAT
 val OPEN_MODE: platform.posix.mode_t = (S_IRUSR or platform.posix.S_IWUSR).toUInt()
-public fun lfsopenat(): Unit = memScoped { // val argc=argv.size
+public fun main(): Unit = memScoped { // val argc=argv.size
     var fn: String = "io_uring_openat_test"
     var ring: io_uring = alloc()
     var ret: Int

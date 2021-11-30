@@ -1,8 +1,8 @@
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinMetadataTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
-import org.jetbrains.kotlin.gradle.targets.js.KotlinJsTarget
 
-val coroutinesVersion ="1.5.2-native-mt"// "1.5.2"
+
+val coroutinesVersion = "1.5.2-native-mt"// "1.5.2"
 val atomicfuVersion = "0.16.3"
 
 plugins {
@@ -25,43 +25,32 @@ repositories {
 //        includeBuild("buildsrc")
 // }
 
+
+enum class test_bins { accept_link,cat, fixedlink, iopoll, lfsopenat, link, opath, register, stdout, teardown, timeout, }
 kotlin {
+    linuxX64 { binaries { test_bins.values().forEach { executable(it.name, listOf(DEBUG/*, RELEASE*/)) { baseName = it.name;entryPoint = "test.$it.main" } } }
+         println( "compilations: ${compilations}")
+        compilations.first()     .cinterops {
+            println( "compilation: ${this}")
 
-    linuxX64 {
-
-        binaries {
-            "fixedlink".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-            "iopoll".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-            "lfsopenat".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.$it" } }
-            "link".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-            "register".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-            "teardown".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-            //"update".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-            "timeout".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-            "stdout".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-            "opath".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-            "cat".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-//             "uring_cat".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "linux_uring.cat_file" } }
-        }
-        val main by compilations.getting {
-            compilations["main"].cinterops {
-                create("native") {
-                    defFile = project.file("src/nativeInterop/cinterop/linux_uring.def")
-                }
+            create(name) {
+                defFile = project.file("src/nativeInterop/cinterop/linux_uring.def")
             }
         }
     }
     targets.withType<KotlinNativeTarget> {
         val main by compilations.getting {
-            kotlinOptions.freeCompilerArgs = listOf("-Xopt-in=kotlin.RequiresOptIn")
+            kotlinOptions.freeCompilerArgs += listOf("-Xopt-in=kotlin.RequiresOptIn")
         }
     }
 
+/*
     targets.withType<KotlinJsTarget> {
         val test by compilations.getting {
-            kotlinOptions.freeCompilerArgs = listOf("-Xopt-in=kotlin.RequiresOptIn")
+            kotlinOptions.freeCompilerArgs += listOf("-Xopt-in=kotlin.RequiresOptIn")
         }
     }
+*/
 
     // do this in afterEvaluate, when nativeMain compilation becomes available
     afterEvaluate {
