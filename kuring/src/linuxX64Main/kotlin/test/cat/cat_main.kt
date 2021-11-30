@@ -1,6 +1,7 @@
-package linux_uring
+package test.cat
 
 import kotlinx.cinterop.*
+import linux_uring.*
 import linux_uring.include.UringOpcode.Op_Close
 import linux_uring.include.UringOpcode.Op_Readv
 import linux_uring.include.UringSetupFeatures
@@ -9,6 +10,7 @@ import linux_uring.include.UringSqeFlags.sqeIo_hardlink
 import linux_uring.include.UringSqeFlags.sqeIo_link
 import platform.linux.memalign
 import platform.posix.NULL
+import platform.posix.O_RDONLY
 import platform.posix.sigset_t
 import simple.CZero.nz
 import simple.CZero.z
@@ -101,15 +103,15 @@ public class KioUring {
 
     inner class appIOSqRing(sqptr1: CPointer<ByteVar>, val sqptr: Long = sqptr1.toLong()) {
 
-        public final val array get() = (sqptr + p.sq_off.array.toLong()).toCPointer<__u32Var >()!!
-        public final val dropped get() = (sqptr + p.sq_off.dropped.toLong()).toCPointer<__u32Var >()!!
-        public final val flags get() = (sqptr + p.sq_off.flags.toLong()).toCPointer<__u32Var >()!!
-        public final val head get() = (sqptr + p.sq_off.head.toLong()).toCPointer<__u32Var >()!!
-        public final val resv1 get() = (sqptr + p.sq_off.resv1.toLong()).toCPointer<__u32Var >()!!
-        public final val resv2 get() = (sqptr + p.sq_off.resv2.toLong()).toCPointer<__u64Var >()!!
-        public final val ring_entries get() = (sqptr + p.sq_off.ring_entries.toLong()).toCPointer<__u32Var >()!!
-        public final val ring_mask get() = (sqptr + p.sq_off.ring_mask.toLong()).toCPointer<__u32Var >()!!
-        public final val tail get() = (sqptr + p.sq_off.tail.toLong()).toCPointer<__u32Var >()!!
+        public final val array get() = (sqptr + p.sq_off.array.toLong()).toCPointer<__u32Var>()!!
+        public final val dropped get() = (sqptr + p.sq_off.dropped.toLong()).toCPointer<__u32Var>()!!
+        public final val flags get() = (sqptr + p.sq_off.flags.toLong()).toCPointer<__u32Var>()!!
+        public final val head get() = (sqptr + p.sq_off.head.toLong()).toCPointer<__u32Var>()!!
+        public final val resv1 get() = (sqptr + p.sq_off.resv1.toLong()).toCPointer<__u32Var>()!!
+        public final val resv2 get() = (sqptr + p.sq_off.resv2.toLong()).toCPointer<__u64Var>()!!
+        public final val ring_entries get() = (sqptr + p.sq_off.ring_entries.toLong()).toCPointer<__u32Var>()!!
+        public final val ring_mask get() = (sqptr + p.sq_off.ring_mask.toLong()).toCPointer<__u32Var>()!!
+        public final val tail get() = (sqptr + p.sq_off.tail.toLong()).toCPointer<__u32Var>()!!
     }
 
     inner class appIOCqRing(cqptr1: CPointer<ByteVar>, val cqptr: Long = cqptr1.toLong()) {
@@ -315,7 +317,7 @@ val pvtHandle: UInt = pvtHandleSpec.dec()
 fun createSubmission(file_path: String, s: KioUring): Int {
     val namedDirAndFile1: List<String> = namedDirAndFile(file_path)
     val dirfd = getDirFd(namedDirAndFile1) // never closed
-    val file_fd = openat(dirfd, file_path, platform.posix.O_RDONLY) // never closed
+    val file_fd = openat(dirfd, file_path, O_RDONLY) // never closed
     posixRequires(file_fd >= 0) { "fileopen $file_fd" }
     s.opReadWholeFile(file_fd)
 
@@ -335,7 +337,7 @@ fun createSubmission(file_path: String, s: KioUring): Int {
     return 0
 }
 
-fun cat_file(argv1: Array<String>): Unit = memScoped {
+fun main(argv1: Array<String>): Unit = memScoped {
     val argv = argv1.takeIf { it.isNotEmpty() } ?: arrayOf("/etc/sysctl.conf")
 
     println("---setting up uring with args ${argv.toList()}")

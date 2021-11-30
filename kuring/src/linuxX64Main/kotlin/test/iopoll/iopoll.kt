@@ -1,4 +1,4 @@
-package test.readwrite
+package test.iopoll
 
 import kotlinx.cinterop.*
 import linux_uring.*
@@ -7,7 +7,8 @@ import linux_uring.include.t_create_file
 import linux_uring.include.t_create_ring
 import linux_uring.include.t_register_buffers
 import simple.CZero.nz
-import test.readwrite.AppState.Companion.end.*
+import test.cat.io_uring_enter
+import test.iopoll.IoPollState.Companion.end.*
 
 /* SPDX-License-Identifier: MIT */
 /*
@@ -31,7 +32,7 @@ const val FILE_SIZE = (128 * 1024)
 const val BS = 4096
 const val BUFFERS = (FILE_SIZE / BS)
 
-class AppState() : NativePlacement by nativeHeap {
+class IoPollState() : NativePlacement by nativeHeap {
     var vecs: CValuesRef<iovec> = cValue()
     var no_buf_select: IntVar = alloc()
     var no_iopoll: IntVar = alloc()
@@ -486,6 +487,6 @@ class AppState() : NativePlacement by nativeHeap {
     }
 }
 
-fun iopoll(args: Array<String>) {
-    AppState().main(args)
+fun main(args: Array<String>) {
+    IoPollState().main(args)
 }

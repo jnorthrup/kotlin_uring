@@ -16,7 +16,7 @@ import simple.HasPosixErr
 /* SPDX-License-Identifier: MIT */
 
 val IOVECS_LEN = 2
-fun fixedlink(argv: Array<String>): Unit = memScoped {
+fun main(argv: Array<String>): Unit = memScoped {
     val argc: Int = argv.size
     val iovecs: CArrayPointer<iovec>/*[IOVECS_LEN]*/ =
         calloc(sizeOf<iovec>().toULong(), IOVECS_LEN.toULong())!!.reinterpret()

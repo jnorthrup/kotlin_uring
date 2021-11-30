@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinMetadataTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.targets.js.KotlinJsTarget
 
-val coroutinesVersion = "1.5.2"
+val coroutinesVersion ="1.5.2-native-mt"// "1.5.2"
 val atomicfuVersion = "0.16.3"
 
 plugins {
@@ -30,41 +30,18 @@ kotlin {
     linuxX64 {
 
         binaries {
-            "fixedlink".let {
-                executable(it, listOf(DEBUG/*, RELEASE*/)) {
-                    baseName = it; entryPoint = "test.$it.$it"
-                }
-            }
-            "iopoll".let {
-                executable(it, listOf(DEBUG/*, RELEASE*/)) {
-                    baseName = it; entryPoint = "test.readwrite.iopoll"
-                }
-            }
-            "lfsopenat".let {
-                executable(it, listOf(DEBUG/*, RELEASE*/)) {
-                    baseName = it; entryPoint = "test.$it.$it"
-                }
-            }
+            "fixedlink".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
+            "iopoll".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
+            "lfsopenat".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.$it" } }
             "link".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-            "register".let {
-                executable(it, listOf(DEBUG/*, RELEASE*/)) {
-                    baseName = it; entryPoint = "test.$it.main"
-                }
-            }
-            "teardown".let {
-                executable(it, listOf(DEBUG/*, RELEASE*/)) {
-                    baseName = it; entryPoint = "test.$it.main"
-                }
-            }
+            "register".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
+            "teardown".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
             //"update".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
             "timeout".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
             "stdout".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
             "opath".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
-            "uring_cat".let {
-                executable(it, listOf(DEBUG/*, RELEASE*/)) {
-                    baseName = it; entryPoint = "linux_uring.cat_file"
-                }
-            }
+            "cat".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "test.$it.main" } }
+//             "uring_cat".let { executable(it, listOf(DEBUG/*, RELEASE*/)) { baseName = it; entryPoint = "linux_uring.cat_file" } }
         }
         val main by compilations.getting {
             compilations["main"].cinterops {
@@ -99,7 +76,7 @@ kotlin {
 
     sourceSets {
         val commonMain by getting {
-            dependencies {
+            dependencies {//1.5.2-native-mt
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutinesVersion")
             }
         }
