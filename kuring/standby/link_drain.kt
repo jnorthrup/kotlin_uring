@@ -13,16 +13,16 @@
 #include "helpers.h"
 #include "liburing.h"
 
-static test_link_drain_one:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>[5];
-    iovecs:iovec;
-    i:Int, fd, ret;
-    off:off_t = 0;
+static int test_link_drain_one(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe[5];
+    struct iovec iovecs;
+    int i, fd, ret;
+    off_t off = 0;
     char data[5] = {0};
     char expect[5] = {0, 1, 2, 3, 4};
 
-    fd = open("testfile",  O_WRONLY or O_CREAT , 0644);
+    fd = open("testfile", O_WRONLY | O_CREAT, 0644);
     if (fd < 0) {
         perror("open");
         return 1;
@@ -31,7 +31,7 @@ static test_link_drain_one:Int(ring:CPointer<io_uring>) {
     iovecs.iov_base = t_malloc(4096);
     iovecs.iov_len = 4096;
 
-    for (i in 0 until  5) {
+    for (i = 0; i < 5; i++) {
         sqe[i] = io_uring_get_sqe(ring);
         if (!sqe[i]) {
             printf("get sqe failed\n");
@@ -40,7 +40,7 @@ static test_link_drain_one:Int(ring:CPointer<io_uring>) {
     }
 
     /* normal heavy io */
-    io_uring_prep_writev(sqe[0], fd, iovecs.ptr, 1, off);
+    io_uring_prep_writev(sqe[0], fd, &iovecs, 1, off);
     sqe[0]->user_data = 0;
 
     /* link io */
@@ -50,7 +50,7 @@ static test_link_drain_one:Int(ring:CPointer<io_uring>) {
 
     /* link drain io */
     io_uring_prep_nop(sqe[2]);
-    sqe[2]->flags |= ( IOSQE_IO_LINK or IOSQE_IO_DRAIN );
+    sqe[2]->flags |= (IOSQE_IO_LINK | IOSQE_IO_DRAIN);
     sqe[2]->user_data = 2;
 
     /* link io */
@@ -70,14 +70,14 @@ static test_link_drain_one:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  5) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 5; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("child: wait completion %d\n", ret);
             goto err;
         }
 
-        data[i] = cqe.pointed.user_data ;
+        data[i] = cqe->user_data;
         io_uring_cqe_seen(ring, cqe);
     }
 
@@ -95,16 +95,16 @@ static test_link_drain_one:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-int test_link_drain_multi(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>[9];
-    iovecs:iovec;
-    i:Int, fd, ret;
-    off:off_t = 0;
+int test_link_drain_multi(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe[9];
+    struct iovec iovecs;
+    int i, fd, ret;
+    off_t off = 0;
     char data[9] = {0};
     char expect[9] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 
-    fd = open("testfile",  O_WRONLY or O_CREAT , 0644);
+    fd = open("testfile", O_WRONLY | O_CREAT, 0644);
     if (fd < 0) {
         perror("open");
         return 1;
@@ -114,7 +114,7 @@ int test_link_drain_multi(ring:CPointer<io_uring>) {
     iovecs.iov_base = t_malloc(4096);
     iovecs.iov_len = 4096;
 
-    for (i in 0 until  9) {
+    for (i = 0; i < 9; i++) {
         sqe[i] = io_uring_get_sqe(ring);
         if (!sqe[i]) {
             printf("get sqe failed\n");
@@ -123,7 +123,7 @@ int test_link_drain_multi(ring:CPointer<io_uring>) {
     }
 
     /* normal heavy io */
-    io_uring_prep_writev(sqe[0], fd, iovecs.ptr, 1, off);
+    io_uring_prep_writev(sqe[0], fd, &iovecs, 1, off);
     sqe[0]->user_data = 0;
 
     /* link1 io head */
@@ -133,7 +133,7 @@ int test_link_drain_multi(ring:CPointer<io_uring>) {
 
     /* link1 drain io */
     io_uring_prep_nop(sqe[2]);
-    sqe[2]->flags |= ( IOSQE_IO_LINK or IOSQE_IO_DRAIN );
+    sqe[2]->flags |= (IOSQE_IO_LINK | IOSQE_IO_DRAIN);
     sqe[2]->user_data = 2;
 
     /* link1 io end*/
@@ -151,8 +151,8 @@ int test_link_drain_multi(ring:CPointer<io_uring>) {
     sqe[5]->user_data = 5;
 
     /* link2 drain io */
-    io_uring_prep_writev(sqe[6], fd, iovecs.ptr, 1, off);
-    sqe[6]->flags |= ( IOSQE_IO_LINK or IOSQE_IO_DRAIN );
+    io_uring_prep_writev(sqe[6], fd, &iovecs, 1, off);
+    sqe[6]->flags |= (IOSQE_IO_LINK | IOSQE_IO_DRAIN);
     sqe[6]->user_data = 6;
 
     /* link2 io end */
@@ -172,14 +172,14 @@ int test_link_drain_multi(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  9) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 9; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("child: wait completion %d\n", ret);
             goto err;
         }
 
-        data[i] = cqe.pointed.user_data ;
+        data[i] = cqe->user_data;
         io_uring_cqe_seen(ring, cqe);
     }
 
@@ -196,26 +196,26 @@ int test_link_drain_multi(ring:CPointer<io_uring>) {
 
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    i:Int, ret;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int i, ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(100, ring.ptr, 0);
+    ret = io_uring_queue_init(100, &ring, 0);
     if (ret) {
         printf("ring setup failed\n");
         return 1;
     }
 
-    for (i in 0 until  1000) {
-        ret = test_link_drain_one(ring.ptr);
+    for (i = 0; i < 1000; i++) {
+        ret = test_link_drain_one(&ring);
         if (ret) {
             fprintf(stderr, "test_link_drain_one failed\n");
             break;
         }
-        ret = test_link_drain_multi(ring.ptr);
+        ret = test_link_drain_multi(&ring);
         if (ret) {
             fprintf(stderr, "test_link_drain_multi failed\n");
             break;

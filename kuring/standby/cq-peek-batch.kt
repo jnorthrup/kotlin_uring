@@ -12,11 +12,11 @@
 
 #include "liburing.h"
 
-static queue_n_nops:Int(ring:CPointer<io_uring>, n:Int, offset:Int) {
-    sqe:CPointer<io_uring_sqe>;
-    i:Int, ret;
+static int queue_n_nops(struct io_uring *ring, int n, int offset) {
+    struct io_uring_sqe *sqe;
+    int i, ret;
 
-    for (i in 0 until  n) {
+    for (i = 0; i < n; i++) {
         sqe = io_uring_get_sqe(ring);
         if (!sqe) {
             printf("get sqe failed\n");
@@ -24,7 +24,7 @@ static queue_n_nops:Int(ring:CPointer<io_uring>, n:Int, offset:Int) {
         }
 
         io_uring_prep_nop(sqe);
- sqe.pointed.user_data  = i + offset;
+        sqe->user_data = i + offset;
     }
 
     ret = io_uring_submit(ring);
@@ -49,28 +49,28 @@ static queue_n_nops:Int(ring:CPointer<io_uring>, n:Int, offset:Int) {
     }\
 } while(0)
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    cqes:CPointer<io_uring_cqe>[8];
-    ring:io_uring;
-    ret:Int, i;
+int main(int argc, char *argv[]) {
+    struct io_uring_cqe *cqes[8];
+    struct io_uring ring;
+    int ret, i;
     unsigned got;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(4, ring.ptr, 0);
+    ret = io_uring_queue_init(4, &ring, 0);
     if (ret) {
         printf("ring setup failed\n");
         return 1;
 
     }
 
-    CHECK_BATCH(ring.ptr, got, cqes, 4, 0);
-    if (queue_n_nops(ring.ptr, 4, 0))
+    CHECK_BATCH(&ring, got, cqes, 4, 0);
+    if (queue_n_nops(&ring, 4, 0))
         goto err;
 
-    CHECK_BATCH(ring.ptr, got, cqes, 4, 4);
-    for (i in 0 until  4) {
+    CHECK_BATCH(&ring, got, cqes, 4, 4);
+    for (i = 0; i < 4; i++) {
         if (i != cqes[i]->user_data) {
             printf("Got user_data %" PRIu64 ", expected %d\n",
                    (uint64_t) cqes[i]->user_data, i);
@@ -78,12 +78,12 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         }
     }
 
-    if (queue_n_nops(ring.ptr, 4, 4))
+    if (queue_n_nops(&ring, 4, 4))
         goto err;
 
-    io_uring_cq_advance(ring.ptr, 4);
-    CHECK_BATCH(ring.ptr, got, cqes, 4, 4);
-    for (i in 0 until  4) {
+    io_uring_cq_advance(&ring, 4);
+    CHECK_BATCH(&ring, got, cqes, 4, 4);
+    for (i = 0; i < 4; i++) {
         if (i + 4 != cqes[i]->user_data) {
             printf("Got user_data %" PRIu64 ", expected %d\n",
                    (uint64_t) cqes[i]->user_data, i + 4);
@@ -91,10 +91,10 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         }
     }
 
-    io_uring_cq_advance(ring.ptr, 8);
-    io_uring_queue_exit(ring.ptr);
+    io_uring_cq_advance(&ring, 8);
+    io_uring_queue_exit(&ring);
     return 0;
     err:
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 1;
 }

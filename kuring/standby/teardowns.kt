@@ -11,14 +11,14 @@
 #include "liburing.h"
 
 static void loop(void) {
-    i:Int, ret = 0;
+    int i, ret = 0;
 
-    for (i in 0 until  100) {
-        ring:io_uring;
-        fd:Int;
+    for (i = 0; i < 100; i++) {
+        struct io_uring ring;
+        int fd;
 
-        memset(ring.ptr, 0, sizeof(ring));
-        fd = io_uring_queue_init(0xa4, ring.ptr, 0);
+        memset(&ring, 0, sizeof(ring));
+        fd = io_uring_queue_init(0xa4, &ring, 0);
         if (fd >= 0) {
             close(fd);
             continue;
@@ -29,13 +29,13 @@ static void loop(void) {
     exit(ret);
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    i:Int, ret, status;
+int main(int argc, char *argv[]) {
+    int i, ret, status;
 
     if (argc > 1)
         return 0;
 
-    for (i in 0 until  12) {
+    for (i = 0; i < 12; i++) {
         if (!fork()) {
             loop();
             break;
@@ -43,8 +43,8 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     }
 
     ret = 0;
-    for (i in 0 until  12) {
-        if (waitpid(-1, status.ptr, 0) < 0) {
+    for (i = 0; i < 12; i++) {
+        if (waitpid(-1, &status, 0) < 0) {
             perror("waitpid");
             return 1;
         }

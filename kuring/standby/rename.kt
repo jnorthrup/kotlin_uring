@@ -13,10 +13,10 @@
 
 #include "liburing.h"
 
-static test_rename:Int(ring:CPointer<io_uring>, old:String, const new:CPointer<ByteVar>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int;
+static int test_rename(struct io_uring *ring, const char *old, const char *new) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -25,11 +25,11 @@ static test_rename:Int(ring:CPointer<io_uring>, old:String, const new:CPointer<B
     }
 
     memset(sqe, 0, sizeof(*sqe));
- sqe.pointed.opcode  = IORING_OP_RENAMEAT;
- sqe.pointed.fd  = AT_FDCWD;
- sqe.pointed.addr2  = (unsigned long) new;
- sqe.pointed.addr  = (unsigned long) old;
- sqe.pointed.len  = AT_FDCWD;
+    sqe->opcode = IORING_OP_RENAMEAT;
+    sqe->fd = AT_FDCWD;
+    sqe->addr2 = (unsigned long) new;
+    sqe->addr = (unsigned long) old;
+    sqe->len = AT_FDCWD;
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
@@ -37,37 +37,37 @@ static test_rename:Int(ring:CPointer<io_uring>, old:String, const new:CPointer<B
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
         goto err;
     }
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     return ret;
     err:
     return 1;
 }
 
-static stat_file:Int(buf:String) {
-    sb:stat;
+static int stat_file(const char *buf) {
+    struct stat sb;
 
-    if (!stat(buf, sb.ptr))
+    if (!stat(buf, &sb))
         return 0;
 
     return errno;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
     char src[32] = "./XXXXXX";
     char dst[32] = "./XXXXXX";
-    ret:Int;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(1, ring.ptr, 0);
+    ret = io_uring_queue_init(1, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed: %d\n", ret);
         return 1;
@@ -96,7 +96,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         return 1;
     }
 
-    ret = test_rename(ring.ptr, src, dst);
+    ret = test_rename(&ring, src, dst);
     if (ret < 0) {
         if (ret == -EBADF || ret == -EINVAL) {
             fprintf(stdout, "Rename not supported, skipping\n");
@@ -117,7 +117,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         return 1;
     }
 
-    ret = test_rename(ring.ptr, "/x/y/1/2", "/2/1/y/x");
+    ret = test_rename(&ring, "/x/y/1/2", "/2/1/y/x");
     if (ret != -ENOENT) {
         fprintf(stderr, "test_rename invalid failed: %d\n", ret);
         return ret;

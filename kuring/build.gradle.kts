@@ -3,7 +3,8 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 
 val coroutinesVersion = "1.5.2-native-mt"// "1.5.2"
-val atomicfuVersion = "0.16.3"
+val atomicfuVersion = "0.17.0"
+val statelyVersion = "1.2.0"
 
 plugins {
     kotlin("multiplatform") version "1.6.0"
@@ -11,27 +12,21 @@ plugins {
     id("maven-publish")
     id("signing")
 }
-
-// repositories {
-//    mavenCentral()
-//    google()
-// }
-// pluginManagement {
+ 
 repositories {
     mavenCentral()
     gradlePluginPortal()
     google()
 }
-//        includeBuild("buildsrc")
-// }
 
 
-enum class test_bins { accept_link,cat, fixedlink, iopoll, lfsopenat, link, opath, register, stdout, teardown, timeout, }
+enum class test_bins { cat, fixedlink, iopoll, lfsopenat, link, opath, register, stdout, teardown, timeout, }
+
 kotlin {
     linuxX64 { binaries { test_bins.values().forEach { executable(it.name, listOf(DEBUG/*, RELEASE*/)) { baseName = it.name;entryPoint = "test.$it.main" } } }
          println( "compilations: ${compilations}")
         compilations.first()     .cinterops {
-            println( "compilation: ${this}")
+            println( "compilation: $this")
 
             create(name) {
                 defFile = project.file("src/nativeInterop/cinterop/linux_uring.def")
@@ -74,6 +69,7 @@ kotlin {
                 implementation(kotlin("test"))
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutinesVersion")
                 implementation("org.jetbrains.kotlinx:atomicfu:$atomicfuVersion")
+                implementation("co.touchlab:stately-common:$statelyVersion")
             }
         }
         val nativeMain by creating {

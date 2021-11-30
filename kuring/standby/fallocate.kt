@@ -15,22 +15,22 @@
 
 #include "liburing.h"
 
-static no_fallocate:Int;
+static int no_fallocate;
 
-static test_fallocate_rlimit:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    rlim:rlimit;
+static int test_fallocate_rlimit(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    struct rlimit rlim;
     char buf[32];
-    fd:Int, ret;
+    int fd, ret;
 
-    if (getrlimit(RLIMIT_FSIZE, rlim.ptr) < 0) {
+    if (getrlimit(RLIMIT_FSIZE, &rlim) < 0) {
         perror("getrlimit");
         return 1;
     }
     rlim.rlim_cur = 64 * 1024;
     rlim.rlim_max = 64 * 1024;
-    if (setrlimit(RLIMIT_FSIZE, rlim.ptr) < 0) {
+    if (setrlimit(RLIMIT_FSIZE, &rlim) < 0) {
         perror("setrlimit");
         return 1;
     }
@@ -56,18 +56,18 @@ static test_fallocate_rlimit:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
         goto err;
     }
 
-    if ( cqe.pointed.res  == -EINVAL) {
+    if (cqe->res == -EINVAL) {
         fprintf(stdout, "Fallocate not supported, skipping\n");
         no_fallocate = 1;
         goto out;
-    } else if ( cqe.pointed.res  != -EFBIG) {
-        fprintf(stderr, "Expected -EFBIG: %d\n", cqe.pointed.res );
+    } else if (cqe->res != -EFBIG) {
+        fprintf(stderr, "Expected -EFBIG: %d\n", cqe->res);
         goto err;
     }
     io_uring_cqe_seen(ring, cqe);
@@ -77,12 +77,12 @@ static test_fallocate_rlimit:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_fallocate:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    st:stat;
+static int test_fallocate(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    struct stat st;
     char buf[32];
-    fd:Int, ret;
+    int fd, ret;
 
     sprintf(buf, "./XXXXXX");
     fd = mkstemp(buf);
@@ -105,31 +105,31 @@ static test_fallocate:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
         goto err;
     }
 
-    if ( cqe.pointed.res  == -EINVAL) {
+    if (cqe->res == -EINVAL) {
         fprintf(stdout, "Fallocate not supported, skipping\n");
         no_fallocate = 1;
         goto out;
     }
-    if ( cqe.pointed.res ) {
-        fprintf(stderr, " cqe.pointed.res =%d\n", cqe.pointed.res );
+    if (cqe->res) {
+        fprintf(stderr, "cqe->res=%d\n", cqe->res);
         goto err;
     }
     io_uring_cqe_seen(ring, cqe);
 
-    if (fstat(fd, st.ptr) < 0) {
+    if (fstat(fd, &st) < 0) {
         perror("stat");
         goto err;
     }
 
     if (st.st_size != 128 * 1024) {
         fprintf(stderr, "Size mismatch: %llu\n",
-                long :ULonglong st.st_size);
+                (unsigned long long) st.st_size);
         goto err;
     }
 
@@ -139,12 +139,12 @@ static test_fallocate:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_fallocate_fsync:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    st:stat;
+static int test_fallocate_fsync(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    struct stat st;
     char buf[32];
-    fd:Int, ret, i;
+    int fd, ret, i;
 
     if (no_fallocate)
         return 0;
@@ -163,8 +163,8 @@ static test_fallocate_fsync:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_fallocate(sqe, fd, 0, 0, 128 * 1024);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -172,7 +172,7 @@ static test_fallocate_fsync:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_fsync(sqe, fd, 0);
- sqe.pointed.user_data  = 2;
+    sqe->user_data = 2;
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
@@ -180,28 +180,28 @@ static test_fallocate_fsync:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  2) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 2; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             fprintf(stderr, "wait completion %d\n", ret);
             goto err;
         }
-        if ( cqe.pointed.res ) {
-            fprintf(stderr, " cqe.pointed.res =%d,data=%" PRIu64 "\n", cqe.pointed.res ,
-                    (uint64_t) cqe.pointed.user_data );
+        if (cqe->res) {
+            fprintf(stderr, "cqe->res=%d,data=%" PRIu64 "\n", cqe->res,
+                    (uint64_t) cqe->user_data);
             goto err;
         }
         io_uring_cqe_seen(ring, cqe);
     }
 
-    if (fstat(fd, st.ptr) < 0) {
+    if (fstat(fd, &st) < 0) {
         perror("stat");
         goto err;
     }
 
     if (st.st_size != 128 * 1024) {
         fprintf(stderr, "Size mismatch: %llu\n",
-                long :ULonglong st.st_size);
+                (unsigned long long) st.st_size);
         goto err;
     }
 
@@ -210,32 +210,32 @@ static test_fallocate_fsync:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
     }
 
-    ret = test_fallocate(ring.ptr);
+    ret = test_fallocate(&ring);
     if (ret) {
         fprintf(stderr, "test_fallocate failed\n");
         return ret;
     }
 
-    ret = test_fallocate_fsync(ring.ptr);
+    ret = test_fallocate_fsync(&ring);
     if (ret) {
         fprintf(stderr, "test_fallocate_fsync failed\n");
         return ret;
     }
 
-    ret = test_fallocate_rlimit(ring.ptr);
+    ret = test_fallocate_rlimit(&ring);
     if (ret) {
         fprintf(stderr, "test_fallocate_rlimit failed\n");
         return ret;

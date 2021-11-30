@@ -31,26 +31,26 @@
 # define SYS_futex SYS_futex_time64
 #endif
 
-static void sleep_ms(ms:uint64_t) {
+static void sleep_ms(uint64_t ms) {
     usleep(ms * 1000);
 }
 
-static current_time_ms:uint64_t(void) {
-    ts:timespec;
-    if (clock_gettime(CLOCK_MONOTONIC, ts.ptr))
+static uint64_t current_time_ms(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts))
         exit(1);
     return (uint64_t) ts.tv_sec * 1000 + (uint64_t) ts.tv_nsec / 1000000;
 }
 
-static void thread_start(void *(*fn)(void *), arg:CPointer<ByteVar> ) {
-    th:pthread_t;
-    attr:pthread_attr_t;
-    pthread_attr_init(attr.ptr);
-    pthread_attr_setstacksize(attr.ptr, 128 << 10);
-    i:Int;
-    for (i in 0 until  100) {
-        if (pthread_create(th.ptr, attr.ptr, fn, arg) == 0) {
-            pthread_attr_destroy(attr.ptr);
+static void thread_start(void *(*fn)(void *), void *arg) {
+    pthread_t th;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 128 << 10);
+    int i;
+    for (i = 0; i < 100; i++) {
+        if (pthread_create(&th, &attr, fn, arg) == 0) {
+            pthread_attr_destroy(&attr);
             return;
         }
         if (errno == EAGAIN) {
@@ -63,43 +63,43 @@ static void thread_start(void *(*fn)(void *), arg:CPointer<ByteVar> ) {
 }
 
 typedef struct {
-    state:Int;
+    int state;
 } event_t;
 
 static void event_init(event_t *ev) {
- ev.pointed.state  = 0;
+    ev->state = 0;
 }
 
 static void event_reset(event_t *ev) {
- ev.pointed.state  = 0;
+    ev->state = 0;
 }
 
 static void event_set(event_t *ev) {
-    if ( ev.pointed.state )
+    if (ev->state)
         exit(1);
-    __atomic_store_n(ev. ptr.pointed.state , 1, __ATOMIC_RELEASE);
-    syscall(SYS_futex, ev. ptr.pointed.state ,  FUTEX_WAKE or FUTEX_PRIVATE_FLAG );
+    __atomic_store_n(&ev->state, 1, __ATOMIC_RELEASE);
+    syscall(SYS_futex, &ev->state, FUTEX_WAKE | FUTEX_PRIVATE_FLAG);
 }
 
 static void event_wait(event_t *ev) {
-    while (!__atomic_load_n(ev. ptr.pointed.state , __ATOMIC_ACQUIRE))
-        syscall(SYS_futex, ev. ptr.pointed.state ,  FUTEX_WAIT or FUTEX_PRIVATE_FLAG , 0, 0);
+    while (!__atomic_load_n(&ev->state, __ATOMIC_ACQUIRE))
+        syscall(SYS_futex, &ev->state, FUTEX_WAIT | FUTEX_PRIVATE_FLAG, 0, 0);
 }
 
-static event_isset:Int(event_t *ev) {
-    return __atomic_load_n(ev. ptr.pointed.state , __ATOMIC_ACQUIRE);
+static int event_isset(event_t *ev) {
+    return __atomic_load_n(&ev->state, __ATOMIC_ACQUIRE);
 }
 
-static event_timedwait:Int(event_t *ev, timeout:uint64_t) {
-    start:uint64_t = current_time_ms();
-    now:uint64_t = start;
+static int event_timedwait(event_t *ev, uint64_t timeout) {
+    uint64_t start = current_time_ms();
+    uint64_t now = start;
     for (;;) {
-        remain:uint64_t = timeout - (now - start);
-        ts:timespec;
+        uint64_t remain = timeout - (now - start);
+        struct timespec ts;
         ts.tv_sec = remain / 1000;
         ts.tv_nsec = (remain % 1000) * 1000 * 1000;
-        syscall(SYS_futex, ev. ptr.pointed.state ,  FUTEX_WAIT or FUTEX_PRIVATE_FLAG , 0, ts.ptr);
-        if (__atomic_load_n(ev. ptr.pointed.state , __ATOMIC_RELAXED))
+        syscall(SYS_futex, &ev->state, FUTEX_WAIT | FUTEX_PRIVATE_FLAG, 0, &ts);
+        if (__atomic_load_n(&ev->state, __ATOMIC_RELAXED))
             return 1;
         now = current_time_ms();
         if (now - start > timeout)
@@ -107,19 +107,19 @@ static event_timedwait:Int(event_t *ev, timeout:uint64_t) {
     }
 }
 
-static write_file:Boolean(file:String, const what:CPointer<ByteVar>, ...) {
+static bool write_file(const char *file, const char *what, ...) {
     char buf[1024];
     va_list args;
     va_start(args, what);
     vsnprintf(buf, sizeof(buf), what, args);
     va_end(args);
     buf[sizeof(buf) - 1] = 0;
-    len:Int = strlen(buf);
-    fd:Int = open(file,  O_WRONLY or O_CLOEXEC );
+    int len = strlen(buf);
+    int fd = open(file, O_WRONLY | O_CLOEXEC);
     if (fd == -1)
         return false;
     if (write(fd, buf, len) != len) {
-        err:Int = errno;
+        int err = errno;
         close(fd);
         errno = err;
         return false;
@@ -128,27 +128,27 @@ static write_file:Boolean(file:String, const what:CPointer<ByteVar>, ...) {
     return true;
 }
 
-static void kill_and_wait(pid:Int, int *status) {
+static void kill_and_wait(int pid, int *status) {
     kill(-pid, SIGKILL);
     kill(pid, SIGKILL);
-    i:Int;
-    for (i in 0 until  100) {
-        if (waitpid(-1, status,  WNOHANG or __WALL ) == pid)
+    int i;
+    for (i = 0; i < 100; i++) {
+        if (waitpid(-1, status, WNOHANG | __WALL) == pid)
             return;
         usleep(1000);
     }
     DIR *dir = opendir("/sys/fs/fuse/connections");
     if (dir) {
         for (;;) {
-            ent:CPointer<dirent> = readdir(dir);
+            struct dirent *ent = readdir(dir);
             if (!ent)
                 break;
-            if (strcmp( ent.pointed.d_name , ".") == 0 || strcmp( ent.pointed.d_name , "..") == 0)
+            if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
                 continue;
             char abort[300];
             snprintf(abort, sizeof(abort), "/sys/fs/fuse/connections/%s/abort",
- ent.pointed.d_name );
-            fd:Int = open(abort, O_WRONLY);
+                     ent->d_name);
+            int fd = open(abort, O_WRONLY);
             if (fd == -1) {
                 continue;
             }
@@ -171,53 +171,53 @@ static void setup_test() {
     write_file("/proc/self/oom_score_adj", "1000");
 }
 
-t:thread_ {
-    created:Int, call;
-    ready:event_t, done;
+struct thread_t {
+    int created, call;
+    event_t ready, done;
 };
 
-static s:thread:thread_t[16];
+static struct thread_t threads[16];
 
-static void execute_call(call:Int);
+static void execute_call(int call);
 
-static running:Int;
+static int running;
 
-static thr:CPointer<ByteVar> (arg:CPointer<ByteVar> ) {
-    th:CPointer<thread_t> = (t:thread_ *) arg;
+static void *thr(void *arg) {
+    struct thread_t *th = (struct thread_t *) arg;
     for (;;) {
-        event_wait(th. ptr.pointed.ready );
-        event_reset(th. ptr.pointed.ready );
-        execute_call( th.pointed.call );
-        __atomic_fetch_sub(running.ptr, 1, __ATOMIC_RELAXED);
-        event_set(th. ptr.pointed.done );
+        event_wait(&th->ready);
+        event_reset(&th->ready);
+        execute_call(th->call);
+        __atomic_fetch_sub(&running, 1, __ATOMIC_RELAXED);
+        event_set(&th->done);
     }
     return 0;
 }
 
 static void execute_one(void) {
-    i:Int, call, thread;
-    for (call in 0 until  3) {
+    int i, call, thread;
+    for (call = 0; call < 3; call++) {
         for (thread = 0; thread < (int) (sizeof(threads) / sizeof(threads[0]));
              thread++) {
-            th:CPointer<thread_t> = threads.ptr[thread];
-            if (! th.pointed.created ) {
- th.pointed.created  = 1;
-                event_init(th. ptr.pointed.ready );
-                event_init(th. ptr.pointed.done );
-                event_set(th. ptr.pointed.done );
+            struct thread_t *th = &threads[thread];
+            if (!th->created) {
+                th->created = 1;
+                event_init(&th->ready);
+                event_init(&th->done);
+                event_set(&th->done);
                 thread_start(thr, th);
             }
-            if (!event_isset(th. ptr.pointed.done ))
+            if (!event_isset(&th->done))
                 continue;
-            event_reset(th. ptr.pointed.done );
- th.pointed.call  = call;
-            __atomic_fetch_add(running.ptr, 1, __ATOMIC_RELAXED);
-            event_set(th. ptr.pointed.ready );
-            event_timedwait(th. ptr.pointed.done , 45);
+            event_reset(&th->done);
+            th->call = call;
+            __atomic_fetch_add(&running, 1, __ATOMIC_RELAXED);
+            event_set(&th->ready);
+            event_timedwait(&th->done, 45);
             break;
         }
     }
-    for (i in 0 until  100 && __atomic_load_n(running.ptr, __ATOMIC_RELAXED))
+    for (i = 0; i < 100 && __atomic_load_n(&running, __ATOMIC_RELAXED); i++)
         sleep_ms(1);
 }
 
@@ -226,9 +226,9 @@ static void execute_one(void);
 #define WAIT_FLAGS __WALL
 
 static void loop(void) {
-    iter:Int;
+    int iter;
     for (iter = 0;; iter++) {
-        pid:Int = fork();
+        int pid = fork();
         if (pid < 0)
             exit(1);
         if (pid == 0) {
@@ -236,15 +236,15 @@ static void loop(void) {
             execute_one();
             exit(0);
         }
-        status:Int = 0;
-        start:uint64_t = current_time_ms();
+        int status = 0;
+        uint64_t start = current_time_ms();
         for (;;) {
-            if (waitpid(-1, status.ptr,  WNOHANG or WAIT_FLAGS ) == pid)
+            if (waitpid(-1, &status, WNOHANG | WAIT_FLAGS) == pid)
                 break;
             sleep_ms(1);
             if (current_time_ms() - start < 5 * 1000)
                 continue;
-            kill_and_wait(pid, status.ptr);
+            kill_and_wait(pid, &status);
             break;
         }
     }
@@ -252,10 +252,10 @@ static void loop(void) {
 
 uint64_t r[1] = {0xffffffffffffffff};
 
-fun execute_call(call:Int):Unit{
-    :Longres
-    when  (call)  {
-        0 -> 
+void execute_call(int call) {
+    long res;
+    switch (call) {
+        case 0:
             *(uint32_t *) 0x20000040 = 0;
             *(uint32_t *) 0x20000044 = 0;
             *(uint32_t *) 0x20000048 = 0;
@@ -284,24 +284,24 @@ fun execute_call(call:Int):Unit{
             *(uint32_t *) 0x200000a8 = 0;
             *(uint32_t *) 0x200000ac = 0;
             *(uint64_t *) 0x200000b0 = 0;
-            res = __sys_io_uring_setup(0x64, (s:io_uring_param *) 0x20000040UL);
+            res = __sys_io_uring_setup(0x64, (struct io_uring_params *) 0x20000040UL);
             if (res != -1)
                 r[0] = res;
             break;
-        1 -> 
+        case 1:
             __sys_io_uring_register((long) r[0], 0, 0, 0);
             break;
-        2 -> 
+        case 2:
             __sys_io_uring_register((long) r[0], 0, 0, 0);
             break;
     }
 }
 
-static void sig_int(sig:Int) {
+static void sig_int(int sig) {
     exit(0);
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
+int main(int argc, char *argv[]) {
     if (argc > 1)
         return 0;
     signal(SIGINT, sig_int);

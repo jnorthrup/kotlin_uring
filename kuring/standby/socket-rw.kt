@@ -21,22 +21,22 @@
 
 #include "liburing.h"
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    p_fd:Int[2], ret;
-    recv_s0:int32_t;
-    val:int32_t = 1;
-    addr:sockaddr_in;
+int main(int argc, char *argv[]) {
+    int p_fd[2], ret;
+    int32_t recv_s0;
+    int32_t val = 1;
+    struct sockaddr_in addr;
 
     if (argc > 1)
         return 0;
 
     srand(getpid());
 
-    recv_s0 = socket(AF_INET,  SOCK_STREAM or SOCK_CLOEXEC , IPPROTO_TCP);
+    recv_s0 = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
 
-    ret = setsockopt(recv_s0, SOL_SOCKET, SO_REUSEPORT, val.ptr, sizeof(val));
+    ret = setsockopt(recv_s0, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
     assert(ret != -1);
-    ret = setsockopt(recv_s0, SOL_SOCKET, SO_REUSEADDR, val.ptr, sizeof(val));
+    ret = setsockopt(recv_s0, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
     assert(ret != -1);
 
     addr.sin_family = AF_INET;
@@ -44,7 +44,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
 
     do {
         addr.sin_port = htons((rand() % 61440) + 4096);
-        ret = bind(recv_s0, (r:sockadd *) addr.ptr, sizeof(addr));
+        ret = bind(recv_s0, (struct sockaddr *) &addr, sizeof(addr));
         if (!ret)
             break;
         if (errno != EADDRINUSE) {
@@ -56,20 +56,20 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     assert(ret != -1);
 
 
-    p_fd[1] = socket(AF_INET,  SOCK_STREAM or SOCK_CLOEXEC , IPPROTO_TCP);
+    p_fd[1] = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
 
     val = 1;
-    ret = setsockopt(p_fd[1], IPPROTO_TCP, TCP_NODELAY, val.ptr, sizeof(val));
+    ret = setsockopt(p_fd[1], IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
     assert(ret != -1);
 
-    flags:int32_t = fcntl(p_fd[1], F_GETFL, 0);
+    int32_t flags = fcntl(p_fd[1], F_GETFL, 0);
     assert(flags != -1);
 
     flags |= O_NONBLOCK;
     ret = fcntl(p_fd[1], F_SETFL, flags);
     assert(ret != -1);
 
-    ret = connect(p_fd[1], (r:sockadd *) addr.ptr, sizeof(addr));
+    ret = connect(p_fd[1], (struct sockaddr *) &addr, sizeof(addr));
     assert(ret == -1);
 
     flags = fcntl(p_fd[1], F_GETFL, 0);
@@ -83,65 +83,65 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     assert(p_fd[0] != -1);
 
     while (1) {
-        code:int32_t;
-        code_len:socklen_t = sizeof(code);
+        int32_t code;
+        socklen_t code_len = sizeof(code);
 
-        ret = getsockopt(p_fd[1], SOL_SOCKET, SO_ERROR, code.ptr, code_len.ptr);
+        ret = getsockopt(p_fd[1], SOL_SOCKET, SO_ERROR, &code, &code_len);
         assert(ret != -1);
 
         if (!code)
             break;
     }
 
-    m_io_uring:io_uring;
+    struct io_uring m_io_uring;
 
-    ret = io_uring_queue_init(32, m_io_uring.ptr, 0);
+    ret = io_uring_queue_init(32, &m_io_uring, 0);
     assert(ret >= 0);
 
     char recv_buff[128];
     char send_buff[128];
 
     {
-        iov:iovec[1];
+        struct iovec iov[1];
 
         iov[0].iov_base = recv_buff;
         iov[0].iov_len = sizeof(recv_buff);
 
-        sqe:CPointer<io_uring_sqe> = io_uring_get_sqe(m_io_uring.ptr);
+        struct io_uring_sqe *sqe = io_uring_get_sqe(&m_io_uring);
         assert(sqe != NULL);
 
         io_uring_prep_readv(sqe, p_fd[0], iov, 1, 0);
     }
 
     {
-        iov:iovec[1];
+        struct iovec iov[1];
 
         iov[0].iov_base = send_buff;
         iov[0].iov_len = sizeof(send_buff);
 
-        sqe:CPointer<io_uring_sqe> = io_uring_get_sqe(m_io_uring.ptr);
+        struct io_uring_sqe *sqe = io_uring_get_sqe(&m_io_uring);
         assert(sqe != NULL);
 
         io_uring_prep_writev(sqe, p_fd[1], iov, 1, 0);
     }
 
-    ret = io_uring_submit_and_wait(m_io_uring.ptr, 2);
+    ret = io_uring_submit_and_wait(&m_io_uring, 2);
     assert(ret != -1);
 
-    cqe:CPointer<io_uring_cqe>;
-    head:uint32_t;
-    count:uint32_t = 0;
+    struct io_uring_cqe *cqe;
+    uint32_t head;
+    uint32_t count = 0;
 
     while (count != 2) {
-        io_uring_for_each_cqe(m_io_uring.ptr, head, cqe) {
-            assert( cqe.pointed.res  == 128);
+        io_uring_for_each_cqe(&m_io_uring, head, cqe) {
+            assert(cqe->res == 128);
             count++;
         }
 
         assert(count <= 2);
-        io_uring_cq_advance(m_io_uring.ptr, count);
+        io_uring_cq_advance(&m_io_uring, count);
     }
 
-    io_uring_queue_exit(m_io_uring.ptr);
+    io_uring_queue_exit(&m_io_uring);
     return 0;
 }

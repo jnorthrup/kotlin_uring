@@ -10,10 +10,10 @@
 #include "helpers.h"
 #include "../src/syscall.h"
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    p:io_uring_params = {};
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring_params p = {};
+    struct io_uring ring;
+    int ret;
 
     if (argc > 1)
         return 0;
@@ -21,7 +21,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     p.flags = IORING_SETUP_SQPOLL;
     p.sq_thread_idle = 100;
 
-    ret = t_create_ring_params(1, ring.ptr, p.ptr);
+    ret = t_create_ring_params(1, &ring, &p);
     if (ret == T_SETUP_SKIP)
         return 0;
     else if (ret < 0)
@@ -29,7 +29,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
 
     ret = __sys_io_uring_enter(ring.ring_fd, 0, 0, 0, NULL);
     if (ret < 0) {
-        __e:Int = errno;
+        int __e = errno;
 
         if (__e == EOWNERDEAD)
             fprintf(stderr, "sqe submit unexpected failure due old kernel bug: %s\n", strerror(__e));

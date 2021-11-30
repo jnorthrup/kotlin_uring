@@ -12,29 +12,29 @@
 #include "helpers.h"
 #include "liburing.h"
 
-static no_probe:Int;
+static int no_probe;
 
-static verify_probe:Int(p:CPointer<io_uring_probe>, full:Int) {
-    if (!full && p.pointed.ops_len ) {
-        fprintf(stderr, "Got ops_len=%u\n", p.pointed.ops_len );
+static int verify_probe(struct io_uring_probe *p, int full) {
+    if (!full && p->ops_len) {
+        fprintf(stderr, "Got ops_len=%u\n", p->ops_len);
         return 1;
     }
-    if (! p.pointed.last_op ) {
-        fprintf(stderr, "Got last_op=%u\n", p.pointed.last_op );
+    if (!p->last_op) {
+        fprintf(stderr, "Got last_op=%u\n", p->last_op);
         return 1;
     }
     if (!full)
         return 0;
     /* check a few ops that must be supported */
-    if (!( p.pointed.ops [IORING_OP_NOP].flags IO_URING_OP_SUPPORTED.ptr)) {
+    if (!(p->ops[IORING_OP_NOP].flags & IO_URING_OP_SUPPORTED)) {
         fprintf(stderr, "NOP not supported!?\n");
         return 1;
     }
-    if (!( p.pointed.ops [IORING_OP_READV].flags IO_URING_OP_SUPPORTED.ptr)) {
+    if (!(p->ops[IORING_OP_READV].flags & IO_URING_OP_SUPPORTED)) {
         fprintf(stderr, "READV not supported!?\n");
         return 1;
     }
-    if (!( p.pointed.ops [IORING_OP_WRITE].flags IO_URING_OP_SUPPORTED.ptr)) {
+    if (!(p->ops[IORING_OP_WRITE].flags & IO_URING_OP_SUPPORTED)) {
         fprintf(stderr, "WRITE not supported!?\n");
         return 1;
     }
@@ -42,9 +42,9 @@ static verify_probe:Int(p:CPointer<io_uring_probe>, full:Int) {
     return 0;
 }
 
-static test_probe_helper:Int(ring:CPointer<io_uring>) {
-    ret:Int;
-    p:CPointer<io_uring_probe>;
+static int test_probe_helper(struct io_uring *ring) {
+    int ret;
+    struct io_uring_probe *p;
 
     p = io_uring_get_probe_ring(ring);
     if (!p) {
@@ -57,12 +57,12 @@ static test_probe_helper:Int(ring:CPointer<io_uring>) {
     return ret;
 }
 
-static test_probe:Int(ring:CPointer<io_uring>) {
-    p:CPointer<io_uring_probe>;
-    len:size_t;
-    ret:Int;
+static int test_probe(struct io_uring *ring) {
+    struct io_uring_probe *p;
+    size_t len;
+    int ret;
 
-    len = sizeof(*p) + 256 * sizeof(p:io_uring_probe_o);
+    len = sizeof(*p) + 256 * sizeof(struct io_uring_probe_op);
     p = t_calloc(1, len);
     ret = io_uring_register_probe(ring, p, 0);
     if (ret == -EINVAL) {
@@ -99,20 +99,20 @@ static test_probe:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
     }
 
-    ret = test_probe(ring.ptr);
+    ret = test_probe(&ring);
     if (ret) {
         fprintf(stderr, "test_probe failed\n");
         return ret;
@@ -120,7 +120,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (no_probe)
         return 0;
 
-    ret = test_probe_helper(ring.ptr);
+    ret = test_probe_helper(&ring);
     if (ret) {
         fprintf(stderr, "test_probe failed\n");
         return ret;

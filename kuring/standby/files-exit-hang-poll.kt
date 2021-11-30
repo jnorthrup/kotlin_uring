@@ -20,27 +20,27 @@
 
 #define PORT 9100
 
-static ring:io_uring;
+static struct io_uring ring;
 
-static void add_poll(ring:CPointer<io_uring>, fd:Int) {
-    sqe:CPointer<io_uring_sqe>;
+static void add_poll(struct io_uring *ring, int fd) {
+    struct io_uring_sqe *sqe;
 
     sqe = io_uring_get_sqe(ring);
     io_uring_prep_poll_add(sqe, fd, POLLIN);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+    sqe->flags |= IOSQE_IO_LINK;
 }
 
-static void add_accept(ring:CPointer<io_uring>, fd:Int) {
-    sqe:CPointer<io_uring_sqe>;
+static void add_accept(struct io_uring *ring, int fd) {
+    struct io_uring_sqe *sqe;
 
     sqe = io_uring_get_sqe(ring);
-    io_uring_prep_accept(sqe, fd, 0, 0,  SOCK_NONBLOCK or SOCK_CLOEXEC );
+    io_uring_prep_accept(sqe, fd, 0, 0, SOCK_NONBLOCK | SOCK_CLOEXEC);
 }
 
-static setup_io_uring:Int(void) {
-    ret:Int;
+static int setup_io_uring(void) {
+    int ret;
 
-    ret = io_uring_queue_init(16, ring.ptr, 0);
+    ret = io_uring_queue_init(16, &ring, 0);
     if (ret) {
         fprintf(stderr, "Unable to setup io_uring: %s\n", strerror(-ret));
         return 1;
@@ -49,36 +49,36 @@ static setup_io_uring:Int(void) {
     return 0;
 }
 
-static void alarm_sig(sig:Int) {
+static void alarm_sig(int sig) {
     exit(0);
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    serv_addr:sockaddr_in;
-    cqe:CPointer<io_uring_cqe>;
-    ret:Int, sock_listen_fd;
-    const val:Int = 1;
-    i:Int;
+int main(int argc, char *argv[]) {
+    struct sockaddr_in serv_addr;
+    struct io_uring_cqe *cqe;
+    int ret, sock_listen_fd;
+    const int val = 1;
+    int i;
 
     if (argc > 1)
         return 0;
 
-    sock_listen_fd = socket(AF_INET,  SOCK_STREAM or SOCK_NONBLOCK , 0);
+    sock_listen_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
     if (sock_listen_fd < 0) {
         perror("socket");
         return 1;
     }
 
-    setsockopt(sock_listen_fd, SOL_SOCKET, SO_REUSEADDR, val.ptr, sizeof(val));
+    setsockopt(sock_listen_fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
 
-    memset(serv_addr.ptr, 0, sizeof(serv_addr));
+    memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
 
-    for (i in 0 until  100) {
+    for (i = 0; i < 100; i++) {
         serv_addr.sin_port = htons(PORT + i);
 
-        ret = bind(sock_listen_fd, (r:sockadd *) serv_addr.ptr, sizeof(serv_addr));
+        ret = bind(sock_listen_fd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
         if (!ret)
             break;
         if (errno != EADDRINUSE) {
@@ -99,10 +99,10 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (setup_io_uring())
         return 1;
 
-    add_poll(ring.ptr, sock_listen_fd);
-    add_accept(ring.ptr, sock_listen_fd);
+    add_poll(&ring, sock_listen_fd);
+    add_accept(&ring, sock_listen_fd);
 
-    ret = io_uring_submit(ring.ptr);
+    ret = io_uring_submit(&ring);
     if (ret != 2) {
         fprintf(stderr, "submit=%d\n", ret);
         return 1;
@@ -111,13 +111,13 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     signal(SIGALRM, alarm_sig);
     alarm(1);
 
-    ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
+    ret = io_uring_wait_cqe(&ring, &cqe);
     if (ret) {
         fprintf(stderr, "wait_cqe=%d\n", ret);
         return 1;
     }
 
     out:
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
 }

@@ -20,14 +20,14 @@
 #define BS        4096
 #define BUFFERS        (FILE_SIZE / BS)
 
-static vecs:CPointer<iovec>;
+static struct iovec *vecs;
 
-staticlong :ULongutime_sinceconst s:CPointer<timeval>,
-        const e:CPointer<timeval>) {
-    :Longsec usec;
+static unsigned long long utime_since(const struct timeval *s,
+        const struct timeval *e) {
+    long long sec, usec;
 
-    sec = e.pointed.tv_sec  - s.pointed.tv_sec ;
-    usec = ( e.pointed.tv_usec  - s.pointed.tv_usec );
+    sec = e->tv_sec - s->tv_sec;
+    usec = (e->tv_usec - s->tv_usec);
     if (sec > 0 && usec < 0) {
         sec--;
         usec += 1000000;
@@ -37,19 +37,19 @@ staticlong :ULongutime_sinceconst s:CPointer<timeval>,
     return sec + usec;
 }
 
-staticlong :ULongutime_since_nowtv:CPointer<timeval>) {
-    end:timeval;
+static unsigned long long utime_since_now(struct timeval *tv) {
+    struct timeval end;
 
-    gettimeofday(end.ptr, NULL);
-    return utime_since(tv, end.ptr);
+    gettimeofday(&end, NULL);
+    return utime_since(tv, &end);
 }
 
-static start_io:Int(ring:CPointer<io_uring>, fd:Int, do_write:Int) {
-    sqe:CPointer<io_uring_sqe>;
-    i:Int, ret;
+static int start_io(struct io_uring *ring, int fd, int do_write) {
+    struct io_uring_sqe *sqe;
+    int i, ret;
 
-    for (i in 0 until  BUFFERS) {
-        offset:off_t;
+    for (i = 0; i < BUFFERS; i++) {
+        off_t offset;
 
         sqe = io_uring_get_sqe(ring);
         if (!sqe) {
@@ -58,11 +58,11 @@ static start_io:Int(ring:CPointer<io_uring>, fd:Int, do_write:Int) {
         }
         offset = BS * (rand() % BUFFERS);
         if (do_write) {
-            io_uring_prep_writev(sqe, fd, vecs.ptr[i], 1, offset);
+            io_uring_prep_writev(sqe, fd, &vecs[i], 1, offset);
         } else {
-            io_uring_prep_readv(sqe, fd, vecs.ptr[i], 1, offset);
+            io_uring_prep_readv(sqe, fd, &vecs[i], 1, offset);
         }
- sqe.pointed.user_data  = i + 1;
+        sqe->user_data = i + 1;
     }
 
     ret = io_uring_submit(ring);
@@ -76,20 +76,20 @@ static start_io:Int(ring:CPointer<io_uring>, fd:Int, do_write:Int) {
     return 1;
 }
 
-static wait_io:Int(ring:CPointer<io_uring>, unsigned nr_io, do_partial:Int) {
-    cqe:CPointer<io_uring_cqe>;
-    i:Int, ret;
+static int wait_io(struct io_uring *ring, unsigned nr_io, int do_partial) {
+    struct io_uring_cqe *cqe;
+    int i, ret;
 
-    for (i in 0 until  nr_io) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < nr_io; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret) {
             fprintf(stderr, "wait_cqe=%d\n", ret);
             goto err;
         }
-        if (do_partial && cqe.pointed.user_data ) {
-            if (!( cqe.pointed.user_data  1.ptr)) {
-                if ( cqe.pointed.res  != BS) {
-                    fprintf(stderr, "IO %d wasn't cancelled but got error %d\n", (unsigned) cqe.pointed.user_data , cqe.pointed.res );
+        if (do_partial && cqe->user_data) {
+            if (!(cqe->user_data & 1)) {
+                if (cqe->res != BS) {
+                    fprintf(stderr, "IO %d wasn't cancelled but got error %d\n", (unsigned) cqe->user_data, cqe->res);
                     goto err;
                 }
             }
@@ -102,7 +102,7 @@ static wait_io:Int(ring:CPointer<io_uring>, unsigned nr_io, do_partial:Int) {
 
 }
 
-static do_io:Int(ring:CPointer<io_uring>, fd:Int, do_write:Int) {
+static int do_io(struct io_uring *ring, int fd, int do_write) {
     if (start_io(ring, fd, do_write))
         return 1;
     if (wait_io(ring, BUFFERS, 0))
@@ -110,12 +110,12 @@ static do_io:Int(ring:CPointer<io_uring>, fd:Int, do_write:Int) {
     return 0;
 }
 
-static start_cancel:Int(ring:CPointer<io_uring>, do_partial:Int, async_cancel:Int) {
-    sqe:CPointer<io_uring_sqe>;
-    i:Int, ret, submitted = 0;
+static int start_cancel(struct io_uring *ring, int do_partial, int async_cancel) {
+    struct io_uring_sqe *sqe;
+    int i, ret, submitted = 0;
 
-    for (i in 0 until  BUFFERS) {
-        if (do_partial && (i 1.ptr))
+    for (i = 0; i < BUFFERS; i++) {
+        if (do_partial && (i & 1))
             continue;
         sqe = io_uring_get_sqe(ring);
         if (!sqe) {
@@ -124,8 +124,8 @@ static start_cancel:Int(ring:CPointer<io_uring>, do_partial:Int, async_cancel:In
         }
         io_uring_prep_cancel(sqe, (void *) (unsigned long) i + 1, 0);
         if (async_cancel)
- sqe.pointed.flags  |= IOSQE_ASYNC;
- sqe.pointed.user_data  = 0;
+            sqe->flags |= IOSQE_ASYNC;
+        sqe->user_data = 0;
         submitted++;
     }
 
@@ -144,48 +144,48 @@ static start_cancel:Int(ring:CPointer<io_uring>, do_partial:Int, async_cancel:In
  * the submitted IO. This is done to verify that cancelling one piece of IO doesn't
  * impact others.
  */
-static test_io_cancel:Int(file:String, do_write:Int, do_partial:Int,
-        async_cancel:Int) {
-    ring:io_uring;
-    start_tv:timeval;
-long :ULongusecs
+static int test_io_cancel(const char *file, int do_write, int do_partial,
+        int async_cancel) {
+    struct io_uring ring;
+    struct timeval start_tv;
+    unsigned long usecs;
     unsigned to_wait;
-    fd:Int, ret;
+    int fd, ret;
 
-    fd = open(file,  O_RDWR or O_DIRECT );
+    fd = open(file, O_RDWR | O_DIRECT);
     if (fd < 0) {
         perror("file open");
         goto err;
     }
 
-    ret = io_uring_queue_init(4 * BUFFERS, ring.ptr, 0);
+    ret = io_uring_queue_init(4 * BUFFERS, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring create failed: %d\n", ret);
         goto err;
     }
 
-    if (do_io(ring.ptr, fd, do_write))
+    if (do_io(&ring, fd, do_write))
         goto err;
-    gettimeofday(start_tv.ptr, NULL);
-    if (do_io(ring.ptr, fd, do_write))
+    gettimeofday(&start_tv, NULL);
+    if (do_io(&ring, fd, do_write))
         goto err;
-    usecs = utime_since_now(start_tv.ptr);
+    usecs = utime_since_now(&start_tv);
 
-    if (start_io(ring.ptr, fd, do_write))
+    if (start_io(&ring, fd, do_write))
         goto err;
     /* sleep for 1/3 of the total time, to allow some to start/complete */
     usleep(usecs / 3);
-    if (start_cancel(ring.ptr, do_partial, async_cancel))
+    if (start_cancel(&ring, do_partial, async_cancel))
         goto err;
     to_wait = BUFFERS;
     if (do_partial)
         to_wait += BUFFERS / 2;
     else
         to_wait += BUFFERS;
-    if (wait_io(ring.ptr, to_wait, do_partial))
+    if (wait_io(&ring, to_wait, do_partial))
         goto err;
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     close(fd);
     return 0;
     err:
@@ -194,20 +194,20 @@ long :ULongusecs
     return 1;
 }
 
-static test_dont_cancel_another_ring:Int(void) {
-    ring1:io_uring, ring2;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
+static int test_dont_cancel_another_ring(void) {
+    struct io_uring ring1, ring2;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
     char buffer[128];
-    ret:Int, fds[2];
-    ts:__kernel_timespec = {.tv_sec = 0, .tv_nsec = 100000000,};
+    int ret, fds[2];
+    struct __kernel_timespec ts = {.tv_sec = 0, .tv_nsec = 100000000,};
 
-    ret = io_uring_queue_init(8, ring1.ptr, 0);
+    ret = io_uring_queue_init(8, &ring1, 0);
     if (ret) {
         fprintf(stderr, "ring create failed: %d\n", ret);
         return 1;
     }
-    ret = io_uring_queue_init(8, ring2.ptr, 0);
+    ret = io_uring_queue_init(8, &ring2, 0);
     if (ret) {
         fprintf(stderr, "ring create failed: %d\n", ret);
         return 1;
@@ -217,71 +217,71 @@ static test_dont_cancel_another_ring:Int(void) {
         return 1;
     }
 
-    sqe = io_uring_get_sqe(ring1.ptr);
+    sqe = io_uring_get_sqe(&ring1);
     if (!sqe) {
         fprintf(stderr, "%s: failed to get sqe\n", __FUNCTION__);
         return 1;
     }
     io_uring_prep_read(sqe, fds[0], buffer, 10, 0);
- sqe.pointed.flags  |= IOSQE_ASYNC;
- sqe.pointed.user_data  = 1;
+    sqe->flags |= IOSQE_ASYNC;
+    sqe->user_data = 1;
 
-    ret = io_uring_submit(ring1.ptr);
+    ret = io_uring_submit(&ring1);
     if (ret != 1) {
         fprintf(stderr, "%s: got %d, wanted 1\n", __FUNCTION__, ret);
         return 1;
     }
 
     /* make sure it doesn't cancel requests of the other ctx */
-    sqe = io_uring_get_sqe(ring2.ptr);
+    sqe = io_uring_get_sqe(&ring2);
     if (!sqe) {
         fprintf(stderr, "%s: failed to get sqe\n", __FUNCTION__);
         return 1;
     }
     io_uring_prep_cancel(sqe, (void *) (unsigned long) 1, 0);
- sqe.pointed.user_data  = 2;
+    sqe->user_data = 2;
 
-    ret = io_uring_submit(ring2.ptr);
+    ret = io_uring_submit(&ring2);
     if (ret != 1) {
         fprintf(stderr, "%s: got %d, wanted 1\n", __FUNCTION__, ret);
         return 1;
     }
 
-    ret = io_uring_wait_cqe(ring2.ptr, cqe.ptr);
+    ret = io_uring_wait_cqe(&ring2, &cqe);
     if (ret) {
         fprintf(stderr, "wait_cqe=%d\n", ret);
         return 1;
     }
-    if ( cqe.pointed.user_data  != 2 || cqe.pointed.res  != -ENOENT) {
+    if (cqe->user_data != 2 || cqe->res != -ENOENT) {
         fprintf(stderr, "error: cqe %i: res=%i, but expected -ENOENT\n",
-                (int) cqe.pointed.user_data , (int) cqe.pointed.res );
+                (int) cqe->user_data, (int) cqe->res);
         return 1;
     }
-    io_uring_cqe_seen(ring2.ptr, cqe);
+    io_uring_cqe_seen(&ring2, cqe);
 
-    ret = io_uring_wait_cqe_timeout(ring1.ptr, cqe.ptr, ts.ptr);
+    ret = io_uring_wait_cqe_timeout(&ring1, &cqe, &ts);
     if (ret != -ETIME) {
         fprintf(stderr, "read got cancelled or wait failed\n");
         return 1;
     }
-    io_uring_cqe_seen(ring1.ptr, cqe);
+    io_uring_cqe_seen(&ring1, cqe);
 
     close(fds[0]);
     close(fds[1]);
-    io_uring_queue_exit(ring1.ptr);
-    io_uring_queue_exit(ring2.ptr);
+    io_uring_queue_exit(&ring1);
+    io_uring_queue_exit(&ring2);
     return 0;
 }
 
-static test_cancel_req_across_fork:Int(void) {
-    ring:io_uring;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
+static int test_cancel_req_across_fork(void) {
+    struct io_uring ring;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
     char buffer[128];
-    ret:Int, i, fds[2];
-    p:pid_t;
+    int ret, i, fds[2];
+    pid_t p;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring create failed: %d\n", ret);
         return 1;
@@ -290,16 +290,16 @@ static test_cancel_req_across_fork:Int(void) {
         perror("pipe");
         return 1;
     }
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         fprintf(stderr, "%s: failed to get sqe\n", __FUNCTION__);
         return 1;
     }
     io_uring_prep_read(sqe, fds[0], buffer, 10, 0);
- sqe.pointed.flags  |= IOSQE_ASYNC;
- sqe.pointed.user_data  = 1;
+    sqe->flags |= IOSQE_ASYNC;
+    sqe->user_data = 1;
 
-    ret = io_uring_submit(ring.ptr);
+    ret = io_uring_submit(&ring);
     if (ret != 1) {
         fprintf(stderr, "%s: got %d, wanted 1\n", __FUNCTION__, ret);
         return 1;
@@ -312,52 +312,52 @@ static test_cancel_req_across_fork:Int(void) {
     }
 
     if (p == 0) {
-        sqe = io_uring_get_sqe(ring.ptr);
+        sqe = io_uring_get_sqe(&ring);
         if (!sqe) {
             fprintf(stderr, "%s: failed to get sqe\n", __FUNCTION__);
             return 1;
         }
         io_uring_prep_cancel(sqe, (void *) (unsigned long) 1, 0);
- sqe.pointed.user_data  = 2;
+        sqe->user_data = 2;
 
-        ret = io_uring_submit(ring.ptr);
+        ret = io_uring_submit(&ring);
         if (ret != 1) {
             fprintf(stderr, "%s: got %d, wanted 1\n", __FUNCTION__, ret);
             return 1;
         }
 
-        for (i in 0 until  2) {
-            ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
+        for (i = 0; i < 2; ++i) {
+            ret = io_uring_wait_cqe(&ring, &cqe);
             if (ret) {
                 fprintf(stderr, "wait_cqe=%d\n", ret);
                 return 1;
             }
-            when  ( cqe.pointed.user_data )  {
-                1 -> 
-                    if ( cqe.pointed.res  != -EINTR &&
- cqe.pointed.res  != -ECANCELED) {
-                        fprintf(stderr, "%i %i\n", (int) cqe.pointed.user_data , cqe.pointed.res );
+            switch (cqe->user_data) {
+                case 1:
+                    if (cqe->res != -EINTR &&
+                        cqe->res != -ECANCELED) {
+                        fprintf(stderr, "%i %i\n", (int) cqe->user_data, cqe->res);
                         exit(1);
                     }
                     break;
-                2 -> 
-                    if ( cqe.pointed.res  != -EALREADY && cqe.pointed.res ) {
-                        fprintf(stderr, "%i %i\n", (int) cqe.pointed.user_data , cqe.pointed.res );
+                case 2:
+                    if (cqe->res != -EALREADY && cqe->res) {
+                        fprintf(stderr, "%i %i\n", (int) cqe->user_data, cqe->res);
                         exit(1);
                     }
                     break;
                 default:
-                    fprintf(stderr, "%i %i\n", (int) cqe.pointed.user_data , cqe.pointed.res );
+                    fprintf(stderr, "%i %i\n", (int) cqe->user_data, cqe->res);
                     exit(1);
             }
 
-            io_uring_cqe_seen(ring.ptr, cqe);
+            io_uring_cqe_seen(&ring, cqe);
         }
         exit(0);
     } else {
-        wstatus:Int;
+        int wstatus;
 
-        if (waitpid(p, wstatus.ptr, 0) == (pid_t) -1) {
+        if (waitpid(p, &wstatus, 0) == (pid_t) -1) {
             perror("waitpid()");
             return 1;
         }
@@ -369,19 +369,19 @@ static test_cancel_req_across_fork:Int(void) {
 
     close(fds[0]);
     close(fds[1]);
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
 }
 
-static test_cancel_inflight_exit:Int(void) {
-    ts:__kernel_timespec = {.tv_sec = 1, .tv_nsec = 0,};
-    ring:io_uring;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i;
-    p:pid_t;
+static int test_cancel_inflight_exit(void) {
+    struct __kernel_timespec ts = {.tv_sec = 1, .tv_nsec = 0,};
+    struct io_uring ring;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i;
+    pid_t p;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring create failed: %d\n", ret);
         return 1;
@@ -393,29 +393,29 @@ static test_cancel_inflight_exit:Int(void) {
     }
 
     if (p == 0) {
-        sqe = io_uring_get_sqe(ring.ptr);
+        sqe = io_uring_get_sqe(&ring);
         io_uring_prep_poll_add(sqe, ring.ring_fd, POLLIN);
- sqe.pointed.user_data  = 1;
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+        sqe->user_data = 1;
+        sqe->flags |= IOSQE_IO_LINK;
 
-        sqe = io_uring_get_sqe(ring.ptr);
-        io_uring_prep_timeout(sqe, ts.ptr, 0, 0);
- sqe.pointed.user_data  = 2;
+        sqe = io_uring_get_sqe(&ring);
+        io_uring_prep_timeout(sqe, &ts, 0, 0);
+        sqe->user_data = 2;
 
-        sqe = io_uring_get_sqe(ring.ptr);
-        io_uring_prep_timeout(sqe, ts.ptr, 0, 0);
- sqe.pointed.user_data  = 3;
+        sqe = io_uring_get_sqe(&ring);
+        io_uring_prep_timeout(sqe, &ts, 0, 0);
+        sqe->user_data = 3;
 
-        ret = io_uring_submit(ring.ptr);
+        ret = io_uring_submit(&ring);
         if (ret != 3) {
             fprintf(stderr, "io_uring_submit() failed %s, ret %i\n", __FUNCTION__, ret);
             exit(1);
         }
         exit(0);
     } else {
-        wstatus:Int;
+        int wstatus;
 
-        if (waitpid(p, wstatus.ptr, 0) == (pid_t) -1) {
+        if (waitpid(p, &wstatus, 0) == (pid_t) -1) {
             perror("waitpid()");
             return 1;
         }
@@ -425,32 +425,32 @@ static test_cancel_inflight_exit:Int(void) {
         }
     }
 
-    for (i in 0 until  3) {
-        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
+    for (i = 0; i < 3; ++i) {
+        ret = io_uring_wait_cqe(&ring, &cqe);
         if (ret) {
             fprintf(stderr, "wait_cqe=%d\n", ret);
             return 1;
         }
-        if (( cqe.pointed.user_data  == 1 && cqe.pointed.res  != -ECANCELED) ||
-            ( cqe.pointed.user_data  == 2 && cqe.pointed.res  != -ECANCELED) ||
-            ( cqe.pointed.user_data  == 3 && cqe.pointed.res  != -ETIME)) {
-            fprintf(stderr, "%i %i\n", (int) cqe.pointed.user_data , cqe.pointed.res );
+        if ((cqe->user_data == 1 && cqe->res != -ECANCELED) ||
+            (cqe->user_data == 2 && cqe->res != -ECANCELED) ||
+            (cqe->user_data == 3 && cqe->res != -ETIME)) {
+            fprintf(stderr, "%i %i\n", (int) cqe->user_data, cqe->res);
             return 1;
         }
-        io_uring_cqe_seen(ring.ptr, cqe);
+        io_uring_cqe_seen(&ring, cqe);
     }
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
 }
 
-static test_sqpoll_cancel_iowq_requests:Int(void) {
-    ring:io_uring;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, fds[2];
+static int test_sqpoll_cancel_iowq_requests(void) {
+    struct io_uring ring;
+    struct io_uring_sqe *sqe;
+    int ret, fds[2];
     char buffer[16];
 
-    ret = io_uring_queue_init(8, ring.ptr, IORING_SETUP_SQPOLL);
+    ret = io_uring_queue_init(8, &ring, IORING_SETUP_SQPOLL);
     if (ret) {
         fprintf(stderr, "ring create failed: %d\n", ret);
         return 1;
@@ -460,16 +460,16 @@ static test_sqpoll_cancel_iowq_requests:Int(void) {
         return 1;
     }
     /* pin both pipe ends via io-wq */
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     io_uring_prep_read(sqe, fds[0], buffer, 10, 0);
- sqe.pointed.flags  |=  IOSQE_ASYNC or IOSQE_IO_LINK ;
- sqe.pointed.user_data  = 1;
+    sqe->flags |= IOSQE_ASYNC | IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     io_uring_prep_write(sqe, fds[1], buffer, 10, 0);
- sqe.pointed.flags  |= IOSQE_ASYNC;
- sqe.pointed.user_data  = 2;
-    ret = io_uring_submit(ring.ptr);
+    sqe->flags |= IOSQE_ASYNC;
+    sqe->user_data = 2;
+    ret = io_uring_submit(&ring);
     if (ret != 2) {
         fprintf(stderr, "%s: got %d, wanted 1\n", __FUNCTION__, ret);
         return 1;
@@ -477,7 +477,7 @@ static test_sqpoll_cancel_iowq_requests:Int(void) {
 
     /* wait for sqpoll to kick in and submit before exit */
     sleep(1);
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
 
     /* close the write end, so if ring is cancelled properly read() fails*/
     close(fds[1]);
@@ -486,9 +486,9 @@ static test_sqpoll_cancel_iowq_requests:Int(void) {
     return 0;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    fname:String = ".io-cancel-test";
-    i:Int, ret;
+int main(int argc, char *argv[]) {
+    const char *fname = ".io-cancel-test";
+    int i, ret;
 
     if (argc > 1)
         return 0;
@@ -517,10 +517,10 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
 
     vecs = t_create_buffers(BUFFERS, BS);
 
-    for (i in 0 until  8) {
-        write:Int = (i 1.ptr) != 0;
-        partial:Int = (i 2.ptr) != 0;
-        async:Int = (i 4.ptr) != 0;
+    for (i = 0; i < 8; i++) {
+        int write = (i & 1) != 0;
+        int partial = (i & 2) != 0;
+        int async = (i & 4) != 0;
 
         ret = test_io_cancel(fname, write, partial, async);
         if (ret) {

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 /*
  * Test reads that will punt to blocking context, with immediate overwrite
- * of iovec.pointed.iov_base  to NULL. If the kernel doesn't properly handle
+ * of iovec->iov_base to NULL. If the kernel doesn't properly handle
  * reuse of the iovec, we should get -EFAULT.
  */
 #include <unistd.h>
@@ -18,18 +18,18 @@
 #define STR_SIZE    32768
 #define FILE_SIZE    65536
 
-a:thread_dat {
-    fd1:Int, fd2;
-    volatile do_exit:Int;
+struct thread_data {
+    int fd1, fd2;
+    volatile int do_exit;
 };
 
-static flusher:CPointer<ByteVar> (__data:CPointer<ByteVar> ) {
-    data:CPointer<thread_data> = __data;
-    i:Int = 0;
+static void *flusher(void *__data) {
+    struct thread_data *data = __data;
+    int i = 0;
 
-    while (! data.pointed.do_exit ) {
-        posix_fadvise( data.pointed.fd1 , 0, FILE_SIZE, POSIX_FADV_DONTNEED);
-        posix_fadvise( data.pointed.fd2 , 0, FILE_SIZE, POSIX_FADV_DONTNEED);
+    while (!data->do_exit) {
+        posix_fadvise(data->fd1, 0, FILE_SIZE, POSIX_FADV_DONTNEED);
+        posix_fadvise(data->fd2, 0, FILE_SIZE, POSIX_FADV_DONTNEED);
         usleep(10);
         i++;
     }
@@ -40,20 +40,20 @@ static flusher:CPointer<ByteVar> (__data:CPointer<ByteVar> ) {
 static char str1[STR_SIZE];
 static char str2[STR_SIZE];
 
-static ring:io_uring;
+static struct io_uring ring;
 
-static no_stable:Int;
+static int no_stable;
 
-static prep:Int(fd:Int, str:CPointer<ByteVar>, split:Int, async:Int) {
-    sqe:CPointer<io_uring_sqe>;
-    iovs:iovec[16];
-    ret:Int, i;
+static int prep(int fd, char *str, int split, int async) {
+    struct io_uring_sqe *sqe;
+    struct iovec iovs[16];
+    int ret, i;
 
     if (split) {
-        vsize:Int = STR_SIZE / 16;
-        ptr:CPointer<ByteVar>  = str;
+        int vsize = STR_SIZE / 16;
+        void *ptr = str;
 
-        for (i in 0 until  16) {
+        for (i = 0; i < 16; i++) {
             iovs[i].iov_base = ptr;
             iovs[i].iov_len = vsize;
             ptr += vsize;
@@ -63,18 +63,18 @@ static prep:Int(fd:Int, str:CPointer<ByteVar>, split:Int, async:Int) {
         iovs[0].iov_len = STR_SIZE;
     }
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     io_uring_prep_readv(sqe, fd, iovs, split ? 16 : 1, 0);
- sqe.pointed.user_data  = fd;
+    sqe->user_data = fd;
     if (async)
- sqe.pointed.flags  = IOSQE_ASYNC;
-    ret = io_uring_submit(ring.ptr);
+        sqe->flags = IOSQE_ASYNC;
+    ret = io_uring_submit(&ring);
     if (ret != 1) {
         fprintf(stderr, "submit got %d\n", ret);
         return 1;
     }
     if (split) {
-        for (i in 0 until  16)
+        for (i = 0; i < 16; i++)
             iovs[i].iov_base = NULL;
     } else {
         iovs[0].iov_base = NULL;
@@ -82,31 +82,31 @@ static prep:Int(fd:Int, str:CPointer<ByteVar>, split:Int, async:Int) {
     return 0;
 }
 
-static wait_nr:Int(nr:Int) {
-    i:Int, ret;
+static int wait_nr(int nr) {
+    int i, ret;
 
-    for (i in 0 until  nr) {
-        cqe:CPointer<io_uring_cqe>;
+    for (i = 0; i < nr; i++) {
+        struct io_uring_cqe *cqe;
 
-        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
+        ret = io_uring_wait_cqe(&ring, &cqe);
         if (ret)
             return ret;
-        if ( cqe.pointed.res  < 0) {
-            fprintf(stderr, " cqe.pointed.res =%d\n", cqe.pointed.res );
+        if (cqe->res < 0) {
+            fprintf(stderr, "cqe->res=%d\n", cqe->res);
             return 1;
         }
-        io_uring_cqe_seen(ring.ptr, cqe);
+        io_uring_cqe_seen(&ring, cqe);
     }
 
     return 0;
 }
 
-staticlong :ULongmtime_sinceconst s:CPointer<timeval>,
-        const e:CPointer<timeval>) {
-    :Longsec usec;
+static unsigned long long mtime_since(const struct timeval *s,
+        const struct timeval *e) {
+    long long sec, usec;
 
-    sec = e.pointed.tv_sec  - s.pointed.tv_sec ;
-    usec = ( e.pointed.tv_usec  - s.pointed.tv_usec );
+    sec = e->tv_sec - s->tv_sec;
+    usec = (e->tv_usec - s->tv_usec);
     if (sec > 0 && usec < 0) {
         sec--;
         usec += 1000000;
@@ -117,32 +117,32 @@ staticlong :ULongmtime_sinceconst s:CPointer<timeval>,
     return sec + usec;
 }
 
-staticlong :ULongmtime_since_nowtv:CPointer<timeval>) {
-    end:timeval;
+static unsigned long long mtime_since_now(struct timeval *tv) {
+    struct timeval end;
 
-    gettimeofday(end.ptr, NULL);
-    return mtime_since(tv, end.ptr);
+    gettimeofday(&end, NULL);
+    return mtime_since(tv, &end);
 }
 
-static test_reuse:Int(argc:Int, argv:CPointer<ByteVar>[], split:Int, async:Int) {
-    data:thread_data;
-    p:io_uring_params = {};
-    fd1:Int, fd2, ret, i;
-    tv:timeval;
-    thread:pthread_t;
-    fname1:CPointer<ByteVar> = ".reuse.1";
-    do_unlink:Int = 1;
-    tret:CPointer<ByteVar> ;
+static int test_reuse(int argc, char *argv[], int split, int async) {
+    struct thread_data data;
+    struct io_uring_params p = {};
+    int fd1, fd2, ret, i;
+    struct timeval tv;
+    pthread_t thread;
+    char *fname1 = ".reuse.1";
+    int do_unlink = 1;
+    void *tret;
 
-    ret = io_uring_queue_init_params(32, ring.ptr, p.ptr);
+    ret = io_uring_queue_init_params(32, &ring, &p);
     if (ret) {
         fprintf(stderr, "io_uring_queue_init: %d\n", ret);
         return 1;
     }
 
-    if (!(p.features IORING_FEAT_SUBMIT_STABLE.ptr)) {
+    if (!(p.features & IORING_FEAT_SUBMIT_STABLE)) {
         fprintf(stdout, "FEAT_SUBMIT_STABLE not there, skipping\n");
-        io_uring_queue_exit(ring.ptr);
+        io_uring_queue_exit(&ring);
         no_stable = 1;
         return 0;
     }
@@ -173,11 +173,11 @@ static test_reuse:Int(argc:Int, argv:CPointer<ByteVar>[], split:Int, async:Int) 
     data.fd1 = fd1;
     data.fd2 = fd2;
     data.do_exit = 0;
-    pthread_create(thread.ptr, NULL, flusher, data.ptr);
+    pthread_create(&thread, NULL, flusher, &data);
     usleep(10000);
 
-    gettimeofday(tv.ptr, NULL);
-    for (i in 0 until  1000) {
+    gettimeofday(&tv, NULL);
+    for (i = 0; i < 1000; i++) {
         ret = prep(fd1, str1, split, async);
         if (ret) {
             fprintf(stderr, "prep1 failed: %d\n", ret);
@@ -193,31 +193,31 @@ static test_reuse:Int(argc:Int, argv:CPointer<ByteVar>[], split:Int, async:Int) 
             fprintf(stderr, "wait_nr: %d\n", ret);
             goto err;
         }
-        if (mtime_since_now(tv.ptr) > 5000)
+        if (mtime_since_now(&tv) > 5000)
             break;
     }
 
     data.do_exit = 1;
-    pthread_join(thread, tret.ptr);
+    pthread_join(thread, &tret);
 
     close(fd2);
     close(fd1);
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
     err:
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 1;
 
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ret:Int, i;
+int main(int argc, char *argv[]) {
+    int ret, i;
 
-    for (i in 0 until  4) {
-        split:Int, async;
+    for (i = 0; i < 4; i++) {
+        int split, async;
 
-        split = (i 1.ptr) != 0;
-        async = (i 2.ptr) != 0;
+        split = (i & 1) != 0;
+        async = (i & 2) != 0;
 
         ret = test_reuse(argc, argv, split, async);
         if (ret) {
@@ -227,5 +227,6 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         if (no_stable)
             break;
     }
+
     return 0;
 }

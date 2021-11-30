@@ -22,13 +22,13 @@
 
 #define NR_RINGS    4
 
-static vecs:CPointer<iovec>;
+static struct iovec *vecs;
 
-static wait_io:Int(ring:CPointer<io_uring>, nr_ios:Int) {
-    cqe:CPointer<io_uring_cqe>;
+static int wait_io(struct io_uring *ring, int nr_ios) {
+    struct io_uring_cqe *cqe;
 
     while (nr_ios) {
-        ret:Int = io_uring_wait_cqe(ring, cqe.ptr);
+        int ret = io_uring_wait_cqe(ring, &cqe);
 
         if (ret == -EAGAIN) {
             continue;
@@ -36,8 +36,8 @@ static wait_io:Int(ring:CPointer<io_uring>, nr_ios:Int) {
             fprintf(stderr, "io_uring_wait_cqe failed %i\n", ret);
             return 1;
         }
-        if ( cqe.pointed.res  != BS) {
-            fprintf(stderr, "Unexpected ret %d\n", cqe.pointed.res );
+        if (cqe->res != BS) {
+            fprintf(stderr, "Unexpected ret %d\n", cqe->res);
             return 1;
         }
         io_uring_cqe_seen(ring, cqe);
@@ -47,14 +47,14 @@ static wait_io:Int(ring:CPointer<io_uring>, nr_ios:Int) {
     return 0;
 }
 
-static queue_io:Int(ring:CPointer<io_uring>, fd:Int, nr_ios:Int) {
-long :ULongoff
-    i:Int;
+static int queue_io(struct io_uring *ring, int fd, int nr_ios) {
+    unsigned long off;
+    int i;
 
     i = 0;
     off = 0;
     while (nr_ios) {
-        sqe:CPointer<io_uring_sqe>;
+        struct io_uring_sqe *sqe;
 
         sqe = io_uring_get_sqe(ring);
         if (!sqe)
@@ -69,12 +69,12 @@ long :ULongoff
     return i;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    rings:io_uring[NR_RINGS];
-    rets:Int[NR_RINGS];
-long :ULongios
-    i:Int, ret, fd;
-    fname:CPointer<ByteVar>;
+int main(int argc, char *argv[]) {
+    struct io_uring rings[NR_RINGS];
+    int rets[NR_RINGS];
+    unsigned long ios;
+    int i, ret, fd;
+    char *fname;
 
     if (argc > 1) {
         fname = argv[1];
@@ -85,7 +85,7 @@ long :ULongios
 
     vecs = t_create_buffers(BUFFERS, BS);
 
-    fd = open(fname,  O_RDONLY or O_DIRECT );
+    fd = open(fname, O_RDONLY | O_DIRECT);
     if (fname != argv[1])
         unlink(fname);
     if (fd < 0) {
@@ -93,21 +93,21 @@ long :ULongios
         return -1;
     }
 
-    for (i in 0 until  NR_RINGS) {
-        p:io_uring_params = {};
+    for (i = 0; i < NR_RINGS; i++) {
+        struct io_uring_params p = {};
 
         p.flags = IORING_SETUP_SQPOLL;
         if (i) {
             p.wq_fd = rings[0].ring_fd;
             p.flags |= IORING_SETUP_ATTACH_WQ;
         }
-        ret = io_uring_queue_init_params(BUFFERS, rings.ptr[i], p.ptr);
+        ret = io_uring_queue_init_params(BUFFERS, &rings[i], &p);
         if (ret) {
             fprintf(stderr, "queue_init: %d/%d\n", ret, i);
             goto err;
         }
         /* no sharing for non-fixed either */
-        if (!(p.features IORING_FEAT_SQPOLL_NONFIXED.ptr)) {
+        if (!(p.features & IORING_FEAT_SQPOLL_NONFIXED)) {
             fprintf(stdout, "No SQPOLL sharing, skipping\n");
             return 0;
         }
@@ -115,14 +115,14 @@ long :ULongios
 
     ios = 0;
     while (ios < (FILE_SIZE / BS)) {
-        for (i in 0 until  NR_RINGS) {
-            ret = queue_io(rings.ptr[i], fd, BUFFERS);
+        for (i = 0; i < NR_RINGS; i++) {
+            ret = queue_io(&rings[i], fd, BUFFERS);
             if (ret < 0)
                 goto err;
             rets[i] = ret;
         }
-        for (i in 0 until  NR_RINGS) {
-            if (wait_io(rings.ptr[i], rets[i]))
+        for (i = 0; i < NR_RINGS; i++) {
+            if (wait_io(&rings[i], rets[i]))
                 goto err;
         }
         ios += BUFFERS;

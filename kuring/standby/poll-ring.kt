@@ -14,21 +14,21 @@
 
 #include "liburing.h"
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    sqe:CPointer<io_uring_sqe>;
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring_sqe *sqe;
+    struct io_uring ring;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(1, ring.ptr, 0);
+    ret = io_uring_queue_init(1, &ring, 0);
     if (ret) {
         fprintf(stderr, "child: ring setup failed: %d\n", ret);
         return 1;
     }
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         fprintf(stderr, "get sqe failed\n");
         return 1;
@@ -37,7 +37,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     io_uring_prep_poll_add(sqe, ring.ring_fd, POLLIN);
     io_uring_sqe_set_data(sqe, sqe);
 
-    ret = io_uring_submit(ring.ptr);
+    ret = io_uring_submit(&ring);
     if (ret <= 0) {
         fprintf(stderr, "child: sqe submit failed: %d\n", ret);
         return 1;

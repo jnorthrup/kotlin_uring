@@ -1,3 +1,3 @@
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
+int main(int argc, char *argv[]) {
     return 0;
 }

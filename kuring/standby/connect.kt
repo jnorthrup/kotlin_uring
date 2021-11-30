@@ -18,12 +18,12 @@
 
 #include "liburing.h"
 
-static no_connect:Int;
+static int no_connect;
 static unsigned short use_port;
-static use_addr:UInt;
+static unsigned int use_addr;
 
-static create_socket:Int(void) {
-    fd:Int;
+static int create_socket(void) {
+    int fd;
 
     fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (fd == -1) {
@@ -34,9 +34,9 @@ static create_socket:Int(void) {
     return fd;
 }
 
-static submit_and_wait:Int(ring:CPointer<io_uring>, int *res) {
-    cqe:CPointer<io_uring_cqe>;
-    ret:Int;
+static int submit_and_wait(struct io_uring *ring, int *res) {
+    struct io_uring_cqe *cqe;
+    int ret;
 
     ret = io_uring_submit_and_wait(ring, 1);
     if (ret != 1) {
@@ -44,20 +44,20 @@ static submit_and_wait:Int(ring:CPointer<io_uring>, int *res) {
         return 1;
     }
 
-    ret = io_uring_peek_cqe(ring, cqe.ptr);
+    ret = io_uring_peek_cqe(ring, &cqe);
     if (ret) {
         fprintf(stderr, "io_uring_peek_cqe(): no cqe returned");
         return 1;
     }
 
-    *res = cqe.pointed.res ;
+    *res = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     return 0;
 }
 
-static wait_for:Int(ring:CPointer<io_uring>, fd:Int, mask:Int) {
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, res;
+static int wait_for(struct io_uring *ring, int fd, int mask) {
+    struct io_uring_sqe *sqe;
+    int ret, res;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -66,9 +66,9 @@ static wait_for:Int(ring:CPointer<io_uring>, fd:Int, mask:Int) {
     }
 
     io_uring_prep_poll_add(sqe, fd, mask);
- sqe.pointed.user_data  = 2;
+    sqe->user_data = 2;
 
-    ret = submit_and_wait(ring, res.ptr);
+    ret = submit_and_wait(ring, &res);
     if (ret)
         return -1;
 
@@ -80,16 +80,16 @@ static wait_for:Int(ring:CPointer<io_uring>, fd:Int, mask:Int) {
     return res;
 }
 
-static listen_on_socket:Int(fd:Int) {
-    addr:sockaddr_in;
-    ret:Int;
+static int listen_on_socket(int fd) {
+    struct sockaddr_in addr;
+    int ret;
 
-    memset(addr.ptr, 0, sizeof(addr));
+    memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = use_port;
     addr.sin_addr.s_addr = use_addr;
 
-    ret = bind(fd, (r:sockadd *) addr.ptr, sizeof(addr));
+    ret = bind(fd, (struct sockaddr *) &addr, sizeof(addr));
     if (ret == -1) {
         perror("bind()");
         return -1;
@@ -104,35 +104,35 @@ static listen_on_socket:Int(fd:Int) {
     return 0;
 }
 
-static configure_connect:Int(fd:Int, addr:CPointer<sockaddr_in>) {
-    ret:Int, val = 1;
+static int configure_connect(int fd, struct sockaddr_in *addr) {
+    int ret, val = 1;
 
-    ret = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, val.ptr, sizeof(val));
+    ret = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
     if (ret == -1) {
         perror("setsockopt()");
         return -1;
     }
 
-    ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, val.ptr, sizeof(val));
+    ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
     if (ret == -1) {
         perror("setsockopt()");
         return -1;
     }
 
     memset(addr, 0, sizeof(*addr));
- addr.pointed.sin_family  = AF_INET;
- addr.pointed.sin_port  = use_port;
-    ret = inet_aton("127.0.0.1", addr. ptr.pointed.sin_addr );
+    addr->sin_family = AF_INET;
+    addr->sin_port = use_port;
+    ret = inet_aton("127.0.0.1", &addr->sin_addr);
     return ret;
 }
 
-static connect_socket:Int(ring:CPointer<io_uring>, fd:Int, int *code) {
-    addr:sockaddr_in;
-    ret:Int, res;
-    code_len:socklen_t = sizeof(*code);
-    sqe:CPointer<io_uring_sqe>;
+static int connect_socket(struct io_uring *ring, int fd, int *code) {
+    struct sockaddr_in addr;
+    int ret, res;
+    socklen_t code_len = sizeof(*code);
+    struct io_uring_sqe *sqe;
 
-    if (configure_connect(fd, addr.ptr) == -1)
+    if (configure_connect(fd, &addr) == -1)
         return -1;
 
     sqe = io_uring_get_sqe(ring);
@@ -141,25 +141,25 @@ static connect_socket:Int(ring:CPointer<io_uring>, fd:Int, int *code) {
         return -1;
     }
 
-    io_uring_prep_connect(sqe, fd, (r:sockadd *) addr.ptr, sizeof(addr));
- sqe.pointed.user_data  = 1;
+    io_uring_prep_connect(sqe, fd, (struct sockaddr *) &addr, sizeof(addr));
+    sqe->user_data = 1;
 
-    ret = submit_and_wait(ring, res.ptr);
+    ret = submit_and_wait(ring, &res);
     if (ret)
         return -1;
 
     if (res == -EINPROGRESS) {
-        ret = wait_for(ring, fd,  POLLOUT or  POLLHUP or POLLERR );
+        ret = wait_for(ring, fd, POLLOUT | POLLHUP | POLLERR);
         if (ret == -1)
             return -1;
 
-        ev:Int = (ret POLLOUT.ptr) || (ret POLLHUP.ptr) || (ret POLLERR.ptr);
+        int ev = (ret & POLLOUT) || (ret & POLLHUP) || (ret & POLLERR);
         if (!ev) {
             fprintf(stderr, "poll(): returned invalid value %#x\n", ret);
             return -1;
         }
 
-        ret = getsockopt(fd, SOL_SOCKET, SO_ERROR, code, code_len.ptr);
+        ret = getsockopt(fd, SOL_SOCKET, SO_ERROR, code, &code_len);
         if (ret == -1) {
             perror("getsockopt()");
             return -1;
@@ -169,15 +169,15 @@ static connect_socket:Int(ring:CPointer<io_uring>, fd:Int, int *code) {
     return 0;
 }
 
-static test_connect_with_no_peer:Int(ring:CPointer<io_uring>) {
-    connect_fd:Int;
-    ret:Int, code;
+static int test_connect_with_no_peer(struct io_uring *ring) {
+    int connect_fd;
+    int ret, code;
 
     connect_fd = create_socket();
     if (connect_fd == -1)
         return -1;
 
-    ret = connect_socket(ring, connect_fd, code.ptr);
+    ret = connect_socket(ring, connect_fd, &code);
     if (ret == -1)
         goto err;
 
@@ -200,10 +200,10 @@ static test_connect_with_no_peer:Int(ring:CPointer<io_uring>) {
     return -1;
 }
 
-static test_connect:Int(ring:CPointer<io_uring>) {
-    accept_fd:Int;
-    connect_fd:Int;
-    ret:Int, code;
+static int test_connect(struct io_uring *ring) {
+    int accept_fd;
+    int connect_fd;
+    int ret, code;
 
     accept_fd = create_socket();
     if (accept_fd == -1)
@@ -217,7 +217,7 @@ static test_connect:Int(ring:CPointer<io_uring>) {
     if (connect_fd == -1)
         goto err1;
 
-    ret = connect_socket(ring, connect_fd, code.ptr);
+    ret = connect_socket(ring, connect_fd, &code);
     if (ret == -1)
         goto err2;
 
@@ -239,13 +239,13 @@ static test_connect:Int(ring:CPointer<io_uring>) {
     return -1;
 }
 
-static test_connect_timeout:Int(ring:CPointer<io_uring>) {
-    connect_fd:Int[2] = {-1, -1};
-    accept_fd:Int = -1;
-    ret:Int, code;
-    addr:sockaddr_in;
-    sqe:CPointer<io_uring_sqe>;
-    ts:__kernel_timespec = {.tv_sec = 0, .tv_nsec = 100000};
+static int test_connect_timeout(struct io_uring *ring) {
+    int connect_fd[2] = {-1, -1};
+    int accept_fd = -1;
+    int ret, code;
+    struct sockaddr_in addr;
+    struct io_uring_sqe *sqe;
+    struct __kernel_timespec ts = {.tv_sec = 0, .tv_nsec = 100000};
 
     connect_fd[0] = create_socket();
     if (connect_fd[0] == -1)
@@ -259,13 +259,13 @@ static test_connect_timeout:Int(ring:CPointer<io_uring>) {
     if (accept_fd == -1)
         goto err;
 
-    if (configure_connect(connect_fd[0], addr.ptr) == -1)
+    if (configure_connect(connect_fd[0], &addr) == -1)
         goto err;
 
-    if (configure_connect(connect_fd[1], addr.ptr) == -1)
+    if (configure_connect(connect_fd[1], &addr) == -1)
         goto err;
 
-    ret = bind(accept_fd, (r:sockadd *) addr.ptr, sizeof(addr));
+    ret = bind(accept_fd, (struct sockaddr *) &addr, sizeof(addr));
     if (ret == -1) {
         perror("bind()");
         goto err;
@@ -278,7 +278,7 @@ static test_connect_timeout:Int(ring:CPointer<io_uring>) {
     }
 
     // We first connect with one client socket in order to fill the accept queue.
-    ret = connect_socket(ring, connect_fd[0], code.ptr);
+    ret = connect_socket(ring, connect_fd[0], &code);
     if (ret == -1 || code != 0) {
         fprintf(stderr, "unable to connect\n");
         goto err;
@@ -292,17 +292,17 @@ static test_connect_timeout:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    io_uring_prep_connect(sqe, connect_fd[1], (r:sockadd *) addr.ptr, sizeof(addr));
- sqe.pointed.user_data  = 1;
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+    io_uring_prep_connect(sqe, connect_fd[1], (struct sockaddr *) &addr, sizeof(addr));
+    sqe->user_data = 1;
+    sqe->flags |= IOSQE_IO_LINK;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
         fprintf(stderr, "unable to get sqe\n");
         goto err;
     }
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.user_data  = 2;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->user_data = 2;
 
     ret = io_uring_submit(ring);
     if (ret != 2) {
@@ -310,20 +310,20 @@ static test_connect_timeout:Int(ring:CPointer<io_uring>) {
         return -1;
     }
 
-    for (i/*as int */ in 0 until  2) {
-        expected:Int;
-        cqe:CPointer<io_uring_cqe>;
+    for (int i = 0; i < 2; i++) {
+        int expected;
+        struct io_uring_cqe *cqe;
 
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret) {
             fprintf(stderr, "wait_cqe=%d\n", ret);
             return -1;
         }
 
-        expected = ( cqe.pointed.user_data  == 1) ? -ECANCELED : -ETIME;
-        if (expected != cqe.pointed.res ) {
+        expected = (cqe->user_data == 1) ? -ECANCELED : -ETIME;
+        if (expected != cqe->res) {
             fprintf(stderr, "cqe %d, res %d, wanted %d\n",
-                    (int) cqe.pointed.user_data , cqe.pointed.res , expected);
+                    (int) cqe->user_data, cqe->res, expected);
             goto err;
         }
         io_uring_cqe_seen(ring, cqe);
@@ -345,14 +345,14 @@ static test_connect_timeout:Int(ring:CPointer<io_uring>) {
     return -1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "io_uring_queue_setup() = %d\n", ret);
         return 1;
@@ -363,7 +363,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     use_port = htons(use_port);
     use_addr = inet_addr("127.0.0.1");
 
-    ret = test_connect_with_no_peer(ring.ptr);
+    ret = test_connect_with_no_peer(&ring);
     if (ret == -1) {
         fprintf(stderr, "test_connect_with_no_peer(): failed\n");
         return 1;
@@ -371,18 +371,18 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (no_connect)
         return 0;
 
-    ret = test_connect(ring.ptr);
+    ret = test_connect(&ring);
     if (ret == -1) {
         fprintf(stderr, "test_connect(): failed\n");
         return 1;
     }
 
-    ret = test_connect_timeout(ring.ptr);
+    ret = test_connect_timeout(&ring);
     if (ret == -1) {
         fprintf(stderr, "test_connect_timeout(): failed\n");
         return 1;
     }
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
 }

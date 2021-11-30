@@ -18,156 +18,156 @@
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
-static recv_thread_ready:Int = 0;
-static recv_thread_done:Int = 0;
+static int recv_thread_ready = 0;
+static int recv_thread_done = 0;
 
 static void signal_var(int *var) {
-    pthread_mutex_lock(mutex.ptr);
+    pthread_mutex_lock(&mutex);
     *var = 1;
-    pthread_cond_signal(cond.ptr);
-    pthread_mutex_unlock(mutex.ptr);
+    pthread_cond_signal(&cond);
+    pthread_mutex_unlock(&mutex);
 }
 
 static void wait_for_var(int *var) {
-    pthread_mutex_lock(mutex.ptr);
+    pthread_mutex_lock(&mutex);
 
     while (!*var)
-        pthread_cond_wait(cond.ptr, mutex.ptr);
+        pthread_cond_wait(&cond, &mutex);
 
-    pthread_mutex_unlock(mutex.ptr);
+    pthread_mutex_unlock(&mutex);
 }
 
-a:dat {
+struct data {
     unsigned expected[2];
     unsigned just_positive[2];
-long :ULongtimeout
+    unsigned long timeout;
     unsigned short port;
-    addr:UInt;
-    stop:Int;
+    unsigned int addr;
+    int stop;
 };
 
-static send_thread:CPointer<ByteVar> (arg:CPointer<ByteVar> ) {
-    data:CPointer<data> = arg;
-    ret:Int;
+static void *send_thread(void *arg) {
+    struct data *data = arg;
+    int ret;
 
-    wait_for_var(recv_thread_ready.ptr);
+    wait_for_var(&recv_thread_ready);
 
-    if ( data.pointed.stop )
+    if (data->stop)
         return NULL;
 
-    s0:Int = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    int s0 = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     assert(s0 != -1);
 
-    addr:sockaddr_in;
+    struct sockaddr_in addr;
 
     addr.sin_family = AF_INET;
-    addr.sin_port = data.pointed.port ;
-    addr.sin_addr.s_addr = data.pointed.addr ;
+    addr.sin_port = data->port;
+    addr.sin_addr.s_addr = data->addr;
 
-    ret = connect(s0, (r:sockadd *) addr.ptr, sizeof(addr));
+    ret = connect(s0, (struct sockaddr *) &addr, sizeof(addr));
     assert(ret != -1);
 
-    wait_for_var(recv_thread_done.ptr);
+    wait_for_var(&recv_thread_done);
 
     close(s0);
     return NULL;
 }
 
-fun recv_thread(arg:CPointer<ByteVar> ): CPointer<ByteVar> {
-    data:CPointer<data> = arg;
-    ring:io_uring;
-    i:Int, ret;
+void *recv_thread(void *arg) {
+    struct data *data = arg;
+    struct io_uring ring;
+    int i, ret;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     assert(ret == 0);
 
-    s0:Int = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    int s0 = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     assert(s0 != -1);
 
-    val:int32_t = 1;
-    ret = setsockopt(s0, SOL_SOCKET, SO_REUSEPORT, val.ptr, sizeof(val));
+    int32_t val = 1;
+    ret = setsockopt(s0, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
     assert(ret != -1);
-    ret = setsockopt(s0, SOL_SOCKET, SO_REUSEADDR, val.ptr, sizeof(val));
+    ret = setsockopt(s0, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
     assert(ret != -1);
 
-    addr:sockaddr_in;
+    struct sockaddr_in addr;
 
     addr.sin_family = AF_INET;
- data.pointed.addr  = inet_addr("127.0.0.1");
-    addr.sin_addr.s_addr = data.pointed.addr ;
+    data->addr = inet_addr("127.0.0.1");
+    addr.sin_addr.s_addr = data->addr;
 
     i = 0;
     do {
- data.pointed.port  = htons(1025 + (rand() % 64510));
-        addr.sin_port = data.pointed.port ;
+        data->port = htons(1025 + (rand() % 64510));
+        addr.sin_port = data->port;
 
-        if (bind(s0, (r:sockadd *) addr.ptr, sizeof(addr)) != -1)
+        if (bind(s0, (struct sockaddr *) &addr, sizeof(addr)) != -1)
             break;
     } while (++i < 100);
 
     if (i >= 100) {
         printf("Can't find good port, skipped\n");
- data.pointed.stop  = 1;
-        signal_var(recv_thread_ready.ptr);
+        data->stop = 1;
+        signal_var(&recv_thread_ready);
         goto out;
     }
 
     ret = listen(s0, 128);
     assert(ret != -1);
 
-    signal_var(recv_thread_ready.ptr);
+    signal_var(&recv_thread_ready);
 
-    sqe:CPointer<io_uring_sqe>;
+    struct io_uring_sqe *sqe;
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     assert(sqe != NULL);
 
     io_uring_prep_accept(sqe, s0, NULL, NULL, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     assert(sqe != NULL);
 
-    ts:__kernel_timespec;
-    ts.tv_sec = data.pointed.timeout  / 1000000000;
-    ts.tv_nsec = data.pointed.timeout  % 1000000000;
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.user_data  = 2;
+    struct __kernel_timespec ts;
+    ts.tv_sec = data->timeout / 1000000000;
+    ts.tv_nsec = data->timeout % 1000000000;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->user_data = 2;
 
-    ret = io_uring_submit(ring.ptr);
+    ret = io_uring_submit(&ring);
     assert(ret == 2);
 
-    for (i in 0 until  2) {
-        cqe:CPointer<io_uring_cqe>;
-        idx:Int;
+    for (i = 0; i < 2; i++) {
+        struct io_uring_cqe *cqe;
+        int idx;
 
-        if (io_uring_wait_cqe(ring.ptr, cqe.ptr)) {
+        if (io_uring_wait_cqe(&ring, &cqe)) {
             fprintf(stderr, "wait cqe failed\n");
             goto err;
         }
-        idx = cqe.pointed.user_data  - 1;
-        if ( cqe.pointed.res  != data.pointed.expected [idx]) {
-            if ( cqe.pointed.res  > 0 && data.pointed.just_positive [idx])
+        idx = cqe->user_data - 1;
+        if (cqe->res != data->expected[idx]) {
+            if (cqe->res > 0 && data->just_positive[idx])
                 goto ok;
-            if ( cqe.pointed.res  == -EBADF) {
+            if (cqe->res == -EBADF) {
                 fprintf(stdout, "Accept not supported, skipping\n");
- data.pointed.stop  = 1;
+                data->stop = 1;
                 goto out;
             }
             fprintf(stderr, "cqe %" PRIu64 " got %d, wanted %d\n",
-                    (uint64_t) cqe.pointed.user_data , cqe.pointed.res ,
- data.pointed.expected [idx]);
+                    (uint64_t) cqe->user_data, cqe->res,
+                    data->expected[idx]);
             goto err;
         }
         ok:
-        if ( cqe.pointed.user_data  == 1 && cqe.pointed.res  > 0)
-            close( cqe.pointed.res );
+        if (cqe->user_data == 1 && cqe->res > 0)
+            close(cqe->res);
 
-        io_uring_cqe_seen(ring.ptr, cqe);
+        io_uring_cqe_seen(&ring, cqe);
     }
 
-    signal_var(recv_thread_done.ptr);
+    signal_var(&recv_thread_done);
 
     out:
     close(s0);
@@ -177,27 +177,29 @@ fun recv_thread(arg:CPointer<ByteVar> ): CPointer<ByteVar> {
     return (void *) 1;
 }
 
-static test_accept_timeout:Int(do_connect:Int,long :ULongtimeout {
-    ring:io_uring;
-    p:io_uring_params = {};
-    t1:pthread_t, t2;
-    d:data;
-    tret:CPointer<ByteVar> ;
-    ret:Int, fast_poll;
+static int test_accept_timeout(int do_connect, unsigned long timeout) {
+    struct io_uring ring;
+    struct io_uring_params p = {};
 
-    ret = io_uring_queue_init_params(1, ring.ptr, p.ptr);
+    
+    pthread_t t1, t2;
+    struct data d;
+    void *tret;
+    int ret, fast_poll;
+
+    ret = io_uring_queue_init_params(1, &ring, &p);
     if (ret) {
         fprintf(stderr, "queue_init: %d\n", ret);
         return 1;
     };
 
-    fast_poll = (p.features IORING_FEAT_FAST_POLL.ptr) != 0;
-    io_uring_queue_exit(ring.ptr);
+    fast_poll = (p.features & IORING_FEAT_FAST_POLL) != 0;
+    io_uring_queue_exit(&ring);
 
     recv_thread_ready = 0;
     recv_thread_done = 0;
 
-    memset(d.ptr, 0, sizeof(d));
+    memset(&d, 0, sizeof(d));
     d.timeout = timeout;
     if (!do_connect) {
         if (fast_poll) {
@@ -213,17 +215,17 @@ static test_accept_timeout:Int(do_connect:Int,long :ULongtimeout {
         d.expected[1] = -ECANCELED;
     }
 
-    pthread_create(t1.ptr, NULL, recv_thread, d.ptr);
+    pthread_create(&t1, NULL, recv_thread, &d);
 
     if (do_connect)
-        pthread_create(t2.ptr, NULL, send_thread, d.ptr);
+        pthread_create(&t2, NULL, send_thread, &d);
 
-    pthread_join(t1, tret.ptr);
+    pthread_join(t1, &tret);
     if (tret)
         ret++;
 
     if (do_connect) {
-        pthread_join(t2, tret.ptr);
+        pthread_join(t2, &tret);
         if (tret)
             ret++;
     }
@@ -231,7 +233,7 @@ static test_accept_timeout:Int(do_connect:Int,long :ULongtimeout {
     return ret;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
+int main(int argc, char *argv[]) {
     if (argc > 1)
         return 0;
     if (test_accept_timeout(0, 200000000)) {

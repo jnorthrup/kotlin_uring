@@ -11,10 +11,10 @@
 
 #include "liburing.h"
 
-static do_mkdirat:Int(ring:CPointer<io_uring>, fn:String) {
-    ret:Int;
-    sqe:CPointer<io_uring_sqe>;
-    cqe:CPointer<io_uring_cqe>;
+static int do_mkdirat(struct io_uring *ring, const char *fn) {
+    int ret;
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -29,42 +29,42 @@ static do_mkdirat:Int(ring:CPointer<io_uring>, fn:String) {
         goto err;
     }
 
-    ret = io_uring_wait_cqes(ring, cqe.ptr, 1, 0, 0);
+    ret = io_uring_wait_cqes(ring, &cqe, 1, 0, 0);
     if (ret) {
         fprintf(stderr, "wait_cqe failed: %d\n", ret);
         goto err;
     }
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     return ret;
     err:
     return 1;
 }
 
-static stat_file:Int(fn:String) {
-    sb:stat;
+static int stat_file(const char *fn) {
+    struct stat sb;
 
-    if (!stat(fn, sb.ptr))
+    if (!stat(fn, &sb))
         return 0;
 
     return errno;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
+int main(int argc, char *argv[]) {
     static const char fn[] = "io_uring-mkdirat-test";
-    ret:Int;
-    ring:io_uring;
+    int ret;
+    struct io_uring ring;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "queue init failed: %d\n", ret);
         return ret;
     }
 
-    ret = do_mkdirat(ring.ptr, fn);
+    ret = do_mkdirat(&ring, fn);
     if (ret < 0) {
         if (ret == -EBADF || ret == -EINVAL) {
             fprintf(stdout, "mkdirat not supported, skipping\n");
@@ -81,13 +81,13 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         goto err;
     }
 
-    ret = do_mkdirat(ring.ptr, fn);
+    ret = do_mkdirat(&ring, fn);
     if (ret != -EEXIST) {
         fprintf(stderr, "do_mkdirat already exists failed: %d\n", ret);
         goto err1;
     }
 
-    ret = do_mkdirat(ring.ptr, "surely/this/wont/exist");
+    ret = do_mkdirat(&ring, "surely/this/wont/exist");
     if (ret != -ENOENT) {
         fprintf(stderr, "do_mkdirat no parent failed: %d\n", ret);
         goto err1;
@@ -95,11 +95,11 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
 
     out:
     unlinkat(AT_FDCWD, fn, AT_REMOVEDIR);
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
     err1:
     unlinkat(AT_FDCWD, fn, AT_REMOVEDIR);
     err:
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 1;
 }

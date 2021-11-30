@@ -21,66 +21,66 @@
 #define WSIZE    512
 
 struct d {
-    fd:Int;
-    ring:CPointer<io_uring>;
-long :ULongoff
-    pipe_fd:Int;
-    err:Int;
-    i:Int;
+    int fd;
+    struct io_uring *ring;
+    unsigned long off;
+    int pipe_fd;
+    int err;
+    int i;
 };
 
-static g_buf:CPointer<ByteVar>[NR_IOS] = {NULL};
+static char *g_buf[NR_IOS] = {NULL};
 
 static void free_g_buf(void) {
-    i:Int;
-    for (i in 0 until  NR_IOS)
+    int i;
+    for (i = 0; i < NR_IOS; i++)
         free(g_buf[i]);
 }
 
-static do_io:CPointer<ByteVar> (data:CPointer<ByteVar> ) {
-    d:CPointer<d> = data;
-    sqe:CPointer<io_uring_sqe>;
-    buffer:CPointer<ByteVar>;
-    ret:Int;
+static void *do_io(void *data) {
+    struct d *d = data;
+    struct io_uring_sqe *sqe;
+    char *buffer;
+    int ret;
 
     buffer = t_malloc(WSIZE);
-    g_buf[ d.pointed.i ] = buffer;
+    g_buf[d->i] = buffer;
     memset(buffer, 0x5a, WSIZE);
-    sqe = io_uring_get_sqe( d.pointed.ring );
+    sqe = io_uring_get_sqe(d->ring);
     if (!sqe) {
- d.pointed.err ++;
+        d->err++;
         return NULL;
     }
-    io_uring_prep_write(sqe, d.pointed.fd , buffer, WSIZE, d.pointed.off );
- sqe.pointed.user_data  = d.pointed.off ;
+    io_uring_prep_write(sqe, d->fd, buffer, WSIZE, d->off);
+    sqe->user_data = d->off;
 
-    sqe = io_uring_get_sqe( d.pointed.ring );
+    sqe = io_uring_get_sqe(d->ring);
     if (!sqe) {
- d.pointed.err ++;
+        d->err++;
         return NULL;
     }
-    io_uring_prep_poll_add(sqe, d.pointed.pipe_fd , POLLIN);
+    io_uring_prep_poll_add(sqe, d->pipe_fd, POLLIN);
 
-    ret = io_uring_submit( d.pointed.ring );
+    ret = io_uring_submit(d->ring);
     if (ret != 2)
- d.pointed.err ++;
+        d->err++;
     return NULL;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    fname:String;
-    thread:pthread_t;
-    ret:Int, do_unlink, i, fd;
-    d:d;
-    fds:Int[2];
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    const char *fname;
+    pthread_t thread;
+    int ret, do_unlink, i, fd;
+    struct d d;
+    int fds[2];
 
     if (pipe(fds) < 0) {
         perror("pipe");
         return 1;
     }
 
-    ret = io_uring_queue_init(32, ring.ptr, 0);
+    ret = io_uring_queue_init(32, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
@@ -104,32 +104,32 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     }
 
     d.fd = fd;
-    d.ring = ring.ptr;
+    d.ring = &ring;
     d.off = 0;
     d.pipe_fd = fds[0];
     d.err = 0;
-    for (i in 0 until  NR_IOS) {
+    for (i = 0; i < NR_IOS; i++) {
         d.i = i;
-        memset(thread.ptr, 0, sizeof(thread));
-        pthread_create(thread.ptr, NULL, do_io, d.ptr);
+        memset(&thread, 0, sizeof(thread));
+        pthread_create(&thread, NULL, do_io, &d);
         pthread_join(thread, NULL);
         d.off += WSIZE;
     }
 
-    for (i in 0 until  NR_IOS) {
-        cqe:CPointer<io_uring_cqe>;
+    for (i = 0; i < NR_IOS; i++) {
+        struct io_uring_cqe *cqe;
 
-        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
+        ret = io_uring_wait_cqe(&ring, &cqe);
         if (ret) {
             fprintf(stderr, "io_uring_wait_cqe=%d\n", ret);
             goto err;
         }
-        if ( cqe.pointed.res  != WSIZE) {
-            fprintf(stderr, " cqe.pointed.res =%d, Expected %d\n", cqe.pointed.res ,
+        if (cqe->res != WSIZE) {
+            fprintf(stderr, "cqe->res=%d, Expected %d\n", cqe->res,
                     WSIZE);
             goto err;
         }
-        io_uring_cqe_seen(ring.ptr, cqe);
+        io_uring_cqe_seen(&ring, cqe);
     }
 
     free_g_buf();

@@ -13,22 +13,22 @@
 
 #include "liburing.h"
 
-static test_fail_lone_link_timeouts:Int(ring:CPointer<io_uring>) {
-    ts:__kernel_timespec;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int;
+static int test_fail_lone_link_timeouts(struct io_uring *ring) {
+    struct __kernel_timespec ts;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
         printf("get sqe failed\n");
         goto err;
     }
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
+    io_uring_prep_link_timeout(sqe, &ts, 0);
     ts.tv_sec = 1;
     ts.tv_nsec = 0;
- sqe.pointed.user_data  = 1;
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
+    sqe->flags |= IOSQE_IO_LINK;
 
     ret = io_uring_submit(ring);
     if (ret != 1) {
@@ -36,18 +36,18 @@ static test_fail_lone_link_timeouts:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         printf("wait completion %d\n", ret);
         goto err;
     }
 
-    if ( cqe.pointed.user_data  != 1) {
-        fprintf(stderr, "invalid user data %d\n", cqe.pointed.res );
+    if (cqe->user_data != 1) {
+        fprintf(stderr, "invalid user data %d\n", cqe->res);
         goto err;
     }
-    if ( cqe.pointed.res  != -EINVAL) {
-        fprintf(stderr, "got %d, wanted -EINVAL\n", cqe.pointed.res );
+    if (cqe->res != -EINVAL) {
+        fprintf(stderr, "got %d, wanted -EINVAL\n", cqe->res);
         goto err;
     }
     io_uring_cqe_seen(ring, cqe);
@@ -57,11 +57,11 @@ static test_fail_lone_link_timeouts:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_fail_two_link_timeouts:Int(ring:CPointer<io_uring>) {
-    ts:__kernel_timespec;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i, nr_wait;
+static int test_fail_two_link_timeouts(struct io_uring *ring) {
+    struct __kernel_timespec ts;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i, nr_wait;
 
     ts.tv_sec = 1;
     ts.tv_nsec = 0;
@@ -76,8 +76,8 @@ static test_fail_two_link_timeouts:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_writev(sqe, 0, NULL, 1, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
 
     /* sqe_2: valid linked timeout */
@@ -86,9 +86,9 @@ static test_fail_two_link_timeouts:Int(ring:CPointer<io_uring>) {
         printf("get sqe failed\n");
         goto err;
     }
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.user_data  = 2;
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->user_data = 2;
+    sqe->flags |= IOSQE_IO_LINK;
 
 
     /* sqe_3: invalid linked timeout */
@@ -97,9 +97,9 @@ static test_fail_two_link_timeouts:Int(ring:CPointer<io_uring>) {
         printf("get sqe failed\n");
         goto err;
     }
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 3;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 3;
 
     /* sqe_4: invalid linked timeout */
     sqe = io_uring_get_sqe(ring);
@@ -107,9 +107,9 @@ static test_fail_two_link_timeouts:Int(ring:CPointer<io_uring>) {
         printf("get sqe failed\n");
         goto err;
     }
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 4;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 4;
 
     ret = io_uring_submit(ring);
     if (ret < 3) {
@@ -118,33 +118,33 @@ static test_fail_two_link_timeouts:Int(ring:CPointer<io_uring>) {
     }
     nr_wait = ret;
 
-    for (i in 0 until  nr_wait) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < nr_wait; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
         }
 
-        when  ( cqe.pointed.user_data )  {
-            1 -> 
-                if ( cqe.pointed.res  != -EFAULT && cqe.pointed.res  != -ECANCELED) {
+        switch (cqe->user_data) {
+            case 1:
+                if (cqe->res != -EFAULT && cqe->res != -ECANCELED) {
                     fprintf(stderr, "write got %d, wanted -EFAULT "
-                                    "or -ECANCELED\n", cqe.pointed.res );
+                                    "or -ECANCELED\n", cqe->res);
                     goto err;
                 }
                 break;
-            2 -> 
-                if ( cqe.pointed.res  != -ECANCELED) {
-                    fprintf(stderr, "Link timeout got %d, wanted -ECACNCELED\n", cqe.pointed.res );
+            case 2:
+                if (cqe->res != -ECANCELED) {
+                    fprintf(stderr, "Link timeout got %d, wanted -ECACNCELED\n", cqe->res);
                     goto err;
                 }
                 break;
-            3 -> 
+            case 3:
                 /* fall through */
-            4 -> 
-                if ( cqe.pointed.res  != -ECANCELED && cqe.pointed.res  != -EINVAL) {
+            case 4:
+                if (cqe->res != -ECANCELED && cqe->res != -EINVAL) {
                     fprintf(stderr, "Invalid link timeout got %d"
-                                    ", wanted -ECACNCELED || -EINVAL\n", cqe.pointed.res );
+                                    ", wanted -ECACNCELED || -EINVAL\n", cqe->res);
                     goto err;
                 }
                 break;
@@ -160,11 +160,11 @@ static test_fail_two_link_timeouts:Int(ring:CPointer<io_uring>) {
 /*
  * Test linked timeout with timeout (timeoutception)
  */
-static test_single_link_timeout_ception:Int(ring:CPointer<io_uring>) {
-    ts1:__kernel_timespec, ts2;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i;
+static int test_single_link_timeout_ception(struct io_uring *ring) {
+    struct __kernel_timespec ts1, ts2;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -174,9 +174,9 @@ static test_single_link_timeout_ception:Int(ring:CPointer<io_uring>) {
 
     ts1.tv_sec = 1;
     ts1.tv_nsec = 0;
-    io_uring_prep_timeout(sqe, ts1.ptr, -1U, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    io_uring_prep_timeout(sqe, &ts1, -1U, 0);
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -186,8 +186,8 @@ static test_single_link_timeout_ception:Int(ring:CPointer<io_uring>) {
 
     ts2.tv_sec = 2;
     ts2.tv_nsec = 0;
-    io_uring_prep_link_timeout(sqe, ts2.ptr, 0);
- sqe.pointed.user_data  = 2;
+    io_uring_prep_link_timeout(sqe, &ts2, 0);
+    sqe->user_data = 2;
 
     ret = io_uring_submit(ring);
     if (ret != 2) {
@@ -195,24 +195,24 @@ static test_single_link_timeout_ception:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  2) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 2; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
         }
-        when  ( cqe.pointed.user_data )  {
-            1 -> 
+        switch (cqe->user_data) {
+            case 1:
                 /* newer kernels allow timeout links */
-                if ( cqe.pointed.res  != -EINVAL && cqe.pointed.res  != -ETIME) {
+                if (cqe->res != -EINVAL && cqe->res != -ETIME) {
                     fprintf(stderr, "Timeout got %d, wanted "
-                                    "-EINVAL or -ETIME\n", cqe.pointed.res );
+                                    "-EINVAL or -ETIME\n", cqe->res);
                     goto err;
                 }
                 break;
-            2 -> 
-                if ( cqe.pointed.res  != -ECANCELED) {
-                    fprintf(stderr, "Link timeout got %d, wanted -ECANCELED\n", cqe.pointed.res );
+            case 2:
+                if (cqe->res != -ECANCELED) {
+                    fprintf(stderr, "Link timeout got %d, wanted -ECANCELED\n", cqe->res);
                     goto err;
                 }
                 break;
@@ -228,11 +228,11 @@ static test_single_link_timeout_ception:Int(ring:CPointer<io_uring>) {
 /*
  * Test linked timeout with NOP
  */
-static test_single_link_timeout_nop:Int(ring:CPointer<io_uring>) {
-    ts:__kernel_timespec;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i;
+static int test_single_link_timeout_nop(struct io_uring *ring) {
+    struct __kernel_timespec ts;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -241,8 +241,8 @@ static test_single_link_timeout_nop:Int(ring:CPointer<io_uring>) {
     }
 
     io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -252,8 +252,8 @@ static test_single_link_timeout_nop:Int(ring:CPointer<io_uring>) {
 
     ts.tv_sec = 1;
     ts.tv_nsec = 0;
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.user_data  = 2;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->user_data = 2;
 
     ret = io_uring_submit(ring);
     if (ret != 2) {
@@ -261,22 +261,22 @@ static test_single_link_timeout_nop:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  2) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 2; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
         }
-        when  ( cqe.pointed.user_data )  {
-            1 -> 
-                if ( cqe.pointed.res ) {
-                    fprintf(stderr, "NOP got %d, wanted 0\n", cqe.pointed.res );
+        switch (cqe->user_data) {
+            case 1:
+                if (cqe->res) {
+                    fprintf(stderr, "NOP got %d, wanted 0\n", cqe->res);
                     goto err;
                 }
                 break;
-            2 -> 
-                if ( cqe.pointed.res  != -ECANCELED) {
-                    fprintf(stderr, "Link timeout got %d, wanted -ECACNCELED\n", cqe.pointed.res );
+            case 2:
+                if (cqe->res != -ECANCELED) {
+                    fprintf(stderr, "Link timeout got %d, wanted -ECACNCELED\n", cqe->res);
                     goto err;
                 }
                 break;
@@ -293,12 +293,12 @@ static test_single_link_timeout_nop:Int(ring:CPointer<io_uring>) {
  * Test read that will not complete, with a linked timeout behind it that
  * has errors in the SQE
  */
-static test_single_link_timeout_error:Int(ring:CPointer<io_uring>) {
-    ts:__kernel_timespec;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    fds:Int[2], ret, i;
-    iov:iovec;
+static int test_single_link_timeout_error(struct io_uring *ring) {
+    struct __kernel_timespec ts;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int fds[2], ret, i;
+    struct iovec iov;
     char buffer[128];
 
     if (pipe(fds)) {
@@ -314,9 +314,9 @@ static test_single_link_timeout_error:Int(ring:CPointer<io_uring>) {
 
     iov.iov_base = buffer;
     iov.iov_len = sizeof(buffer);
-    io_uring_prep_readv(sqe, fds[0], iov.ptr, 1, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    io_uring_prep_readv(sqe, fds[0], &iov, 1, 0);
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -326,10 +326,10 @@ static test_single_link_timeout_error:Int(ring:CPointer<io_uring>) {
 
     ts.tv_sec = 1;
     ts.tv_nsec = 0;
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
+    io_uring_prep_link_timeout(sqe, &ts, 0);
     /* set invalid field, it'll get failed */
- sqe.pointed.ioprio  = 89;
- sqe.pointed.user_data  = 2;
+    sqe->ioprio = 89;
+    sqe->user_data = 2;
 
     ret = io_uring_submit(ring);
     if (ret != 2) {
@@ -337,23 +337,23 @@ static test_single_link_timeout_error:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  2) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 2; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
         }
-        when  ( cqe.pointed.user_data )  {
-            1 -> 
-                if ( cqe.pointed.res  != -ECANCELED) {
+        switch (cqe->user_data) {
+            case 1:
+                if (cqe->res != -ECANCELED) {
                     fprintf(stderr, "Read got %d, wanted -ECANCELED\n",
- cqe.pointed.res );
+                            cqe->res);
                     goto err;
                 }
                 break;
-            2 -> 
-                if ( cqe.pointed.res  != -EINVAL) {
-                    fprintf(stderr, "Link timeout got %d, wanted -EINVAL\n", cqe.pointed.res );
+            case 2:
+                if (cqe->res != -EINVAL) {
+                    fprintf(stderr, "Link timeout got %d, wanted -EINVAL\n", cqe->res);
                     goto err;
                 }
                 break;
@@ -369,12 +369,12 @@ static test_single_link_timeout_error:Int(ring:CPointer<io_uring>) {
 /*
  * Test read that will complete, with a linked timeout behind it
  */
-static test_single_link_no_timeout:Int(ring:CPointer<io_uring>) {
-    ts:__kernel_timespec;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    fds:Int[2], ret, i;
-    iov:iovec;
+static int test_single_link_no_timeout(struct io_uring *ring) {
+    struct __kernel_timespec ts;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int fds[2], ret, i;
+    struct iovec iov;
     char buffer[128];
 
     if (pipe(fds)) {
@@ -390,9 +390,9 @@ static test_single_link_no_timeout:Int(ring:CPointer<io_uring>) {
 
     iov.iov_base = buffer;
     iov.iov_len = sizeof(buffer);
-    io_uring_prep_readv(sqe, fds[0], iov.ptr, 1, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    io_uring_prep_readv(sqe, fds[0], &iov, 1, 0);
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -402,8 +402,8 @@ static test_single_link_no_timeout:Int(ring:CPointer<io_uring>) {
 
     ts.tv_sec = 1;
     ts.tv_nsec = 0;
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.user_data  = 2;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->user_data = 2;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -413,8 +413,8 @@ static test_single_link_no_timeout:Int(ring:CPointer<io_uring>) {
 
     iov.iov_base = buffer;
     iov.iov_len = sizeof(buffer);
-    io_uring_prep_writev(sqe, fds[1], iov.ptr, 1, 0);
- sqe.pointed.user_data  = 3;
+    io_uring_prep_writev(sqe, fds[1], &iov, 1, 0);
+    sqe->user_data = 3;
 
     ret = io_uring_submit(ring);
     if (ret != 3) {
@@ -422,25 +422,25 @@ static test_single_link_no_timeout:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  3) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 3; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
         }
-        when  ( cqe.pointed.user_data )  {
-            1 -> 
-            3 -> 
-                if ( cqe.pointed.res  != sizeof(buffer)) {
-                    fprintf(stderr, "R/W got %d, wanted %d\n", cqe.pointed.res ,
+        switch (cqe->user_data) {
+            case 1:
+            case 3:
+                if (cqe->res != sizeof(buffer)) {
+                    fprintf(stderr, "R/W got %d, wanted %d\n", cqe->res,
                             (int) sizeof(buffer));
                     goto err;
                 }
                 break;
-            2 -> 
-                if ( cqe.pointed.res  != -ECANCELED) {
+            case 2:
+                if (cqe->res != -ECANCELED) {
                     fprintf(stderr, "Link timeout %d, wanted -ECANCELED\n",
- cqe.pointed.res );
+                            cqe->res);
                     goto err;
                 }
                 break;
@@ -456,12 +456,12 @@ static test_single_link_no_timeout:Int(ring:CPointer<io_uring>) {
 /*
  * Test read that will not complete, with a linked timeout behind it
  */
-static test_single_link_timeout:Int(ring:CPointer<io_uring>, unsigned nsec) {
-    ts:__kernel_timespec;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    fds:Int[2], ret, i;
-    iov:iovec;
+static int test_single_link_timeout(struct io_uring *ring, unsigned nsec) {
+    struct __kernel_timespec ts;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int fds[2], ret, i;
+    struct iovec iov;
     char buffer[128];
 
     if (pipe(fds)) {
@@ -477,9 +477,9 @@ static test_single_link_timeout:Int(ring:CPointer<io_uring>, unsigned nsec) {
 
     iov.iov_base = buffer;
     iov.iov_len = sizeof(buffer);
-    io_uring_prep_readv(sqe, fds[0], iov.ptr, 1, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    io_uring_prep_readv(sqe, fds[0], &iov, 1, 0);
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -489,8 +489,8 @@ static test_single_link_timeout:Int(ring:CPointer<io_uring>, unsigned nsec) {
 
     ts.tv_sec = 0;
     ts.tv_nsec = nsec;
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.user_data  = 2;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->user_data = 2;
 
     ret = io_uring_submit(ring);
     if (ret != 2) {
@@ -498,23 +498,23 @@ static test_single_link_timeout:Int(ring:CPointer<io_uring>, unsigned nsec) {
         goto err;
     }
 
-    for (i in 0 until  2) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 2; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
         }
-        when  ( cqe.pointed.user_data )  {
-            1 -> 
-                if ( cqe.pointed.res  != -EINTR && cqe.pointed.res  != -ECANCELED) {
-                    fprintf(stderr, "Read got %d\n", cqe.pointed.res );
+        switch (cqe->user_data) {
+            case 1:
+                if (cqe->res != -EINTR && cqe->res != -ECANCELED) {
+                    fprintf(stderr, "Read got %d\n", cqe->res);
                     goto err;
                 }
                 break;
-            2 -> 
-                if ( cqe.pointed.res  != -EALREADY && cqe.pointed.res  != -ETIME &&
- cqe.pointed.res  != 0) {
-                    fprintf(stderr, "Link timeout got %d\n", cqe.pointed.res );
+            case 2:
+                if (cqe->res != -EALREADY && cqe->res != -ETIME &&
+                    cqe->res != 0) {
+                    fprintf(stderr, "Link timeout got %d\n", cqe->res);
                     goto err;
                 }
                 break;
@@ -529,12 +529,12 @@ static test_single_link_timeout:Int(ring:CPointer<io_uring>, unsigned nsec) {
     return 1;
 }
 
-static test_timeout_link_chain1:Int(ring:CPointer<io_uring>) {
-    ts:__kernel_timespec;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    fds:Int[2], ret, i;
-    iov:iovec;
+static int test_timeout_link_chain1(struct io_uring *ring) {
+    struct __kernel_timespec ts;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int fds[2], ret, i;
+    struct iovec iov;
     char buffer[128];
 
     if (pipe(fds)) {
@@ -549,9 +549,9 @@ static test_timeout_link_chain1:Int(ring:CPointer<io_uring>) {
     }
     iov.iov_base = buffer;
     iov.iov_len = sizeof(buffer);
-    io_uring_prep_readv(sqe, fds[0], iov.ptr, 1, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    io_uring_prep_readv(sqe, fds[0], &iov, 1, 0);
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -560,9 +560,9 @@ static test_timeout_link_chain1:Int(ring:CPointer<io_uring>) {
     }
     ts.tv_sec = 0;
     ts.tv_nsec = 1000000;
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 2;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 2;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -570,7 +570,7 @@ static test_timeout_link_chain1:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_nop(sqe);
- sqe.pointed.user_data  = 3;
+    sqe->user_data = 3;
 
     ret = io_uring_submit(ring);
     if (ret != 3) {
@@ -578,32 +578,32 @@ static test_timeout_link_chain1:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  3) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 3; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
         }
-        when  ( cqe.pointed.user_data )  {
-            1 -> 
-                if ( cqe.pointed.res  != -EINTR && cqe.pointed.res  != -ECANCELED) {
-                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe.pointed.user_data ,
- cqe.pointed.res );
+        switch (cqe->user_data) {
+            case 1:
+                if (cqe->res != -EINTR && cqe->res != -ECANCELED) {
+                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe->user_data,
+                            cqe->res);
                     goto err;
                 }
                 break;
-            2 -> 
+            case 2:
                 /* FASTPOLL kernels can cancel successfully */
-                if ( cqe.pointed.res  != -EALREADY && cqe.pointed.res  != -ETIME) {
-                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe.pointed.user_data ,
- cqe.pointed.res );
+                if (cqe->res != -EALREADY && cqe->res != -ETIME) {
+                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe->user_data,
+                            cqe->res);
                     goto err;
                 }
                 break;
-            3 -> 
-                if ( cqe.pointed.res  != -ECANCELED) {
-                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe.pointed.user_data ,
- cqe.pointed.res );
+            case 3:
+                if (cqe->res != -ECANCELED) {
+                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe->user_data,
+                            cqe->res);
                     goto err;
                 }
                 break;
@@ -619,11 +619,11 @@ static test_timeout_link_chain1:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_timeout_link_chain2:Int(ring:CPointer<io_uring>) {
-    ts:__kernel_timespec;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    fds:Int[2], ret, i;
+static int test_timeout_link_chain2(struct io_uring *ring) {
+    struct __kernel_timespec ts;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int fds[2], ret, i;
 
     if (pipe(fds)) {
         perror("pipe");
@@ -636,8 +636,8 @@ static test_timeout_link_chain2:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_poll_add(sqe, fds[0], POLLIN);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -646,9 +646,9 @@ static test_timeout_link_chain2:Int(ring:CPointer<io_uring>) {
     }
     ts.tv_sec = 0;
     ts.tv_nsec = 1000000;
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 2;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 2;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -656,8 +656,8 @@ static test_timeout_link_chain2:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 3;
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 3;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -665,7 +665,7 @@ static test_timeout_link_chain2:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_nop(sqe);
- sqe.pointed.user_data  = 4;
+    sqe->user_data = 4;
 
     ret = io_uring_submit(ring);
     if (ret != 4) {
@@ -673,33 +673,33 @@ static test_timeout_link_chain2:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  4) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 4; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
         }
-        when  ( cqe.pointed.user_data )  {
+        switch (cqe->user_data) {
             /* poll cancel really should return -ECANCEL... */
-            1 -> 
-                if ( cqe.pointed.res  != -ECANCELED) {
-                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe.pointed.user_data ,
- cqe.pointed.res );
+            case 1:
+                if (cqe->res != -ECANCELED) {
+                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe->user_data,
+                            cqe->res);
                     goto err;
                 }
                 break;
-            2 -> 
-                if ( cqe.pointed.res  != -ETIME) {
-                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe.pointed.user_data ,
- cqe.pointed.res );
+            case 2:
+                if (cqe->res != -ETIME) {
+                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe->user_data,
+                            cqe->res);
                     goto err;
                 }
                 break;
-            3 -> 
-            4 -> 
-                if ( cqe.pointed.res  != -ECANCELED) {
-                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe.pointed.user_data ,
- cqe.pointed.res );
+            case 3:
+            case 4:
+                if (cqe->res != -ECANCELED) {
+                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe->user_data,
+                            cqe->res);
                     goto err;
                 }
                 break;
@@ -714,11 +714,11 @@ static test_timeout_link_chain2:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_timeout_link_chain3:Int(ring:CPointer<io_uring>) {
-    ts:__kernel_timespec;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    fds:Int[2], ret, i;
+static int test_timeout_link_chain3(struct io_uring *ring) {
+    struct __kernel_timespec ts;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int fds[2], ret, i;
 
     if (pipe(fds)) {
         perror("pipe");
@@ -731,8 +731,8 @@ static test_timeout_link_chain3:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_poll_add(sqe, fds[0], POLLIN);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -741,9 +741,9 @@ static test_timeout_link_chain3:Int(ring:CPointer<io_uring>) {
     }
     ts.tv_sec = 0;
     ts.tv_nsec = 1000000;
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 2;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 2;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -751,10 +751,10 @@ static test_timeout_link_chain3:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 3;
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 3;
 
-    /* POLL.pointed. TIMEOUT.pointed.NOP  */
+    /* POLL -> TIMEOUT -> NOP */
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -762,8 +762,8 @@ static test_timeout_link_chain3:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_poll_add(sqe, fds[0], POLLIN);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 4;
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 4;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -772,8 +772,8 @@ static test_timeout_link_chain3:Int(ring:CPointer<io_uring>) {
     }
     ts.tv_sec = 0;
     ts.tv_nsec = 1000000;
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.user_data  = 5;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->user_data = 5;
 
     /* poll on pipe + timeout */
 
@@ -783,7 +783,7 @@ static test_timeout_link_chain3:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_nop(sqe);
- sqe.pointed.user_data  = 6;
+    sqe->user_data = 6;
 
     /* nop */
 
@@ -793,34 +793,34 @@ static test_timeout_link_chain3:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  6) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 6; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
         }
-        when  ( cqe.pointed.user_data )  {
-            2 -> 
-                if ( cqe.pointed.res  != -ETIME) {
-                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe.pointed.user_data ,
- cqe.pointed.res );
+        switch (cqe->user_data) {
+            case 2:
+                if (cqe->res != -ETIME) {
+                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe->user_data,
+                            cqe->res);
                     goto err;
                 }
                 break;
-            1 -> 
-            3 -> 
-            4 -> 
-            5 -> 
-                if ( cqe.pointed.res  != -ECANCELED) {
-                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe.pointed.user_data ,
- cqe.pointed.res );
+            case 1:
+            case 3:
+            case 4:
+            case 5:
+                if (cqe->res != -ECANCELED) {
+                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe->user_data,
+                            cqe->res);
                     goto err;
                 }
                 break;
-            6 -> 
-                if ( cqe.pointed.res ) {
-                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe.pointed.user_data ,
- cqe.pointed.res );
+            case 6:
+                if (cqe->res) {
+                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe->user_data,
+                            cqe->res);
                     goto err;
                 }
                 break;
@@ -835,11 +835,11 @@ static test_timeout_link_chain3:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_timeout_link_chain4:Int(ring:CPointer<io_uring>) {
-    ts:__kernel_timespec;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    fds:Int[2], ret, i;
+static int test_timeout_link_chain4(struct io_uring *ring) {
+    struct __kernel_timespec ts;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int fds[2], ret, i;
 
     if (pipe(fds)) {
         perror("pipe");
@@ -852,8 +852,8 @@ static test_timeout_link_chain4:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -861,8 +861,8 @@ static test_timeout_link_chain4:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_poll_add(sqe, fds[0], POLLIN);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 2;
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 2;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -871,8 +871,8 @@ static test_timeout_link_chain4:Int(ring:CPointer<io_uring>) {
     }
     ts.tv_sec = 0;
     ts.tv_nsec = 1000000;
-    io_uring_prep_link_timeout(sqe, ts.ptr, 0);
- sqe.pointed.user_data  = 3;
+    io_uring_prep_link_timeout(sqe, &ts, 0);
+    sqe->user_data = 3;
 
     ret = io_uring_submit(ring);
     if (ret != 3) {
@@ -880,32 +880,32 @@ static test_timeout_link_chain4:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  3) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 3; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
         }
-        when  ( cqe.pointed.user_data )  {
+        switch (cqe->user_data) {
             /* poll cancel really should return -ECANCEL... */
-            1 -> 
-                if ( cqe.pointed.res ) {
-                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe.pointed.user_data ,
- cqe.pointed.res );
+            case 1:
+                if (cqe->res) {
+                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe->user_data,
+                            cqe->res);
                     goto err;
                 }
                 break;
-            2 -> 
-                if ( cqe.pointed.res  != -ECANCELED) {
-                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe.pointed.user_data ,
- cqe.pointed.res );
+            case 2:
+                if (cqe->res != -ECANCELED) {
+                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe->user_data,
+                            cqe->res);
                     goto err;
                 }
                 break;
-            3 -> 
-                if ( cqe.pointed.res  != -ETIME) {
-                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe.pointed.user_data ,
- cqe.pointed.res );
+            case 3:
+                if (cqe->res != -ETIME) {
+                    fprintf(stderr, "Req %" PRIu64 " got %d\n", (uint64_t) cqe->user_data,
+                            cqe->res);
                     goto err;
                 }
                 break;
@@ -920,11 +920,11 @@ static test_timeout_link_chain4:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_timeout_link_chain5:Int(ring:CPointer<io_uring>) {
-    ts1:__kernel_timespec, ts2;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i;
+static int test_timeout_link_chain5(struct io_uring *ring) {
+    struct __kernel_timespec ts1, ts2;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -932,8 +932,8 @@ static test_timeout_link_chain5:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -942,9 +942,9 @@ static test_timeout_link_chain5:Int(ring:CPointer<io_uring>) {
     }
     ts1.tv_sec = 1;
     ts1.tv_nsec = 0;
-    io_uring_prep_link_timeout(sqe, ts1.ptr, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 2;
+    io_uring_prep_link_timeout(sqe, &ts1, 0);
+    sqe->flags |= IOSQE_IO_LINK;
+    sqe->user_data = 2;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -953,8 +953,8 @@ static test_timeout_link_chain5:Int(ring:CPointer<io_uring>) {
     }
     ts2.tv_sec = 2;
     ts2.tv_nsec = 0;
-    io_uring_prep_link_timeout(sqe, ts2.ptr, 0);
- sqe.pointed.user_data  = 3;
+    io_uring_prep_link_timeout(sqe, &ts2, 0);
+    sqe->user_data = 3;
 
     ret = io_uring_submit(ring);
     if (ret != 3) {
@@ -962,25 +962,25 @@ static test_timeout_link_chain5:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  3) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 3; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
         }
-        when  ( cqe.pointed.user_data )  {
-            1 -> 
-            2 -> 
-                if ( cqe.pointed.res  && cqe.pointed.res  != -ECANCELED) {
+        switch (cqe->user_data) {
+            case 1:
+            case 2:
+                if (cqe->res && cqe->res != -ECANCELED) {
                     fprintf(stderr, "Request got %d, wanted -EINVAL "
                                     "or -ECANCELED\n",
- cqe.pointed.res );
+                            cqe->res);
                     goto err;
                 }
                 break;
-            3 -> 
-                if ( cqe.pointed.res  != -ECANCELED && cqe.pointed.res  != -EINVAL) {
-                    fprintf(stderr, "Link timeout got %d, wanted -ECANCELED\n", cqe.pointed.res );
+            case 3:
+                if (cqe->res != -ECANCELED && cqe->res != -EINVAL) {
+                    fprintf(stderr, "Link timeout got %d, wanted -ECANCELED\n", cqe->res);
                     goto err;
                 }
                 break;
@@ -993,98 +993,98 @@ static test_timeout_link_chain5:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         printf("ring setup failed\n");
         return 1;
     }
 
-    ret = test_timeout_link_chain1(ring.ptr);
+    ret = test_timeout_link_chain1(&ring);
     if (ret) {
         printf("test_single_link_chain1 failed\n");
         return ret;
     }
 
-    ret = test_timeout_link_chain2(ring.ptr);
+    ret = test_timeout_link_chain2(&ring);
     if (ret) {
         printf("test_single_link_chain2 failed\n");
         return ret;
     }
 
-    ret = test_timeout_link_chain3(ring.ptr);
+    ret = test_timeout_link_chain3(&ring);
     if (ret) {
         printf("test_single_link_chain3 failed\n");
         return ret;
     }
 
-    ret = test_timeout_link_chain4(ring.ptr);
+    ret = test_timeout_link_chain4(&ring);
     if (ret) {
         printf("test_single_link_chain4 failed\n");
         return ret;
     }
 
-    ret = test_timeout_link_chain5(ring.ptr);
+    ret = test_timeout_link_chain5(&ring);
     if (ret) {
         printf("test_single_link_chain5 failed\n");
         return ret;
     }
 
-    ret = test_single_link_timeout(ring.ptr, 10);
+    ret = test_single_link_timeout(&ring, 10);
     if (ret) {
         printf("test_single_link_timeout 10 failed\n");
         return ret;
     }
 
-    ret = test_single_link_timeout(ring.ptr, 100000ULL);
+    ret = test_single_link_timeout(&ring, 100000ULL);
     if (ret) {
         printf("test_single_link_timeout 100000 failed\n");
         return ret;
     }
 
-    ret = test_single_link_timeout(ring.ptr, 500000000ULL);
+    ret = test_single_link_timeout(&ring, 500000000ULL);
     if (ret) {
         printf("test_single_link_timeout 500000000 failed\n");
         return ret;
     }
 
-    ret = test_single_link_no_timeout(ring.ptr);
+    ret = test_single_link_no_timeout(&ring);
     if (ret) {
         printf("test_single_link_no_timeout failed\n");
         return ret;
     }
 
-    ret = test_single_link_timeout_error(ring.ptr);
+    ret = test_single_link_timeout_error(&ring);
     if (ret) {
         printf("test_single_link_timeout_error failed\n");
         return ret;
     }
 
-    ret = test_single_link_timeout_nop(ring.ptr);
+    ret = test_single_link_timeout_nop(&ring);
     if (ret) {
         printf("test_single_link_timeout_nop failed\n");
         return ret;
     }
 
-    ret = test_single_link_timeout_ception(ring.ptr);
+    ret = test_single_link_timeout_ception(&ring);
     if (ret) {
         printf("test_single_link_timeout_ception failed\n");
         return ret;
     }
 
-    ret = test_fail_lone_link_timeouts(ring.ptr);
+    ret = test_fail_lone_link_timeouts(&ring);
     if (ret) {
         printf("test_fail_lone_link_timeouts failed\n");
         return ret;
     }
 
-    ret = test_fail_two_link_timeouts(ring.ptr);
+    ret = test_fail_two_link_timeouts(&ring);
     if (ret) {
         printf("test_fail_two_link_timeouts failed\n");
         return ret;

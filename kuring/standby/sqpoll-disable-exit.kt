@@ -23,30 +23,30 @@
 #include "liburing.h"
 #include "../src/syscall.h"
 
-static void sleep_ms(ms:uint64_t) {
+static void sleep_ms(uint64_t ms) {
     usleep(ms * 1000);
 }
 
-static current_time_ms:uint64_t(void) {
-    ts:timespec;
-    if (clock_gettime(CLOCK_MONOTONIC, ts.ptr))
+static uint64_t current_time_ms(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts))
         exit(1);
     return (uint64_t) ts.tv_sec * 1000 + (uint64_t) ts.tv_nsec / 1000000;
 }
 
-static write_file:Boolean(file:String, const what:CPointer<ByteVar>, ...) {
+static bool write_file(const char *file, const char *what, ...) {
     char buf[1024];
     va_list args;
     va_start(args, what);
     vsnprintf(buf, sizeof(buf), what, args);
     va_end(args);
     buf[sizeof(buf) - 1] = 0;
-    len:Int = strlen(buf);
-    fd:Int = open(file,  O_WRONLY or O_CLOEXEC );
+    int len = strlen(buf);
+    int fd = open(file, O_WRONLY | O_CLOEXEC);
     if (fd == -1)
         return false;
     if (write(fd, buf, len) != len) {
-        err:Int = errno;
+        int err = errno;
         close(fd);
         errno = err;
         return false;
@@ -71,51 +71,51 @@ static write_file:Boolean(file:String, const what:CPointer<ByteVar>, ...) {
 #define CQ_FLAGS_OFFSET 280
 #define CQ_CQES_OFFSET 320
 
-static :Longsyz_io_uring_setupvolatile :Longa0 volatile :Longa1
-        volatile :Longa2 volatile :Longa3
-        volatile :Longa4 volatile :Longa5 {
-    entries:uint32_t = (uint32_t) a0;
-    setup_params:CPointer<io_uring_params> = (s:io_uring_param *) a1;
-    vma1:CPointer<ByteVar>  = (void *) a2;
-    vma2:CPointer<ByteVar>  = (void *) a3;
+static long syz_io_uring_setup(volatile long a0, volatile long a1,
+        volatile long a2, volatile long a3,
+        volatile long a4, volatile long a5) {
+    uint32_t entries = (uint32_t) a0;
+    struct io_uring_params *setup_params = (struct io_uring_params *) a1;
+    void *vma1 = (void *) a2;
+    void *vma2 = (void *) a3;
     void **ring_ptr_out = (void **) a4;
     void **sqes_ptr_out = (void **) a5;
-    fd_io_uring:uint32_t = __sys_io_uring_setup(entries, setup_params);
-    sq_ring_sz:uint32_t =
- setup_params.pointed.sq_off .array + setup_params.pointed.sq_entries  * sizeof(uint32_t);
-    cq_ring_sz:uint32_t = setup_params.pointed.cq_off .cqes +
- setup_params.pointed.cq_entries  * SIZEOF_IO_URING_CQE;
-    ring_sz:uint32_t = sq_ring_sz > cq_ring_sz ? sq_ring_sz : cq_ring_sz;
-    *ring_ptr_out = mmap(vma1, ring_sz,  PROT_READ or PROT_WRITE ,
-                          MAP_SHARED or  MAP_POPULATE or MAP_FIXED , fd_io_uring,
+    uint32_t fd_io_uring = __sys_io_uring_setup(entries, setup_params);
+    uint32_t sq_ring_sz =
+            setup_params->sq_off.array + setup_params->sq_entries * sizeof(uint32_t);
+    uint32_t cq_ring_sz = setup_params->cq_off.cqes +
+                          setup_params->cq_entries * SIZEOF_IO_URING_CQE;
+    uint32_t ring_sz = sq_ring_sz > cq_ring_sz ? sq_ring_sz : cq_ring_sz;
+    *ring_ptr_out = mmap(vma1, ring_sz, PROT_READ | PROT_WRITE,
+                         MAP_SHARED | MAP_POPULATE | MAP_FIXED, fd_io_uring,
                          IORING_OFF_SQ_RING);
-    sqes_sz:uint32_t = setup_params.pointed.sq_entries  * SIZEOF_IO_URING_SQE;
+    uint32_t sqes_sz = setup_params->sq_entries * SIZEOF_IO_URING_SQE;
     *sqes_ptr_out =
-            mmap(vma2, sqes_sz,  PROT_READ or PROT_WRITE ,
-                  MAP_SHARED or  MAP_POPULATE or MAP_FIXED , fd_io_uring, IORING_OFF_SQES);
+            mmap(vma2, sqes_sz, PROT_READ | PROT_WRITE,
+                 MAP_SHARED | MAP_POPULATE | MAP_FIXED, fd_io_uring, IORING_OFF_SQES);
     return fd_io_uring;
 }
 
-static void kill_and_wait(pid:Int, int *status) {
+static void kill_and_wait(int pid, int *status) {
     kill(-pid, SIGKILL);
     kill(pid, SIGKILL);
-    for (i/*as int */ in 0 until  100) {
-        if (waitpid(-1, status,  WNOHANG or __WALL ) == pid)
+    for (int i = 0; i < 100; i++) {
+        if (waitpid(-1, status, WNOHANG | __WALL) == pid)
             return;
         usleep(1000);
     }
     DIR *dir = opendir("/sys/fs/fuse/connections");
     if (dir) {
         for (;;) {
-            ent:CPointer<dirent> = readdir(dir);
+            struct dirent *ent = readdir(dir);
             if (!ent)
                 break;
-            if (strcmp( ent.pointed.d_name , ".") == 0 || strcmp( ent.pointed.d_name , "..") == 0)
+            if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
                 continue;
             char abort[300];
             snprintf(abort, sizeof(abort), "/sys/fs/fuse/connections/%s/abort",
- ent.pointed.d_name );
-            fd:Int = open(abort, O_WRONLY);
+                     ent->d_name);
+            int fd = open(abort, O_WRONLY);
             if (fd == -1) {
                 continue;
             }
@@ -141,9 +141,9 @@ static void execute_one(void);
 #define WAIT_FLAGS __WALL
 
 static void loop(void) {
-    iter:Int = 0;
+    int iter = 0;
     for (; iter < 100; iter++) {
-        pid:Int = fork();
+        int pid = fork();
         if (pid < 0)
             exit(1);
         if (pid == 0) {
@@ -151,22 +151,22 @@ static void loop(void) {
             execute_one();
             exit(0);
         }
-        status:Int = 0;
-        start:uint64_t = current_time_ms();
+        int status = 0;
+        uint64_t start = current_time_ms();
         for (;;) {
-            if (waitpid(-1, status.ptr,  WNOHANG or WAIT_FLAGS ) == pid)
+            if (waitpid(-1, &status, WNOHANG | WAIT_FLAGS) == pid)
                 break;
             sleep_ms(1);
             if (current_time_ms() - start < 5000) {
                 continue;
             }
-            kill_and_wait(pid, status.ptr);
+            kill_and_wait(pid, &status);
             break;
         }
     }
 }
 
-fun execute_one(void):Unit{
+void execute_one(void) {
     *(uint32_t *) 0x20000044 = 0;
     *(uint32_t *) 0x20000048 = 0x42;
     *(uint32_t *) 0x2000004c = 0;

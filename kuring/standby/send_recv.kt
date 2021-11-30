@@ -27,13 +27,13 @@ static char str[] = "This is a test of send and recv over io_uring!";
 #	define io_uring_prep_recv io_uring_prep_read
 #endif
 
-static recv_prep:Int(ring:CPointer<io_uring>, c:iove *iov, int *sock,
-        registerfiles:Int) {
-    saddr:sockaddr_in;
-    sqe:CPointer<io_uring_sqe>;
-    sockfd:Int, ret, val, use_fd;
+static int recv_prep(struct io_uring *ring, struct iovec *iov, int *sock,
+        int registerfiles) {
+    struct sockaddr_in saddr;
+    struct io_uring_sqe *sqe;
+    int sockfd, ret, val, use_fd;
 
-    memset(saddr.ptr, 0, sizeof(saddr));
+    memset(&saddr, 0, sizeof(saddr));
     saddr.sin_family = AF_INET;
     saddr.sin_addr.s_addr = htonl(INADDR_ANY);
     saddr.sin_port = htons(PORT);
@@ -45,16 +45,16 @@ static recv_prep:Int(ring:CPointer<io_uring>, c:iove *iov, int *sock,
     }
 
     val = 1;
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, val.ptr, sizeof(val));
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
 
-    ret = bind(sockfd, (r:sockadd *) saddr.ptr, sizeof(saddr));
+    ret = bind(sockfd, (struct sockaddr *) &saddr, sizeof(saddr));
     if (ret < 0) {
         perror("bind");
         goto err;
     }
 
     if (registerfiles) {
-        ret = io_uring_register_files(ring, sockfd.ptr, 1);
+        ret = io_uring_register_files(ring, &sockfd, 1);
         if (ret) {
             fprintf(stderr, "file reg failed\n");
             goto err;
@@ -65,10 +65,10 @@ static recv_prep:Int(ring:CPointer<io_uring>, c:iove *iov, int *sock,
     }
 
     sqe = io_uring_get_sqe(ring);
-    io_uring_prep_recv(sqe, use_fd, iov.pointed.iov_base , iov.pointed.iov_len , 0);
+    io_uring_prep_recv(sqe, use_fd, iov->iov_base, iov->iov_len, 0);
     if (registerfiles)
- sqe.pointed.flags  |= IOSQE_FIXED_FILE;
- sqe.pointed.user_data  = 2;
+        sqe->flags |= IOSQE_FIXED_FILE;
+    sqe->user_data = 2;
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
@@ -83,31 +83,31 @@ static recv_prep:Int(ring:CPointer<io_uring>, c:iove *iov, int *sock,
     return 1;
 }
 
-static do_recv:Int(ring:CPointer<io_uring>, c:iove *iov) {
-    cqe:CPointer<io_uring_cqe>;
-    ret:Int;
+static int do_recv(struct io_uring *ring, struct iovec *iov) {
+    struct io_uring_cqe *cqe;
+    int ret;
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret) {
         fprintf(stdout, "wait_cqe: %d\n", ret);
         goto err;
     }
-    if ( cqe.pointed.res  == -EINVAL) {
+    if (cqe->res == -EINVAL) {
         fprintf(stdout, "recv not supported, skipping\n");
         return 0;
     }
-    if ( cqe.pointed.res  < 0) {
-        fprintf(stderr, "failed cqe: %d\n", cqe.pointed.res );
+    if (cqe->res < 0) {
+        fprintf(stderr, "failed cqe: %d\n", cqe->res);
         goto err;
     }
 
-    if ( cqe.pointed.res  - 1 != strlen(str)) {
-        fprintf(stderr, "got wrong length: %d/%d\n", cqe.pointed.res ,
+    if (cqe->res - 1 != strlen(str)) {
+        fprintf(stderr, "got wrong length: %d/%d\n", cqe->res,
                 (int) strlen(str) + 1);
         goto err;
     }
 
-    if (strcmp(str, iov.pointed.iov_base )) {
+    if (strcmp(str, iov->iov_base)) {
         fprintf(stderr, "string mismatch\n");
         goto err;
     }
@@ -117,78 +117,78 @@ static do_recv:Int(ring:CPointer<io_uring>, c:iove *iov) {
     return 1;
 }
 
-a:recv_dat {
-    mutex:pthread_mutex_t;
-    use_sqthread:Int;
-    registerfiles:Int;
+struct recv_data {
+    pthread_mutex_t mutex;
+    int use_sqthread;
+    int registerfiles;
 };
 
-static recv_fn:CPointer<ByteVar> (data:CPointer<ByteVar> ) {
-    rd:CPointer<recv_data> = data;
+static void *recv_fn(void *data) {
+    struct recv_data *rd = data;
     char buf[MAX_MSG + 1];
-    iov:iovec = {
+    struct iovec iov = {
             .iov_base = buf,
             .iov_len = sizeof(buf) - 1,
     };
-    p:io_uring_params = {};
-    ring:io_uring;
-    ret:Int, sock;
+    struct io_uring_params p = {};
+    struct io_uring ring;
+    int ret, sock;
 
-    if ( rd.pointed.use_sqthread )
+    if (rd->use_sqthread)
         p.flags = IORING_SETUP_SQPOLL;
-    ret = t_create_ring_params(1, ring.ptr, p.ptr);
+    ret = t_create_ring_params(1, &ring, &p);
     if (ret == T_SETUP_SKIP) {
-        pthread_mutex_unlock(rd. ptr.pointed.mutex );
+        pthread_mutex_unlock(&rd->mutex);
         ret = 0;
         goto err;
     } else if (ret < 0) {
-        pthread_mutex_unlock(rd. ptr.pointed.mutex );
+        pthread_mutex_unlock(&rd->mutex);
         goto err;
     }
 
-    if ( rd.pointed.use_sqthread  && ! rd.pointed.registerfiles ) {
-        if (!(p.features IORING_FEAT_SQPOLL_NONFIXED.ptr)) {
+    if (rd->use_sqthread && !rd->registerfiles) {
+        if (!(p.features & IORING_FEAT_SQPOLL_NONFIXED)) {
             fprintf(stdout, "Non-registered SQPOLL not available, skipping\n");
-            pthread_mutex_unlock(rd. ptr.pointed.mutex );
+            pthread_mutex_unlock(&rd->mutex);
             goto err;
         }
     }
 
-    ret = recv_prep(ring.ptr, iov.ptr, sock.ptr, rd.pointed.registerfiles );
+    ret = recv_prep(&ring, &iov, &sock, rd->registerfiles);
     if (ret) {
         fprintf(stderr, "recv_prep failed: %d\n", ret);
         goto err;
     }
-    pthread_mutex_unlock(rd. ptr.pointed.mutex );
-    ret = do_recv(ring.ptr, iov.ptr);
+    pthread_mutex_unlock(&rd->mutex);
+    ret = do_recv(&ring, &iov);
 
     close(sock);
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     err:
     return (void *) (intptr_t) ret;
 }
 
-static do_send:Int(void) {
-    saddr:sockaddr_in;
-    iov:iovec = {
+static int do_send(void) {
+    struct sockaddr_in saddr;
+    struct iovec iov = {
             .iov_base = str,
             .iov_len = sizeof(str),
     };
-    ring:io_uring;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    sockfd:Int, ret;
+    struct io_uring ring;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int sockfd, ret;
 
-    ret = io_uring_queue_init(1, ring.ptr, 0);
+    ret = io_uring_queue_init(1, &ring, 0);
     if (ret) {
         fprintf(stderr, "queue init failed: %d\n", ret);
         return 1;
     }
 
-    memset(saddr.ptr, 0, sizeof(saddr));
+    memset(&saddr, 0, sizeof(saddr));
     saddr.sin_family = AF_INET;
     saddr.sin_port = htons(PORT);
-    inet_pton(AF_INET, HOST, saddr.ptr.sin_addr);
+    inet_pton(AF_INET, HOST, &saddr.sin_addr);
 
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
@@ -196,30 +196,30 @@ static do_send:Int(void) {
         return 1;
     }
 
-    ret = connect(sockfd, (r:sockadd *) saddr.ptr, sizeof(saddr));
+    ret = connect(sockfd, (struct sockaddr *) &saddr, sizeof(saddr));
     if (ret < 0) {
         perror("connect");
         return 1;
     }
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     io_uring_prep_send(sqe, sockfd, iov.iov_base, iov.iov_len, 0);
- sqe.pointed.user_data  = 1;
+    sqe->user_data = 1;
 
-    ret = io_uring_submit(ring.ptr);
+    ret = io_uring_submit(&ring);
     if (ret <= 0) {
         fprintf(stderr, "submit failed: %d\n", ret);
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
-    if ( cqe.pointed.res  == -EINVAL) {
+    ret = io_uring_wait_cqe(&ring, &cqe);
+    if (cqe->res == -EINVAL) {
         fprintf(stdout, "send not supported, skipping\n");
         close(sockfd);
         return 0;
     }
-    if ( cqe.pointed.res  != iov.iov_len) {
-        fprintf(stderr, "failed cqe: %d\n", cqe.pointed.res );
+    if (cqe->res != iov.iov_len) {
+        fprintf(stderr, "failed cqe: %d\n", cqe->res);
         goto err;
     }
 
@@ -230,35 +230,35 @@ static do_send:Int(void) {
     return 1;
 }
 
-static test:Int(use_sqthread:Int, regfiles:Int) {
-    attr:pthread_mutexattr_t;
-    recv_thread:pthread_t;
-    rd:recv_data;
-    ret:Int;
-    retval:CPointer<ByteVar> ;
+static int test(int use_sqthread, int regfiles) {
+    pthread_mutexattr_t attr;
+    pthread_t recv_thread;
+    struct recv_data rd;
+    int ret;
+    void *retval;
 
-    pthread_mutexattr_init(attr.ptr);
-    pthread_mutexattr_setpshared(attr.ptr, 1);
-    pthread_mutex_init(rd.ptr.mutex, attr.ptr);
-    pthread_mutex_lock(rd.ptr.mutex);
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_setpshared(&attr, 1);
+    pthread_mutex_init(&rd.mutex, &attr);
+    pthread_mutex_lock(&rd.mutex);
     rd.use_sqthread = use_sqthread;
     rd.registerfiles = regfiles;
 
-    ret = pthread_create(recv_thread.ptr, NULL, recv_fn, rd.ptr);
+    ret = pthread_create(&recv_thread, NULL, recv_fn, &rd);
     if (ret) {
         fprintf(stderr, "Thread create failed: %d\n", ret);
-        pthread_mutex_unlock(rd.ptr.mutex);
+        pthread_mutex_unlock(&rd.mutex);
         return 1;
     }
 
-    pthread_mutex_lock(rd.ptr.mutex);
+    pthread_mutex_lock(&rd.mutex);
     do_send();
-    pthread_join(recv_thread, retval.ptr);
+    pthread_join(recv_thread, &retval);
     return (int) (intptr_t) retval;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ret:Int;
+int main(int argc, char *argv[]) {
+    int ret;
 
     if (argc > 1)
         return 0;

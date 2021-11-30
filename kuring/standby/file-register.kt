@@ -14,13 +14,13 @@
 #include "helpers.h"
 #include "liburing.h"
 
-static no_update:Int = 0;
+static int no_update = 0;
 
-static void close_files(int *files, nr_files:Int, add:Int) {
+static void close_files(int *files, int nr_files, int add) {
     char fname[32];
-    i:Int;
+    int i;
 
-    for (i in 0 until  nr_files) {
+    for (i = 0; i < nr_files; i++) {
         if (files)
             close(files[i]);
         if (!add)
@@ -33,19 +33,19 @@ static void close_files(int *files, nr_files:Int, add:Int) {
         free(files);
 }
 
-static int *open_files(nr_files:Int, extra:Int, add:Int) {
+static int *open_files(int nr_files, int extra, int add) {
     char fname[32];
     int *files;
-    i:Int;
+    int i;
 
     files = t_calloc(nr_files + extra, sizeof(int));
 
-    for (i in 0 until  nr_files) {
+    for (i = 0; i < nr_files; i++) {
         if (!add)
             sprintf(fname, ".reg.%d", i);
         else
             sprintf(fname, ".add.%d", i + add);
-        files[i] = open(fname,  O_RDWR or O_CREAT , 0644);
+        files[i] = open(fname, O_RDWR | O_CREAT, 0644);
         if (files[i] < 0) {
             perror("open");
             free(files);
@@ -54,15 +54,15 @@ static int *open_files(nr_files:Int, extra:Int, add:Int) {
         }
     }
     if (extra) {
-        for (i in nr_files until  nr_files + extra)
+        for (i = nr_files; i < nr_files + extra; i++)
             files[i] = -1;
     }
 
     return files;
 }
 
-static test_shrink:Int(ring:CPointer<io_uring>) {
-    ret:Int, off, fd;
+static int test_shrink(struct io_uring *ring) {
+    int ret, off, fd;
     int *files;
 
     files = open_files(50, 0, 0);
@@ -75,7 +75,7 @@ static test_shrink:Int(ring:CPointer<io_uring>) {
     off = 0;
     do {
         fd = -1;
-        ret = io_uring_register_files_update(ring, off, fd.ptr, 1);
+        ret = io_uring_register_files_update(ring, off, &fd, 1);
         if (ret != 1) {
             if (off == 50 && ret == -EINVAL)
                 break;
@@ -99,8 +99,8 @@ static test_shrink:Int(ring:CPointer<io_uring>) {
 }
 
 
-static test_grow:Int(ring:CPointer<io_uring>) {
-    ret:Int, off;
+static int test_grow(struct io_uring *ring) {
+    int ret, off;
     int *files, *fds = NULL;
 
     files = open_files(50, 250, 0);
@@ -142,9 +142,9 @@ static test_grow:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_replace_all:Int(ring:CPointer<io_uring>) {
+static int test_replace_all(struct io_uring *ring) {
     int *files, *fds = NULL;
-    ret:Int, i;
+    int ret, i;
 
     files = open_files(100, 0, 0);
     ret = io_uring_register_files(ring, files, 100);
@@ -154,7 +154,7 @@ static test_replace_all:Int(ring:CPointer<io_uring>) {
     }
 
     fds = t_malloc(100 * sizeof(int));
-    for (i in 0 until  100)
+    for (i = 0; i < 100; i++)
         fds[i] = -1;
 
     ret = io_uring_register_files_update(ring, 0, fds, 100);
@@ -180,9 +180,9 @@ static test_replace_all:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_replace:Int(ring:CPointer<io_uring>) {
+static int test_replace(struct io_uring *ring) {
     int *files, *fds = NULL;
-    ret:Int;
+    int ret;
 
     files = open_files(100, 0, 0);
     ret = io_uring_register_files(ring, files, 100);
@@ -215,9 +215,9 @@ static test_replace:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_removals:Int(ring:CPointer<io_uring>) {
+static int test_removals(struct io_uring *ring) {
     int *files, *fds = NULL;
-    ret:Int, i;
+    int ret, i;
 
     files = open_files(100, 0, 0);
     ret = io_uring_register_files(ring, files, 100);
@@ -227,7 +227,7 @@ static test_removals:Int(ring:CPointer<io_uring>) {
     }
 
     fds = t_calloc(10, sizeof(int));
-    for (i in 0 until  10)
+    for (i = 0; i < 10; i++)
         fds[i] = -1;
 
     ret = io_uring_register_files_update(ring, 50, fds, 10);
@@ -253,9 +253,9 @@ static test_removals:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_additions:Int(ring:CPointer<io_uring>) {
+static int test_additions(struct io_uring *ring) {
     int *files, *fds = NULL;
-    ret:Int;
+    int ret;
 
     files = open_files(100, 100, 0);
     ret = io_uring_register_files(ring, files, 200);
@@ -288,9 +288,9 @@ static test_additions:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_sparse:Int(ring:CPointer<io_uring>) {
+static int test_sparse(struct io_uring *ring) {
     int *files;
-    ret:Int;
+    int ret;
 
     files = open_files(100, 100, 0);
     ret = io_uring_register_files(ring, files, 200);
@@ -316,9 +316,9 @@ static test_sparse:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_basic_many:Int(ring:CPointer<io_uring>) {
+static int test_basic_many(struct io_uring *ring) {
     int *files;
-    ret:Int;
+    int ret;
 
     files = open_files(768, 0, 0);
     ret = io_uring_register_files(ring, files, 768);
@@ -338,10 +338,10 @@ static test_basic_many:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_basic:Int(ring:CPointer<io_uring>, fail:Int) {
+static int test_basic(struct io_uring *ring, int fail) {
     int *files;
-    ret:Int;
-    nr_files:Int = fail ? 10 : 100;
+    int ret;
+    int nr_files = fail ? 10 : 100;
 
     files = open_files(nr_files, 0, 0);
     ret = io_uring_register_files(ring, files, 100);
@@ -372,9 +372,9 @@ static test_basic:Int(ring:CPointer<io_uring>, fail:Int) {
 /*
  * Register 0 files, but reserve space for 10.  Then add one file.
  */
-static test_zero:Int(ring:CPointer<io_uring>) {
+static int test_zero(struct io_uring *ring) {
     int *files, *fds = NULL;
-    ret:Int;
+    int ret;
 
     files = open_files(0, 10, 0);
     ret = io_uring_register_files(ring, files, 10);
@@ -407,11 +407,11 @@ static test_zero:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_fixed_read_write:Int(ring:CPointer<io_uring>, index:Int) {
-    sqe:CPointer<io_uring_sqe>;
-    cqe:CPointer<io_uring_cqe>;
-    iov:iovec[2];
-    ret:Int;
+static int test_fixed_read_write(struct io_uring *ring, int index) {
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
+    struct iovec iov[2];
+    int ret;
 
     iov[0].iov_base = t_malloc(4096);
     iov[0].iov_len = 4096;
@@ -425,9 +425,9 @@ static test_fixed_read_write:Int(ring:CPointer<io_uring>, index:Int) {
         fprintf(stderr, "%s: failed to get sqe\n", __FUNCTION__);
         return 1;
     }
-    io_uring_prep_writev(sqe, index, iov.ptr[0], 1, 0);
- sqe.pointed.flags  |= IOSQE_FIXED_FILE;
- sqe.pointed.user_data  = 1;
+    io_uring_prep_writev(sqe, index, &iov[0], 1, 0);
+    sqe->flags |= IOSQE_FIXED_FILE;
+    sqe->user_data = 1;
 
     ret = io_uring_submit(ring);
     if (ret != 1) {
@@ -435,13 +435,13 @@ static test_fixed_read_write:Int(ring:CPointer<io_uring>, index:Int) {
         return 1;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "%s: io_uring_wait_cqe=%d\n", __FUNCTION__, ret);
         return 1;
     }
-    if ( cqe.pointed.res  != 4096) {
-        fprintf(stderr, "%s: write cqe.pointed.res =%d\n", __FUNCTION__, cqe.pointed.res );
+    if (cqe->res != 4096) {
+        fprintf(stderr, "%s: write cqe->res=%d\n", __FUNCTION__, cqe->res);
         return 1;
     }
     io_uring_cqe_seen(ring, cqe);
@@ -451,9 +451,9 @@ static test_fixed_read_write:Int(ring:CPointer<io_uring>, index:Int) {
         fprintf(stderr, "%s: failed to get sqe\n", __FUNCTION__);
         return 1;
     }
-    io_uring_prep_readv(sqe, index, iov.ptr[1], 1, 0);
- sqe.pointed.flags  |= IOSQE_FIXED_FILE;
- sqe.pointed.user_data  = 2;
+    io_uring_prep_readv(sqe, index, &iov[1], 1, 0);
+    sqe->flags |= IOSQE_FIXED_FILE;
+    sqe->user_data = 2;
 
     ret = io_uring_submit(ring);
     if (ret != 1) {
@@ -461,13 +461,13 @@ static test_fixed_read_write:Int(ring:CPointer<io_uring>, index:Int) {
         return 1;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "%s: io_uring_wait_cqe=%d\n", __FUNCTION__, ret);
         return 1;
     }
-    if ( cqe.pointed.res  != 4096) {
-        fprintf(stderr, "%s: read cqe.pointed.res =%d\n", __FUNCTION__, cqe.pointed.res );
+    if (cqe->res != 4096) {
+        fprintf(stderr, "%s: read cqe->res=%d\n", __FUNCTION__, cqe->res);
         return 1;
     }
     io_uring_cqe_seen(ring, cqe);
@@ -482,24 +482,24 @@ static test_fixed_read_write:Int(ring:CPointer<io_uring>, index:Int) {
     return 0;
 }
 
-static void adjust_nfiles(want_files:Int) {
-    rlim:rlimit;
+static void adjust_nfiles(int want_files) {
+    struct rlimit rlim;
 
-    if (getrlimit(RLIMIT_NOFILE, rlim.ptr) < 0)
+    if (getrlimit(RLIMIT_NOFILE, &rlim) < 0)
         return;
     if (rlim.rlim_cur >= want_files)
         return;
     rlim.rlim_cur = want_files;
-    setrlimit(RLIMIT_NOFILE, rlim.ptr);
+    setrlimit(RLIMIT_NOFILE, &rlim);
 }
 
 /*
  * Register 8K of sparse files, update one at a random spot, then do some
  * file IO to verify it works.
  */
-static test_huge:Int(ring:CPointer<io_uring>) {
+static int test_huge(struct io_uring *ring) {
     int *files;
-    ret:Int;
+    int ret;
 
     adjust_nfiles(16384);
 
@@ -515,13 +515,13 @@ static test_huge:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    files[7193] = open(".reg.7193",  O_RDWR or O_CREAT , 0644);
+    files[7193] = open(".reg.7193", O_RDWR | O_CREAT, 0644);
     if (files[7193] < 0) {
         fprintf(stderr, "%s: open=%d\n", __FUNCTION__, errno);
         goto err;
     }
 
-    ret = io_uring_register_files_update(ring, 7193, files.ptr[7193], 1);
+    ret = io_uring_register_files_update(ring, 7193, &files[7193], 1);
     if (ret != 1) {
         fprintf(stderr, "%s: update ret=%d\n", __FUNCTION__, ret);
         goto err;
@@ -552,9 +552,9 @@ static test_huge:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_skip:Int(ring:CPointer<io_uring>) {
+static int test_skip(struct io_uring *ring) {
     int *files;
-    ret:Int;
+    int ret;
 
     files = open_files(100, 0, 0);
     ret = io_uring_register_files(ring, files, 100);
@@ -564,7 +564,7 @@ static test_skip:Int(ring:CPointer<io_uring>) {
     }
 
     files[90] = IORING_REGISTER_FILES_SKIP;
-    ret = io_uring_register_files_update(ring, 90, files.ptr[90], 1);
+    ret = io_uring_register_files_update(ring, 90, &files[90], 1);
     if (ret != 1) {
         if (ret == -EBADF) {
             fprintf(stdout, "Skipping files not supported\n");
@@ -592,68 +592,68 @@ static test_skip:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_sparse_updates:Int(void) {
-    ring:io_uring;
-    ret:Int, i, *fds, newfd;
+static int test_sparse_updates(void) {
+    struct io_uring ring;
+    int ret, i, *fds, newfd;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "queue_init: %d\n", ret);
         return ret;
     }
 
     fds = t_malloc(256 * sizeof(int));
-    for (i in 0 until  256)
+    for (i = 0; i < 256; i++)
         fds[i] = -1;
 
-    ret = io_uring_register_files(ring.ptr, fds, 256);
+    ret = io_uring_register_files(&ring, fds, 256);
     if (ret) {
         fprintf(stderr, "file_register: %d\n", ret);
         return ret;
     }
 
     newfd = 1;
-    for (i in 0 until  256) {
-        ret = io_uring_register_files_update(ring.ptr, i, newfd.ptr, 1);
+    for (i = 0; i < 256; i++) {
+        ret = io_uring_register_files_update(&ring, i, &newfd, 1);
         if (ret != 1) {
             fprintf(stderr, "file_update: %d\n", ret);
             return ret;
         }
     }
-    io_uring_unregister_files(ring.ptr);
+    io_uring_unregister_files(&ring);
 
-    for (i in 0 until  256)
+    for (i = 0; i < 256; i++)
         fds[i] = 1;
 
-    ret = io_uring_register_files(ring.ptr, fds, 256);
+    ret = io_uring_register_files(&ring, fds, 256);
     if (ret) {
         fprintf(stderr, "file_register: %d\n", ret);
         return ret;
     }
 
     newfd = -1;
-    for (i in 0 until  256) {
-        ret = io_uring_register_files_update(ring.ptr, i, newfd.ptr, 1);
+    for (i = 0; i < 256; i++) {
+        ret = io_uring_register_files_update(&ring, i, &newfd, 1);
         if (ret != 1) {
             fprintf(stderr, "file_update: %d\n", ret);
             return ret;
         }
     }
-    io_uring_unregister_files(ring.ptr);
+    io_uring_unregister_files(&ring);
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
 }
 
-static test_fixed_removal_ordering:Int(void) {
+static int test_fixed_removal_ordering(void) {
     char buffer[128];
-    ring:io_uring;
-    sqe:CPointer<io_uring_sqe>;
-    cqe:CPointer<io_uring_cqe>;
-    ts:__kernel_timespec;
-    ret:Int, fd, i, fds[2];
+    struct io_uring ring;
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
+    struct __kernel_timespec ts;
+    int ret, fd, i, fds[2];
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret < 0) {
         fprintf(stderr, "failed to init io_uring: %s\n", strerror(-ret));
         return ret;
@@ -662,7 +662,7 @@ static test_fixed_removal_ordering:Int(void) {
         perror("pipe");
         return -1;
     }
-    ret = io_uring_register_files(ring.ptr, fds, 2);
+    ret = io_uring_register_files(&ring, fds, 2);
     if (ret) {
         fprintf(stderr, "file_register: %d\n", ret);
         return ret;
@@ -671,7 +671,7 @@ static test_fixed_removal_ordering:Int(void) {
     close(fds[0]);
     close(fds[1]);
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         fprintf(stderr, "%s: get sqe failed\n", __FUNCTION__);
         return 1;
@@ -679,20 +679,20 @@ static test_fixed_removal_ordering:Int(void) {
     /* outwait file recycling delay */
     ts.tv_sec = 3;
     ts.tv_nsec = 0;
-    io_uring_prep_timeout(sqe, ts.ptr, 0, 0);
- sqe.pointed.flags  |=  IOSQE_IO_LINK or IOSQE_IO_HARDLINK ;
- sqe.pointed.user_data  = 1;
+    io_uring_prep_timeout(sqe, &ts, 0, 0);
+    sqe->flags |= IOSQE_IO_LINK | IOSQE_IO_HARDLINK;
+    sqe->user_data = 1;
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         printf("get sqe failed\n");
         return -1;
     }
     io_uring_prep_write(sqe, 1, buffer, sizeof(buffer), 0);
- sqe.pointed.flags  |= IOSQE_FIXED_FILE;
- sqe.pointed.user_data  = 2;
+    sqe->flags |= IOSQE_FIXED_FILE;
+    sqe->user_data = 2;
 
-    ret = io_uring_submit(ring.ptr);
+    ret = io_uring_submit(&ring);
     if (ret != 2) {
         fprintf(stderr, "%s: got %d, wanted 2\n", __FUNCTION__, ret);
         return -1;
@@ -700,7 +700,7 @@ static test_fixed_removal_ordering:Int(void) {
 
     /* remove unused pipe end */
     fd = -1;
-    ret = io_uring_register_files_update(ring.ptr, 0, fd.ptr, 1);
+    ret = io_uring_register_files_update(&ring, 0, &fd, 1);
     if (ret != 1) {
         fprintf(stderr, "update off=0 failed\n");
         return -1;
@@ -708,58 +708,58 @@ static test_fixed_removal_ordering:Int(void) {
 
     /* remove used pipe end */
     fd = -1;
-    ret = io_uring_register_files_update(ring.ptr, 1, fd.ptr, 1);
+    ret = io_uring_register_files_update(&ring, 1, &fd, 1);
     if (ret != 1) {
         fprintf(stderr, "update off=1 failed\n");
         return -1;
     }
 
-    for (i in 0 until  2) {
-        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
+    for (i = 0; i < 2; ++i) {
+        ret = io_uring_wait_cqe(&ring, &cqe);
         if (ret < 0) {
             fprintf(stderr, "%s: io_uring_wait_cqe=%d\n", __FUNCTION__, ret);
             return 1;
         }
-        io_uring_cqe_seen(ring.ptr, cqe);
+        io_uring_cqe_seen(&ring, cqe);
     }
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
 }
 
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         printf("ring setup failed\n");
         return 1;
     }
 
-    ret = test_basic(ring.ptr, 0);
+    ret = test_basic(&ring, 0);
     if (ret) {
         printf("test_basic failed\n");
         return ret;
     }
 
-    ret = test_basic(ring.ptr, 1);
+    ret = test_basic(&ring, 1);
     if (ret) {
         printf("test_basic failed\n");
         return ret;
     }
 
-    ret = test_basic_many(ring.ptr);
+    ret = test_basic_many(&ring);
     if (ret) {
         printf("test_basic_many failed\n");
         return ret;
     }
 
-    ret = test_sparse(ring.ptr);
+    ret = test_sparse(&ring);
     if (ret) {
         printf("test_sparse failed\n");
         return ret;
@@ -768,55 +768,55 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (no_update)
         return 0;
 
-    ret = test_additions(ring.ptr);
+    ret = test_additions(&ring);
     if (ret) {
         printf("test_additions failed\n");
         return ret;
     }
 
-    ret = test_removals(ring.ptr);
+    ret = test_removals(&ring);
     if (ret) {
         printf("test_removals failed\n");
         return ret;
     }
 
-    ret = test_replace(ring.ptr);
+    ret = test_replace(&ring);
     if (ret) {
         printf("test_replace failed\n");
         return ret;
     }
 
-    ret = test_replace_all(ring.ptr);
+    ret = test_replace_all(&ring);
     if (ret) {
         printf("test_replace_all failed\n");
         return ret;
     }
 
-    ret = test_grow(ring.ptr);
+    ret = test_grow(&ring);
     if (ret) {
         printf("test_grow failed\n");
         return ret;
     }
 
-    ret = test_shrink(ring.ptr);
+    ret = test_shrink(&ring);
     if (ret) {
         printf("test_shrink failed\n");
         return ret;
     }
 
-    ret = test_zero(ring.ptr);
+    ret = test_zero(&ring);
     if (ret) {
         printf("test_zero failed\n");
         return ret;
     }
 
-    ret = test_huge(ring.ptr);
+    ret = test_huge(&ring);
     if (ret) {
         printf("test_huge failed\n");
         return ret;
     }
 
-    ret = test_skip(ring.ptr);
+    ret = test_skip(&ring);
     if (ret) {
         printf("test_skip failed\n");
         return 1;

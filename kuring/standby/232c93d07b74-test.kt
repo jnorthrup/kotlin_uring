@@ -28,9 +28,9 @@
 
 #define PORT    0x1235
 
-s:param {
-    tcp:Int;
-    non_blocking:Int;
+struct params {
+    int tcp;
+    int non_blocking;
 };
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -38,55 +38,55 @@ pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 int rcv_ready = 0;
 
 static void set_rcv_ready(void) {
-    pthread_mutex_lock(mutex.ptr);
+    pthread_mutex_lock(&mutex);
 
     rcv_ready = 1;
-    pthread_cond_signal(cond.ptr);
+    pthread_cond_signal(&cond);
 
-    pthread_mutex_unlock(mutex.ptr);
+    pthread_mutex_unlock(&mutex);
 }
 
 static void wait_for_rcv_ready(void) {
-    pthread_mutex_lock(mutex.ptr);
+    pthread_mutex_lock(&mutex);
 
     while (!rcv_ready)
-        pthread_cond_wait(cond.ptr, mutex.ptr);
+        pthread_cond_wait(&cond, &mutex);
 
-    pthread_mutex_unlock(mutex.ptr);
+    pthread_mutex_unlock(&mutex);
 }
 
-static rcv:CPointer<ByteVar> (arg:CPointer<ByteVar> ) {
-    p:CPointer<params> = arg;
-    s0:Int;
-    res:Int;
+static void *rcv(void *arg) {
+    struct params *p = arg;
+    int s0;
+    int res;
 
-    if ( p.pointed.tcp ) {
-        val:Int = 1;
+    if (p->tcp) {
+        int val = 1;
 
 
-        s0 = socket(AF_INET,  SOCK_STREAM or SOCK_CLOEXEC , IPPROTO_TCP);
-        res = setsockopt(s0, SOL_SOCKET, SO_REUSEPORT, val.ptr, sizeof(val));
+        s0 = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
+        res = setsockopt(s0, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
         assert(res != -1);
-        res = setsockopt(s0, SOL_SOCKET, SO_REUSEADDR, val.ptr, sizeof(val));
+        res = setsockopt(s0, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
         assert(res != -1);
 
-        addr:sockaddr_in;
+        struct sockaddr_in addr;
 
         addr.sin_family = AF_INET;
         addr.sin_port = htons(PORT);
         addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-        res = bind(s0, (r:sockadd *) addr.ptr, sizeof(addr));
+        res = bind(s0, (struct sockaddr *) &addr, sizeof(addr));
         assert(res != -1);
     } else {
-        s0 = socket(AF_UNIX,  SOCK_STREAM or SOCK_CLOEXEC , 0);
+        s0 = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
         assert(s0 != -1);
 
-        addr:sockaddr_un;
-        memset(addr.ptr, 0, sizeof(addr));
+        struct sockaddr_un addr;
+        memset(&addr, 0, sizeof(addr));
 
         addr.sun_family = AF_UNIX;
         memcpy(addr.sun_path, "\0sock", 6);
-        res = bind(s0, (r:sockadd *) addr.ptr, sizeof(addr));
+        res = bind(s0, (struct sockaddr *) &addr, sizeof(addr));
         assert(res != -1);
     }
     res = listen(s0, 128);
@@ -94,11 +94,11 @@ static rcv:CPointer<ByteVar> (arg:CPointer<ByteVar> ) {
 
     set_rcv_ready();
 
-    s1:Int = accept(s0, NULL, NULL);
+    int s1 = accept(s0, NULL, NULL);
     assert(s1 != -1);
 
-    if ( p.pointed.non_blocking ) {
-        flags:Int = fcntl(s1, F_GETFL, 0);
+    if (p->non_blocking) {
+        int flags = fcntl(s1, F_GETFL, 0);
         assert(flags != -1);
 
         flags |= O_NONBLOCK;
@@ -106,43 +106,43 @@ static rcv:CPointer<ByteVar> (arg:CPointer<ByteVar> ) {
         assert(res != -1);
     }
 
-    m_io_uring:io_uring;
-    ret:CPointer<ByteVar>  = NULL;
+    struct io_uring m_io_uring;
+    void *ret = NULL;
 
-    res = io_uring_queue_init(32, m_io_uring.ptr, 0);
+    res = io_uring_queue_init(32, &m_io_uring, 0);
     assert(res >= 0);
 
-    bytes_read:Int = 0;
-    expected_byte:Int = 0;
-    done:Int = 0;
+    int bytes_read = 0;
+    int expected_byte = 0;
+    int done = 0;
 
     while (!done && bytes_read != 33) {
         char buff[RECV_BUFF_SIZE];
-        iov:iovec;
+        struct iovec iov;
 
         iov.iov_base = buff;
         iov.iov_len = sizeof(buff);
 
-        sqe:CPointer<io_uring_sqe> = io_uring_get_sqe(m_io_uring.ptr);
+        struct io_uring_sqe *sqe = io_uring_get_sqe(&m_io_uring);
         assert(sqe != NULL);
 
-        io_uring_prep_readv(sqe, s1, iov.ptr, 1, 0);
+        io_uring_prep_readv(sqe, s1, &iov, 1, 0);
 
-        res = io_uring_submit(m_io_uring.ptr);
+        res = io_uring_submit(&m_io_uring);
         assert(res != -1);
 
-        cqe:CPointer<io_uring_cqe>;
+        struct io_uring_cqe *cqe;
         unsigned head;
         unsigned count = 0;
 
         while (!done && count != 1) {
-            io_uring_for_each_cqe(m_io_uring.ptr, head, cqe) {
-                if ( cqe.pointed.res  < 0)
-                    assert( cqe.pointed.res  == -EAGAIN);
+            io_uring_for_each_cqe(&m_io_uring, head, cqe) {
+                if (cqe->res < 0)
+                    assert(cqe->res == -EAGAIN);
                 else {
-                    i:Int;
+                    int i;
 
-                    for (i in 0 until cqe.pointed.res ) {
+                    for (i = 0; i < cqe->res; i++) {
                         if (buff[i] != expected_byte) {
                             fprintf(stderr,
                                     "Received %d, wanted %d\n",
@@ -152,60 +152,60 @@ static rcv:CPointer<ByteVar> (arg:CPointer<ByteVar> ) {
                         }
                         expected_byte++;
                     }
-                    bytes_read += cqe.pointed.res ;
+                    bytes_read += cqe->res;
                 }
 
                 count++;
             }
 
             assert(count <= 1);
-            io_uring_cq_advance(m_io_uring.ptr, count);
+            io_uring_cq_advance(&m_io_uring, count);
         }
     }
 
     shutdown(s1, SHUT_RDWR);
     close(s1);
     close(s0);
-    io_uring_queue_exit(m_io_uring.ptr);
+    io_uring_queue_exit(&m_io_uring);
     return ret;
 }
 
-static snd:CPointer<ByteVar> (arg:CPointer<ByteVar> ) {
-    p:CPointer<params> = arg;
-    s0:Int;
-    ret:Int;
+static void *snd(void *arg) {
+    struct params *p = arg;
+    int s0;
+    int ret;
 
     wait_for_rcv_ready();
 
-    if ( p.pointed.tcp ) {
-        val:Int = 1;
+    if (p->tcp) {
+        int val = 1;
 
-        s0 = socket(AF_INET,  SOCK_STREAM or SOCK_CLOEXEC , IPPROTO_TCP);
-        ret = setsockopt(s0, IPPROTO_TCP, TCP_NODELAY, val.ptr, sizeof(val));
+        s0 = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
+        ret = setsockopt(s0, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
         assert(ret != -1);
 
-        addr:sockaddr_in;
+        struct sockaddr_in addr;
 
         addr.sin_family = AF_INET;
         addr.sin_port = htons(PORT);
         addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-        ret = connect(s0, (r:sockadd *) addr.ptr, sizeof(addr));
+        ret = connect(s0, (struct sockaddr *) &addr, sizeof(addr));
         assert(ret != -1);
     } else {
-        s0 = socket(AF_UNIX,  SOCK_STREAM or SOCK_CLOEXEC , 0);
+        s0 = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
         assert(s0 != -1);
 
-        addr:sockaddr_un;
-        memset(addr.ptr, 0, sizeof(addr));
+        struct sockaddr_un addr;
+        memset(&addr, 0, sizeof(addr));
 
         addr.sun_family = AF_UNIX;
         memcpy(addr.sun_path, "\0sock", 6);
-        ret = connect(s0, (r:sockadd *) addr.ptr, sizeof(addr));
+        ret = connect(s0, (struct sockaddr *) &addr, sizeof(addr));
         assert(ret != -1);
     }
 
-    if ( p.pointed.non_blocking ) {
-        flags:Int = fcntl(s0, F_GETFL, 0);
+    if (p->non_blocking) {
+        int flags = fcntl(s0, F_GETFL, 0);
         assert(flags != -1);
 
         flags |= O_NONBLOCK;
@@ -213,84 +213,84 @@ static snd:CPointer<ByteVar> (arg:CPointer<ByteVar> ) {
         assert(ret != -1);
     }
 
-    m_io_uring:io_uring;
+    struct io_uring m_io_uring;
 
-    ret = io_uring_queue_init(32, m_io_uring.ptr, 0);
+    ret = io_uring_queue_init(32, &m_io_uring, 0);
     assert(ret >= 0);
 
-    bytes_written:Int = 0;
-    done:Int = 0;
+    int bytes_written = 0;
+    int done = 0;
 
     while (!done && bytes_written != 33) {
         char buff[SEND_BUFF_SIZE];
-        i:Int;
+        int i;
 
-        for (i in 0 until  SEND_BUFF_SIZE)
+        for (i = 0; i < SEND_BUFF_SIZE; i++)
             buff[i] = i + bytes_written;
 
-        iov:iovec;
+        struct iovec iov;
 
         iov.iov_base = buff;
         iov.iov_len = sizeof(buff);
 
-        sqe:CPointer<io_uring_sqe> = io_uring_get_sqe(m_io_uring.ptr);
+        struct io_uring_sqe *sqe = io_uring_get_sqe(&m_io_uring);
         assert(sqe != NULL);
 
-        io_uring_prep_writev(sqe, s0, iov.ptr, 1, 0);
+        io_uring_prep_writev(sqe, s0, &iov, 1, 0);
 
-        ret = io_uring_submit(m_io_uring.ptr);
+        ret = io_uring_submit(&m_io_uring);
         assert(ret != -1);
 
-        cqe:CPointer<io_uring_cqe>;
+        struct io_uring_cqe *cqe;
         unsigned head;
         unsigned count = 0;
 
         while (!done && count != 1) {
-            io_uring_for_each_cqe(m_io_uring.ptr, head, cqe) {
-                if ( cqe.pointed.res  < 0) {
-                    if ( cqe.pointed.res  == -EPIPE) {
+            io_uring_for_each_cqe(&m_io_uring, head, cqe) {
+                if (cqe->res < 0) {
+                    if (cqe->res == -EPIPE) {
                         done = 1;
                         break;
                     }
-                    assert( cqe.pointed.res  == -EAGAIN);
+                    assert(cqe->res == -EAGAIN);
                 } else {
-                    bytes_written += cqe.pointed.res ;
+                    bytes_written += cqe->res;
                 }
 
                 count++;
             }
 
             assert(count <= 1);
-            io_uring_cq_advance(m_io_uring.ptr, count);
+            io_uring_cq_advance(&m_io_uring, count);
         }
         usleep(100000);
     }
 
     shutdown(s0, SHUT_RDWR);
     close(s0);
-    io_uring_queue_exit(m_io_uring.ptr);
+    io_uring_queue_exit(&m_io_uring);
     return NULL;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    p:params;
-    t1:pthread_t, t2;
-    res1:CPointer<ByteVar> , *res2;
-    i:Int, exit_val = 0;
+int main(int argc, char *argv[]) {
+    struct params p;
+    pthread_t t1, t2;
+    void *res1, *res2;
+    int i, exit_val = 0;
 
     if (argc > 1)
         return 0;
 
-    for (i in 0 until  4) {
-        p.tcp = i 1.ptr;
-        p.non_blocking = (i 2.ptr) >> 1;
+    for (i = 0; i < 4; i++) {
+        p.tcp = i & 1;
+        p.non_blocking = (i & 2) >> 1;
 
         rcv_ready = 0;
 
-        pthread_create(t1.ptr, NULL, rcv, p.ptr);
-        pthread_create(t2.ptr, NULL, snd, p.ptr);
-        pthread_join(t1, res1.ptr);
-        pthread_join(t2, res2.ptr);
+        pthread_create(&t1, NULL, rcv, &p);
+        pthread_create(&t2, NULL, snd, &p);
+        pthread_join(t1, &res1);
+        pthread_join(t2, &res2);
         if (res1 || res2) {
             fprintf(stderr, "Failed tcp=%d, non_blocking=%d\n", p.tcp, p.non_blocking);
             exit_val = 1;

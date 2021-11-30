@@ -15,27 +15,27 @@
 #define FNAME    "/tmp/.tmp.access"
 #define USE_UID    1000
 
-static no_personality:Int;
+static int no_personality;
 
-static open_file:Int(ring:CPointer<io_uring>, cred_id:Int, with_link:Int) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i, to_submit = 1;
+static int open_file(struct io_uring *ring, int cred_id, int with_link) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i, to_submit = 1;
 
     if (with_link) {
         sqe = io_uring_get_sqe(ring);
         io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
- sqe.pointed.user_data  = 1;
+        sqe->flags |= IOSQE_IO_LINK;
+        sqe->user_data = 1;
         to_submit++;
     }
 
     sqe = io_uring_get_sqe(ring);
     io_uring_prep_openat(sqe, -1, FNAME, O_RDONLY, 0);
- sqe.pointed.user_data  = 2;
+    sqe->user_data = 2;
 
     if (cred_id != -1)
- sqe.pointed.personality  = cred_id;
+        sqe->personality = cred_id;
 
     ret = io_uring_submit(ring);
     if (ret != to_submit) {
@@ -43,22 +43,22 @@ static open_file:Int(ring:CPointer<io_uring>, cred_id:Int, with_link:Int) {
         goto err;
     }
 
-    for (i in 0 until  to_submit) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < to_submit; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             fprintf(stderr, "wait completion %d\n", ret);
             goto err;
         }
 
-        ret = cqe.pointed.res ;
+        ret = cqe->res;
         io_uring_cqe_seen(ring, cqe);
     }
     err:
     return ret;
 }
 
-static test_personality:Int(ring:CPointer<io_uring>) {
-    ret:Int, cred_id;
+static int test_personality(struct io_uring *ring) {
+    int ret, cred_id;
 
     ret = io_uring_register_personality(ring);
     if (ret < 0) {
@@ -73,7 +73,7 @@ static test_personality:Int(ring:CPointer<io_uring>) {
     cred_id = ret;
 
     /* create file only owner can open */
-    ret = open(FNAME,  O_RDONLY or O_CREAT , 0600);
+    ret = open(FNAME, O_RDONLY | O_CREAT, 0600);
     if (ret < 0) {
         perror("open");
         goto err;
@@ -131,8 +131,8 @@ static test_personality:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_invalid_personality:Int(ring:CPointer<io_uring>) {
-    ret:Int;
+static int test_invalid_personality(struct io_uring *ring) {
+    int ret;
 
     ret = open_file(ring, 2, 0);
     if (ret != -EINVAL) {
@@ -144,8 +144,8 @@ static test_invalid_personality:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_invalid_unregister:Int(ring:CPointer<io_uring>) {
-    ret:Int;
+static int test_invalid_unregister(struct io_uring *ring) {
+    int ret;
 
     ret = io_uring_unregister_personality(ring, 2);
     if (ret != -EINVAL) {
@@ -157,9 +157,9 @@ static test_invalid_unregister:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int ret;
 
     if (argc > 1)
         return 0;
@@ -169,13 +169,13 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         return 0;
     }
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed: %d\n", ret);
         return 1;
     }
 
-    ret = test_personality(ring.ptr);
+    ret = test_personality(&ring);
     if (ret) {
         fprintf(stderr, "test_personality failed\n");
         return ret;
@@ -183,13 +183,13 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (no_personality)
         return 0;
 
-    ret = test_invalid_personality(ring.ptr);
+    ret = test_invalid_personality(&ring);
     if (ret) {
         fprintf(stderr, "test_invalid_personality failed\n");
         return ret;
     }
 
-    ret = test_invalid_unregister(ring.ptr);
+    ret = test_invalid_unregister(&ring);
     if (ret) {
         fprintf(stderr, "test_invalid_unregister failed\n");
         return ret;

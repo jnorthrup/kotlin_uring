@@ -14,25 +14,25 @@
 
 #include "liburing.h"
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    p:io_uring_params = {};
-    ring1:io_uring, ring2;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, evfd1, evfd2;
+int main(int argc, char *argv[]) {
+    struct io_uring_params p = {};
+    struct io_uring ring1, ring2;
+    struct io_uring_sqe *sqe;
+    int ret, evfd1, evfd2;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init_params(8, ring1.ptr, p.ptr);
+    ret = io_uring_queue_init_params(8, &ring1, &p);
     if (ret) {
         fprintf(stderr, "ring setup failed: %d\n", ret);
         return 1;
     }
-    if (!(p.features IORING_FEAT_CUR_PERSONALITY.ptr)) {
+    if (!(p.features & IORING_FEAT_CUR_PERSONALITY)) {
         fprintf(stdout, "Skipping\n");
         return 0;
     }
-    ret = io_uring_queue_init(8, ring2.ptr, 0);
+    ret = io_uring_queue_init(8, &ring2, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed: %d\n", ret);
         return 1;
@@ -50,43 +50,43 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         return 1;
     }
 
-    ret = io_uring_register_eventfd(ring1.ptr, evfd1);
+    ret = io_uring_register_eventfd(&ring1, evfd1);
     if (ret) {
         fprintf(stderr, "failed to register evfd: %d\n", ret);
         return 1;
     }
 
-    ret = io_uring_register_eventfd(ring2.ptr, evfd2);
+    ret = io_uring_register_eventfd(&ring2, evfd2);
     if (ret) {
         fprintf(stderr, "failed to register evfd: %d\n", ret);
         return 1;
     }
 
-    sqe = io_uring_get_sqe(ring1.ptr);
+    sqe = io_uring_get_sqe(&ring1);
     io_uring_prep_poll_add(sqe, evfd2, POLLIN);
- sqe.pointed.user_data  = 1;
+    sqe->user_data = 1;
 
-    sqe = io_uring_get_sqe(ring2.ptr);
+    sqe = io_uring_get_sqe(&ring2);
     io_uring_prep_poll_add(sqe, evfd1, POLLIN);
- sqe.pointed.user_data  = 1;
+    sqe->user_data = 1;
 
-    ret = io_uring_submit(ring1.ptr);
+    ret = io_uring_submit(&ring1);
     if (ret != 1) {
         fprintf(stderr, "submit: %d\n", ret);
         return 1;
     }
 
-    ret = io_uring_submit(ring2.ptr);
+    ret = io_uring_submit(&ring2);
     if (ret != 1) {
         fprintf(stderr, "submit: %d\n", ret);
         return 1;
     }
 
-    sqe = io_uring_get_sqe(ring1.ptr);
+    sqe = io_uring_get_sqe(&ring1);
     io_uring_prep_nop(sqe);
- sqe.pointed.user_data  = 3;
+    sqe->user_data = 3;
 
-    ret = io_uring_submit(ring1.ptr);
+    ret = io_uring_submit(&ring1);
     if (ret != 1) {
         fprintf(stderr, "submit: %d\n", ret);
         return 1;

@@ -32,56 +32,56 @@
 #define CQ_FLAGS_OFFSET 280
 #define CQ_CQES_OFFSET 320
 
-static :Longsyz_io_uring_setupvolatile :Longa0 volatile :Longa1
-        volatile :Longa2 volatile :Longa3
-        volatile :Longa4 volatile :Longa5 {
-    entries:uint32_t = (uint32_t) a0;
-    setup_params:CPointer<io_uring_params> = (s:io_uring_param *) a1;
-    vma1:CPointer<ByteVar>  = (void *) a2;
-    vma2:CPointer<ByteVar>  = (void *) a3;
+static long syz_io_uring_setup(volatile long a0, volatile long a1,
+        volatile long a2, volatile long a3,
+        volatile long a4, volatile long a5) {
+    uint32_t entries = (uint32_t) a0;
+    struct io_uring_params *setup_params = (struct io_uring_params *) a1;
+    void *vma1 = (void *) a2;
+    void *vma2 = (void *) a3;
     void **ring_ptr_out = (void **) a4;
     void **sqes_ptr_out = (void **) a5;
-    fd_io_uring:uint32_t = __sys_io_uring_setup(entries, setup_params);
-    sq_ring_sz:uint32_t =
- setup_params.pointed.sq_off .array + setup_params.pointed.sq_entries  * sizeof(uint32_t);
-    cq_ring_sz:uint32_t = setup_params.pointed.cq_off .cqes +
- setup_params.pointed.cq_entries  * SIZEOF_IO_URING_CQE;
-    ring_sz:uint32_t = sq_ring_sz > cq_ring_sz ? sq_ring_sz : cq_ring_sz;
-    *ring_ptr_out = mmap(vma1, ring_sz,  PROT_READ or PROT_WRITE ,
-                          MAP_SHARED or  MAP_POPULATE or MAP_FIXED , fd_io_uring,
+    uint32_t fd_io_uring = __sys_io_uring_setup(entries, setup_params);
+    uint32_t sq_ring_sz =
+            setup_params->sq_off.array + setup_params->sq_entries * sizeof(uint32_t);
+    uint32_t cq_ring_sz = setup_params->cq_off.cqes +
+                          setup_params->cq_entries * SIZEOF_IO_URING_CQE;
+    uint32_t ring_sz = sq_ring_sz > cq_ring_sz ? sq_ring_sz : cq_ring_sz;
+    *ring_ptr_out = mmap(vma1, ring_sz, PROT_READ | PROT_WRITE,
+                         MAP_SHARED | MAP_POPULATE | MAP_FIXED, fd_io_uring,
                          IORING_OFF_SQ_RING);
-    sqes_sz:uint32_t = setup_params.pointed.sq_entries  * SIZEOF_IO_URING_SQE;
+    uint32_t sqes_sz = setup_params->sq_entries * SIZEOF_IO_URING_SQE;
     *sqes_ptr_out =
-            mmap(vma2, sqes_sz,  PROT_READ or PROT_WRITE ,
-                  MAP_SHARED or  MAP_POPULATE or MAP_FIXED , fd_io_uring, IORING_OFF_SQES);
+            mmap(vma2, sqes_sz, PROT_READ | PROT_WRITE,
+                 MAP_SHARED | MAP_POPULATE | MAP_FIXED, fd_io_uring, IORING_OFF_SQES);
     return fd_io_uring;
 }
 
-static :Longsyz_io_uring_submitvolatile :Longa0 volatile :Longa1
-        volatile :Longa2 volatile :Longa3 {
-    ring_ptr:CPointer<ByteVar> = (char *) a0;
-    sqes_ptr:CPointer<ByteVar> = (char *) a1;
-    sqe:CPointer<ByteVar> = (char *) a2;
-    sqes_index:uint32_t = (uint32_t) a3;
-    sq_ring_entries:uint32_t = *(uint32_t *) (ring_ptr + SQ_RING_ENTRIES_OFFSET);
-    cq_ring_entries:uint32_t = *(uint32_t *) (ring_ptr + CQ_RING_ENTRIES_OFFSET);
-    sq_array_off:uint32_t =
+static long syz_io_uring_submit(volatile long a0, volatile long a1,
+        volatile long a2, volatile long a3) {
+    char *ring_ptr = (char *) a0;
+    char *sqes_ptr = (char *) a1;
+    char *sqe = (char *) a2;
+    uint32_t sqes_index = (uint32_t) a3;
+    uint32_t sq_ring_entries = *(uint32_t *) (ring_ptr + SQ_RING_ENTRIES_OFFSET);
+    uint32_t cq_ring_entries = *(uint32_t *) (ring_ptr + CQ_RING_ENTRIES_OFFSET);
+    uint32_t sq_array_off =
             (CQ_CQES_OFFSET + cq_ring_entries * SIZEOF_IO_URING_CQE + 63) & ~63;
     if (sq_ring_entries)
         sqes_index %= sq_ring_entries;
-    sqe_dest:CPointer<ByteVar> = sqes_ptr + sqes_index * SIZEOF_IO_URING_SQE;
+    char *sqe_dest = sqes_ptr + sqes_index * SIZEOF_IO_URING_SQE;
     memcpy(sqe_dest, sqe, SIZEOF_IO_URING_SQE);
-    sq_ring_mask:uint32_t = *(uint32_t *) (ring_ptr + SQ_RING_MASK_OFFSET);
+    uint32_t sq_ring_mask = *(uint32_t *) (ring_ptr + SQ_RING_MASK_OFFSET);
     uint32_t *sq_tail_ptr = (uint32_t *) (ring_ptr + SQ_TAIL_OFFSET);
-    sq_tail:uint32_t = *sq_tail_ptr sq_ring_mask.ptr;
-    sq_tail_next:uint32_t = *sq_tail_ptr + 1;
+    uint32_t sq_tail = *sq_tail_ptr & sq_ring_mask;
+    uint32_t sq_tail_next = *sq_tail_ptr + 1;
     uint32_t *sq_array = (uint32_t *) (ring_ptr + sq_array_off);
     *(sq_array + sq_tail) = sqes_index;
     __atomic_store_n(sq_tail_ptr, sq_tail_next, __ATOMIC_RELEASE);
     return 0;
 }
 
-static :Longsyz_open_devvolatile :Longa0 volatile :Longa1 volatile :Longa2 {
+static long syz_open_dev(volatile long a0, volatile long a1, volatile long a2) {
     if (a0 == 0xc || a0 == 0xb) {
         char buf[128];
         sprintf(buf, "/dev/%s/%d:%d", a0 == 0xc ? "char" : "block", (uint8_t) a1,
@@ -89,7 +89,7 @@ static :Longsyz_open_devvolatile :Longa0 volatile :Longa1 volatile :Longa2 {
         return open(buf, O_RDWR, 0);
     } else {
         char buf[1024];
-        hash:CPointer<ByteVar>;
+        char *hash;
         strncpy(buf, (char *) a0, sizeof(buf) - 1);
         buf[sizeof(buf) - 1] = 0;
         while ((hash = strchr(buf, '#'))) {
@@ -102,7 +102,7 @@ static :Longsyz_open_devvolatile :Longa0 volatile :Longa1 volatile :Longa2 {
 
 uint64_t r[4] = {0xffffffffffffffff, 0x0, 0x0, 0xffffffffffffffff};
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
+int main(int argc, char *argv[]) {
 
     if (argc > 1)
         return 0;
@@ -110,7 +110,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     mmap((void *) 0x1ffff000ul, 0x1000ul, 0ul, 0x32ul, -1, 0ul);
     mmap((void *) 0x20000000ul, 0x1000000ul, 7ul, 0x32ul, -1, 0ul);
     mmap((void *) 0x21000000ul, 0x1000ul, 0ul, 0x32ul, -1, 0ul);
-    res:intptr_t = 0;
+    intptr_t res = 0;
     *(uint32_t *) 0x20000484 = 0;
     *(uint32_t *) 0x20000488 = 0;
     *(uint32_t *) 0x2000048c = 0;

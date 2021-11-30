@@ -12,30 +12,30 @@
 
 #define BUFSIZE    512
 
-a:dat {
-    str:CPointer<ByteVar>;
-    fds:Int[2];
+struct data {
+    char *str;
+    int fds[2];
 };
 
-static t:CPointer<ByteVar> (data:CPointer<ByteVar> ) {
-    d:CPointer<data> = data;
-    ret:Int;
+static void *t(void *data) {
+    struct data *d = data;
+    int ret;
 
-    strcpy( d.pointed.str , "This is a test string");
-    ret = write( d.pointed.fds [1], d.pointed.str , strlen( d.pointed.str ));
-    close( d.pointed.fds [1]);
+    strcpy(d->str, "This is a test string");
+    ret = write(d->fds[1], d->str, strlen(d->str));
+    close(d->fds[1]);
     if (ret < 0)
         perror("write");
 
     return NULL;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
+int main(int argc, char *argv[]) {
     static char buf[BUFSIZE];
-    ring:io_uring;
-    thread:pthread_t;
-    d:data;
-    ret:Int;
+    struct io_uring ring;
+    pthread_t thread;
+    struct data d;
+    int ret;
 
     if (pipe(d.fds) < 0) {
         perror("pipe");
@@ -43,37 +43,37 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     }
     d.str = buf;
 
-    io_uring_queue_init(8, ring.ptr, 0);
+    io_uring_queue_init(8, &ring, 0);
 
-    pthread_create(thread.ptr, NULL, t, d.ptr);
+    pthread_create(&thread, NULL, t, &d);
 
     while (1) {
-        sqe:CPointer<io_uring_sqe>;
-        cqe:CPointer<io_uring_cqe>;
+        struct io_uring_sqe *sqe;
+        struct io_uring_cqe *cqe;
 
-        sqe = io_uring_get_sqe(ring.ptr);
+        sqe = io_uring_get_sqe(&ring);
         io_uring_prep_read(sqe, d.fds[0], buf, BUFSIZE, 0);
-        ret = io_uring_submit(ring.ptr);
+        ret = io_uring_submit(&ring);
         if (ret != 1) {
             fprintf(stderr, "submit: %d\n", ret);
             return 1;
         }
-        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
+        ret = io_uring_wait_cqe(&ring, &cqe);
         if (ret) {
             fprintf(stderr, "wait: %d\n", ret);
             return 1;
         }
 
-        if ( cqe.pointed.res  < 0) {
-            fprintf(stderr, "Read error: %s\n", strerror(- cqe.pointed.res ));
+        if (cqe->res < 0) {
+            fprintf(stderr, "Read error: %s\n", strerror(-cqe->res));
             return 1;
         }
-        if ( cqe.pointed.res  == 0)
+        if (cqe->res == 0)
             break;
-        io_uring_cqe_seen(ring.ptr, cqe);
+        io_uring_cqe_seen(&ring, cqe);
     }
 
     pthread_join(thread, NULL);
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
 }

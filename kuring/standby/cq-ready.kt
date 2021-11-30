@@ -12,11 +12,11 @@
 
 #include "liburing.h"
 
-static queue_n_nops:Int(ring:CPointer<io_uring>, n:Int) {
-    sqe:CPointer<io_uring_sqe>;
-    i:Int, ret;
+static int queue_n_nops(struct io_uring *ring, int n) {
+    struct io_uring_sqe *sqe;
+    int i, ret;
 
-    for (i in 0 until  n) {
+    for (i = 0; i < n; i++) {
         sqe = io_uring_get_sqe(ring);
         if (!sqe) {
             printf("get sqe failed\n");
@@ -48,45 +48,45 @@ static queue_n_nops:Int(ring:CPointer<io_uring>, n:Int) {
     }\
 } while(0)
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int ret;
     unsigned ready;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(4, ring.ptr, 0);
+    ret = io_uring_queue_init(4, &ring, 0);
     if (ret) {
         printf("ring setup failed\n");
         return 1;
 
     }
 
-    CHECK_READY(ring.ptr, 0);
-    if (queue_n_nops(ring.ptr, 4))
+    CHECK_READY(&ring, 0);
+    if (queue_n_nops(&ring, 4))
         goto err;
 
-    CHECK_READY(ring.ptr, 4);
-    io_uring_cq_advance(ring.ptr, 4);
-    CHECK_READY(ring.ptr, 0);
-    if (queue_n_nops(ring.ptr, 4))
+    CHECK_READY(&ring, 4);
+    io_uring_cq_advance(&ring, 4);
+    CHECK_READY(&ring, 0);
+    if (queue_n_nops(&ring, 4))
         goto err;
 
-    CHECK_READY(ring.ptr, 4);
+    CHECK_READY(&ring, 4);
 
-    io_uring_cq_advance(ring.ptr, 1);
-    CHECK_READY(ring.ptr, 3);
+    io_uring_cq_advance(&ring, 1);
+    CHECK_READY(&ring, 3);
 
-    io_uring_cq_advance(ring.ptr, 2);
-    CHECK_READY(ring.ptr, 1);
+    io_uring_cq_advance(&ring, 2);
+    CHECK_READY(&ring, 1);
 
-    io_uring_cq_advance(ring.ptr, 1);
-    CHECK_READY(ring.ptr, 0);
+    io_uring_cq_advance(&ring, 1);
+    CHECK_READY(&ring, 0);
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
     err:
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 1;
 }

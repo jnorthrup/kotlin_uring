@@ -13,10 +13,10 @@
 
 #include "liburing.h"
 
-static test_unlink:Int(ring:CPointer<io_uring>, old:String) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int;
+static int test_unlink(struct io_uring *ring, const char *old) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -31,36 +31,36 @@ static test_unlink:Int(ring:CPointer<io_uring>, old:String) {
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
         goto err;
     }
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     return ret;
     err:
     return 1;
 }
 
-static stat_file:Int(buf:String) {
-    sb:stat;
+static int stat_file(const char *buf) {
+    struct stat sb;
 
-    if (!stat(buf, sb.ptr))
+    if (!stat(buf, &sb))
         return 0;
 
     return errno;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
     char buf[32] = "./XXXXXX";
-    ret:Int;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(1, ring.ptr, 0);
+    ret = io_uring_queue_init(1, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed: %d\n", ret);
         return 1;
@@ -78,7 +78,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         return 1;
     }
 
-    ret = test_unlink(ring.ptr, buf);
+    ret = test_unlink(&ring, buf);
     if (ret < 0) {
         if (ret == -EBADF || ret == -EINVAL) {
             fprintf(stdout, "Unlink not supported, skipping\n");
@@ -96,7 +96,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         return 1;
     }
 
-    ret = test_unlink(ring.ptr, "/3/2/3/1/z/y");
+    ret = test_unlink(&ring, "/3/2/3/1/z/y");
     if (ret != -ENOENT) {
         fprintf(stderr, "invalid unlink got %s\n", strerror(-ret));
         return 1;

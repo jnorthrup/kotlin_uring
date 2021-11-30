@@ -11,15 +11,15 @@
 
 #include "liburing.h"
 
-static test_attach_invalid:Int(ringfd:Int) {
-    p:io_uring_params;
-    ring:io_uring;
-    ret:Int;
+static int test_attach_invalid(int ringfd) {
+    struct io_uring_params p;
+    struct io_uring ring;
+    int ret;
 
-    memset(p.ptr, 0, sizeof(p));
+    memset(&p, 0, sizeof(p));
     p.flags = IORING_SETUP_ATTACH_WQ;
     p.wq_fd = ringfd;
-    ret = io_uring_queue_init_params(1, ring.ptr, p.ptr);
+    ret = io_uring_queue_init_params(1, &ring, &p);
     if (ret != -EINVAL) {
         fprintf(stderr, "Attach to zero: %d\n", ret);
         goto err;
@@ -29,15 +29,15 @@ static test_attach_invalid:Int(ringfd:Int) {
     return 1;
 }
 
-static test_attach:Int(ringfd:Int) {
-    p:io_uring_params;
-    ring2:io_uring;
-    ret:Int;
+static int test_attach(int ringfd) {
+    struct io_uring_params p;
+    struct io_uring ring2;
+    int ret;
 
-    memset(p.ptr, 0, sizeof(p));
+    memset(&p, 0, sizeof(p));
     p.flags = IORING_SETUP_ATTACH_WQ;
     p.wq_fd = ringfd;
-    ret = io_uring_queue_init_params(1, ring2.ptr, p.ptr);
+    ret = io_uring_queue_init_params(1, &ring2, &p);
     if (ret == -EINVAL) {
         fprintf(stdout, "Sharing not supported, skipping\n");
         return 0;
@@ -45,20 +45,20 @@ static test_attach:Int(ringfd:Int) {
         fprintf(stderr, "Attach to id: %d\n", ret);
         goto err;
     }
-    io_uring_queue_exit(ring2.ptr);
+    io_uring_queue_exit(&ring2);
     return 0;
     err:
     return 1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return 1;

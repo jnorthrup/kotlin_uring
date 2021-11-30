@@ -13,11 +13,11 @@
 #include "helpers.h"
 #include "liburing.h"
 
-static void close_files(int *files, nr_files:Int, add:Int) {
+static void close_files(int *files, int nr_files, int add) {
     char fname[32];
-    i:Int;
+    int i;
 
-    for (i in 0 until  nr_files) {
+    for (i = 0; i < nr_files; i++) {
         if (files)
             close(files[i]);
         if (!add)
@@ -30,19 +30,19 @@ static void close_files(int *files, nr_files:Int, add:Int) {
         free(files);
 }
 
-static int *open_files(nr_files:Int, extra:Int, add:Int) {
+static int *open_files(int nr_files, int extra, int add) {
     char fname[32];
     int *files;
-    i:Int;
+    int i;
 
     files = t_calloc(nr_files + extra, sizeof(int));
 
-    for (i in 0 until  nr_files) {
+    for (i = 0; i < nr_files; i++) {
         if (!add)
             sprintf(fname, ".reg.%d", i);
         else
             sprintf(fname, ".add.%d", i + add);
-        files[i] = open(fname,  O_RDWR or O_CREAT , 0644);
+        files[i] = open(fname, O_RDWR | O_CREAT, 0644);
         if (files[i] < 0) {
             perror("open");
             free(files);
@@ -51,15 +51,15 @@ static int *open_files(nr_files:Int, extra:Int, add:Int) {
         }
     }
     if (extra) {
-        for (i in nr_files until  nr_files + extra)
+        for (i = nr_files; i < nr_files + extra; i++)
             files[i] = -1;
     }
 
     return files;
 }
 
-static test_update_multiring:Int(r1:CPointer<io_uring>, g:io_urin *r2,
-        r3:CPointer<io_uring>, do_unreg:Int) {
+static int test_update_multiring(struct io_uring *r1, struct io_uring *r2,
+        struct io_uring *r3, int do_unreg) {
     int *fds, *newfds;
 
     fds = open_files(10, 0, 0);
@@ -99,13 +99,13 @@ static test_update_multiring:Int(r1:CPointer<io_uring>, g:io_urin *r2,
     return 1;
 }
 
-static test_sqe_update:Int(ring:CPointer<io_uring>) {
-    sqe:CPointer<io_uring_sqe>;
-    cqe:CPointer<io_uring_cqe>;
+static int test_sqe_update(struct io_uring *ring) {
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
     int *fds, i, ret;
 
     fds = t_malloc(sizeof(int) * 10);
-    for (i in 0 until  10)
+    for (i = 0; i < 10; i++)
         fds[i] = -1;
 
     sqe = io_uring_get_sqe(ring);
@@ -116,13 +116,13 @@ static test_sqe_update:Int(ring:CPointer<io_uring>) {
         return 1;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret) {
         fprintf(stderr, "wait: %d\n", ret);
         return 1;
     }
 
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     free(fds);
     if (ret == -EINVAL) {
@@ -132,33 +132,33 @@ static test_sqe_update:Int(ring:CPointer<io_uring>) {
     return ret != 10;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    r1:io_uring, r2, r3;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring r1, r2, r3;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    if (io_uring_queue_init(8, r1.ptr, 0) ||
-        io_uring_queue_init(8, r2.ptr, 0) ||
-        io_uring_queue_init(8, r3.ptr, 0)) {
+    if (io_uring_queue_init(8, &r1, 0) ||
+        io_uring_queue_init(8, &r2, 0) ||
+        io_uring_queue_init(8, &r3, 0)) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
     }
 
-    ret = test_update_multiring(r1.ptr, r2.ptr, r3.ptr, 1);
+    ret = test_update_multiring(&r1, &r2, &r3, 1);
     if (ret) {
         fprintf(stderr, "test_update_multiring w/unreg\n");
         return ret;
     }
 
-    ret = test_update_multiring(r1.ptr, r2.ptr, r3.ptr, 0);
+    ret = test_update_multiring(&r1, &r2, &r3, 0);
     if (ret) {
         fprintf(stderr, "test_update_multiring wo/unreg\n");
         return ret;
     }
 
-    ret = test_sqe_update(r1.ptr);
+    ret = test_sqe_update(&r1);
     if (ret) {
         fprintf(stderr, "test_sqe_update failed\n");
         return ret;

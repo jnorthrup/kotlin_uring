@@ -14,9 +14,9 @@
 
 #define MAX_ENTRIES    32768
 
-static fill_nops:Int(ring:CPointer<io_uring>) {
-    sqe:CPointer<io_uring_sqe>;
-    filled:Int = 0;
+static int fill_nops(struct io_uring *ring) {
+    struct io_uring_sqe *sqe;
+    int filled = 0;
 
     do {
         sqe = io_uring_get_sqe(ring);
@@ -30,9 +30,9 @@ static fill_nops:Int(ring:CPointer<io_uring>) {
     return filled;
 }
 
-static test_nops:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    ret:Int, nr, total = 0, i;
+static int test_nops(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    int ret, nr, total = 0, i;
 
     nr = fill_nops(ring);
 
@@ -52,8 +52,8 @@ static test_nops:Int(ring:CPointer<io_uring>) {
     }
     total += ret;
 
-    for (i in 0 until  total) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < total; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             fprintf(stderr, "wait completion %d\n", ret);
             goto err;
@@ -66,16 +66,16 @@ static test_nops:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    ret:Int, depth;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int ret, depth;
 
     if (argc > 1)
         return 0;
 
     depth = 1;
     while (depth <= MAX_ENTRIES) {
-        ret = io_uring_queue_init(depth, ring.ptr, 0);
+        ret = io_uring_queue_init(depth, &ring, 0);
         if (ret) {
             if (ret == -ENOMEM)
                 break;
@@ -83,13 +83,13 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
             return 1;
         }
 
-        ret = test_nops(ring.ptr);
+        ret = test_nops(&ring);
         if (ret) {
             fprintf(stderr, "test_single_nop failed\n");
             return ret;
         }
         depth <<= 1;
-        io_uring_queue_exit(ring.ptr);
+        io_uring_queue_exit(&ring);
     }
 
     return 0;

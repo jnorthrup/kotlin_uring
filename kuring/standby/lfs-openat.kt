@@ -18,14 +18,14 @@
         abort();\
     } while(0);
 
-static const RSIZE:Int = 2;
-static const OPEN_FLAGS:Int =  O_RDWR or O_CREAT ;
-static const OPEN_MODE:mode_t =  S_IRUSR or S_IWUSR ;
+static const int RSIZE = 2;
+static const int OPEN_FLAGS = O_RDWR | O_CREAT;
+static const mode_t OPEN_MODE = S_IRUSR | S_IWUSR;
 
-static open_io_uring:Int(ring:CPointer<io_uring>, dfd:Int, fn:String) {
-    sqe:CPointer<io_uring_sqe>;
-    cqe:CPointer<io_uring_cqe>;
-    ret:Int, fd;
+static int open_io_uring(struct io_uring *ring, int dfd, const char *fn) {
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
+    int ret, fd;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -40,8 +40,8 @@ static open_io_uring:Int(ring:CPointer<io_uring>, dfd:Int, fn:String) {
         return 1;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
-    fd = cqe.pointed.res ;
+    ret = io_uring_wait_cqe(ring, &cqe);
+    fd = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     if (ret < 0) {
         fprintf(stderr, "wait_cqe failed: %s\n", strerror(-ret));
@@ -55,9 +55,9 @@ static open_io_uring:Int(ring:CPointer<io_uring>, dfd:Int, fn:String) {
     return 0;
 }
 
-static prepare_file:Int(dfd:Int, fn:String) {
+static int prepare_file(int dfd, const char *fn) {
     const char buf[] = "foo";
-    fd:Int, res;
+    int fd, res;
 
     fd = openat(dfd, fn, OPEN_FLAGS, OPEN_MODE);
     if (fd < 0) {
@@ -73,15 +73,15 @@ static prepare_file:Int(dfd:Int, fn:String) {
     return res < 0 ? res : 0;
 }
 
-static test_linked_files:Int(dfd:Int, fn:String, async:Boolean) {
-    ring:io_uring;
-    sqe:CPointer<io_uring_sqe>;
+static int test_linked_files(int dfd, const char *fn, bool async) {
+    struct io_uring ring;
+    struct io_uring_sqe *sqe;
     char buffer[128];
-    iov:iovec = {.iov_base = buffer, .iov_len = sizeof(buffer),};
-    ret:Int, fd;
-    fds:Int[2];
+    struct iovec iov = {.iov_base = buffer, .iov_len = sizeof(buffer),};
+    int ret, fd;
+    int fds[2];
 
-    ret = io_uring_queue_init(10, ring.ptr, 0);
+    ret = io_uring_queue_init(10, &ring, 0);
     if (ret < 0)
         DIE("failed to init io_uring: %s\n", strerror(-ret));
 
@@ -90,24 +90,24 @@ static test_linked_files:Int(dfd:Int, fn:String, async:Boolean) {
         return 1;
     }
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         printf("get sqe failed\n");
         return -1;
     }
-    io_uring_prep_readv(sqe, fds[0], iov.ptr, 1, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+    io_uring_prep_readv(sqe, fds[0], &iov, 1, 0);
+    sqe->flags |= IOSQE_IO_LINK;
     if (async)
- sqe.pointed.flags  |= IOSQE_ASYNC;
+        sqe->flags |= IOSQE_ASYNC;
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         fprintf(stderr, "failed to get sqe\n");
         return 1;
     }
     io_uring_prep_openat(sqe, dfd, fn, OPEN_FLAGS, OPEN_MODE);
 
-    ret = io_uring_submit(ring.ptr);
+    ret = io_uring_submit(&ring);
     if (ret != 2) {
         fprintf(stderr, "failed to submit openat: %s\n", strerror(-ret));
         return 1;
@@ -119,21 +119,21 @@ static test_linked_files:Int(dfd:Int, fn:String, async:Boolean) {
         return 1;
     }
 
-    /* io_uring.pointed.flush () */
+    /* io_uring->flush() */
     close(fd);
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
 }
 
-static test_drained_files:Int(dfd:Int, fn:String, linked:Boolean, prepend:Boolean) {
-    ring:io_uring;
-    sqe:CPointer<io_uring_sqe>;
+static int test_drained_files(int dfd, const char *fn, bool linked, bool prepend) {
+    struct io_uring ring;
+    struct io_uring_sqe *sqe;
     char buffer[128];
-    iov:iovec = {.iov_base = buffer, .iov_len = sizeof(buffer),};
-    ret:Int, fd, fds[2], to_cancel = 0;
+    struct iovec iov = {.iov_base = buffer, .iov_len = sizeof(buffer),};
+    int ret, fd, fds[2], to_cancel = 0;
 
-    ret = io_uring_queue_init(10, ring.ptr, 0);
+    ret = io_uring_queue_init(10, &ring, 0);
     if (ret < 0)
         DIE("failed to init io_uring: %s\n", strerror(-ret));
 
@@ -142,50 +142,50 @@ static test_drained_files:Int(dfd:Int, fn:String, linked:Boolean, prepend:Boolea
         return 1;
     }
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         printf("get sqe failed\n");
         return -1;
     }
-    io_uring_prep_readv(sqe, fds[0], iov.ptr, 1, 0);
- sqe.pointed.user_data  = 0;
+    io_uring_prep_readv(sqe, fds[0], &iov, 1, 0);
+    sqe->user_data = 0;
 
     if (prepend) {
-        sqe = io_uring_get_sqe(ring.ptr);
+        sqe = io_uring_get_sqe(&ring);
         if (!sqe) {
             fprintf(stderr, "failed to get sqe\n");
             return 1;
         }
         io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_DRAIN;
+        sqe->flags |= IOSQE_IO_DRAIN;
         to_cancel++;
- sqe.pointed.user_data  = to_cancel;
+        sqe->user_data = to_cancel;
     }
 
     if (linked) {
-        sqe = io_uring_get_sqe(ring.ptr);
+        sqe = io_uring_get_sqe(&ring);
         if (!sqe) {
             fprintf(stderr, "failed to get sqe\n");
             return 1;
         }
         io_uring_prep_nop(sqe);
- sqe.pointed.flags  |=  IOSQE_IO_DRAIN or IOSQE_IO_LINK ;
+        sqe->flags |= IOSQE_IO_DRAIN | IOSQE_IO_LINK;
         to_cancel++;
- sqe.pointed.user_data  = to_cancel;
+        sqe->user_data = to_cancel;
     }
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         fprintf(stderr, "failed to get sqe\n");
         return 1;
     }
     io_uring_prep_openat(sqe, dfd, fn, OPEN_FLAGS, OPEN_MODE);
- sqe.pointed.flags  |= IOSQE_IO_DRAIN;
+    sqe->flags |= IOSQE_IO_DRAIN;
     to_cancel++;
- sqe.pointed.user_data  = to_cancel;
+    sqe->user_data = to_cancel;
 
 
-    ret = io_uring_submit(ring.ptr);
+    ret = io_uring_submit(&ring);
     if (ret != 1 + to_cancel) {
         fprintf(stderr, "failed to submit openat: %s\n", strerror(-ret));
         return 1;
@@ -198,18 +198,18 @@ static test_drained_files:Int(dfd:Int, fn:String, linked:Boolean, prepend:Boolea
     }
 
     /*
-     * close(), which triggers.pointed.flush (), and io_uring_queue_exit()
+     * close(), which triggers ->flush(), and io_uring_queue_exit()
      * should successfully return and not hang.
      */
     close(fd);
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    fn:String = "io_uring_openat_test";
-    ring:io_uring;
-    ret:Int, dfd;
+int main(int argc, char *argv[]) {
+    const char *fn = "io_uring_openat_test";
+    struct io_uring ring;
+    int ret, dfd;
 
     if (argc > 1)
         return 0;
@@ -218,14 +218,14 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (dfd < 0)
         DIE("open /tmp: %s\n", strerror(errno));
 
-    ret = io_uring_queue_init(RSIZE, ring.ptr, 0);
+    ret = io_uring_queue_init(RSIZE, &ring, 0);
     if (ret < 0)
         DIE("failed to init io_uring: %s\n", strerror(-ret));
 
     if (prepare_file(dfd, fn))
         return 1;
 
-    ret = open_io_uring(ring.ptr, dfd, fn);
+    ret = open_io_uring(&ring, dfd, fn);
     if (ret) {
         fprintf(stderr, "open_io_uring() failed\n");
         goto out;
@@ -261,7 +261,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         goto out;
     }
     out:
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     close(dfd);
     unlink("/tmp/io_uring_openat_test");
     return ret;

@@ -12,10 +12,10 @@
 #include "liburing.h"
 
 
-static do_symlinkat:Int(ring:CPointer<io_uring>, oldname:String, const newname:CPointer<ByteVar>) {
-    ret:Int;
-    sqe:CPointer<io_uring_sqe>;
-    cqe:CPointer<io_uring_cqe>;
+static int do_symlinkat(struct io_uring *ring, const char *oldname, const char *newname) {
+    int ret;
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -30,21 +30,21 @@ static do_symlinkat:Int(ring:CPointer<io_uring>, oldname:String, const newname:C
         goto err;
     }
 
-    ret = io_uring_wait_cqes(ring, cqe.ptr, 1, 0, 0);
+    ret = io_uring_wait_cqes(ring, &cqe, 1, 0, 0);
     if (ret) {
         fprintf(stderr, "wait_cqe failed: %d\n", ret);
         goto err;
     }
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     return ret;
     err:
     return 1;
 }
 
-int test_link_contents(linkname:String, const expected_contents:CPointer<ByteVar>) {
+int test_link_contents(const char *linkname, const char *expected_contents) {
     char buf[128];
-    ret:Int = readlink(linkname, buf, 127);
+    int ret = readlink(linkname, buf, 127);
     if (ret < 0) {
         perror("readlink");
         return ret;
@@ -58,22 +58,22 @@ int test_link_contents(linkname:String, const expected_contents:CPointer<ByteVar
     return 0;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
+int main(int argc, char *argv[]) {
     static const char target[] = "io_uring-symlinkat-test-target";
     static const char linkname[] = "io_uring-symlinkat-test-link";
-    ret:Int;
-    ring:io_uring;
+    int ret;
+    struct io_uring ring;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "queue init failed: %d\n", ret);
         return ret;
     }
 
-    ret = do_symlinkat(ring.ptr, target, linkname);
+    ret = do_symlinkat(&ring, target, linkname);
     if (ret < 0) {
         if (ret == -EBADF || ret == -EINVAL) {
             fprintf(stdout, "symlinkat not supported, skipping\n");
@@ -89,13 +89,13 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (ret < 0)
         goto err1;
 
-    ret = do_symlinkat(ring.ptr, target, linkname);
+    ret = do_symlinkat(&ring, target, linkname);
     if (ret != -EEXIST) {
         fprintf(stderr, "test_symlinkat linkname already exists failed: %d\n", ret);
         goto err1;
     }
 
-    ret = do_symlinkat(ring.ptr, target, "surely/this/does/not/exist");
+    ret = do_symlinkat(&ring, target, "surely/this/does/not/exist");
     if (ret != -ENOENT) {
         fprintf(stderr, "test_symlinkat no parent failed: %d\n", ret);
         goto err1;
@@ -103,11 +103,11 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
 
     out:
     unlinkat(AT_FDCWD, linkname, 0);
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
     err1:
     unlinkat(AT_FDCWD, linkname, 0);
     err:
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 1;
 }

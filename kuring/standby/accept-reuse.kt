@@ -10,9 +10,9 @@
 #include "liburing.h"
 #include "../src/syscall.h"
 
-io_uring:io_uring;
+struct io_uring io_uring;
 
-int sys_io_uring_enter(const fd:Int,
+int sys_io_uring_enter(const int fd,
         const unsigned to_submit,
         const unsigned min_complete,
         const unsigned flags, sigset_t *const sig) {
@@ -20,52 +20,52 @@ int sys_io_uring_enter(const fd:Int,
 }
 
 int submit_sqe(void) {
-    sq:CPointer<io_uring_sq> = io_uring.ptr.sq;
-    const unsigned tail = * sq.pointed.ktail ;
+    struct io_uring_sq *sq = &io_uring.sq;
+    const unsigned tail = *sq->ktail;
 
- sq.pointed.array [tail & * sq.pointed.kring_mask ] = 0;
-    io_uring_smp_store_release( sq.pointed.ktail , tail + 1);
+    sq->array[tail & *sq->kring_mask] = 0;
+    io_uring_smp_store_release(sq->ktail, tail + 1);
 
     return sys_io_uring_enter(io_uring.ring_fd, 1, 0, 0, NULL);
 }
 
-int main(argc:Int, char **argv) {
-    addr_info_list:CPointer<addrinfo> = NULL;
-    ai:CPointer<addrinfo>, *addr_info = NULL;
-    params:io_uring_params;
-    sqe:CPointer<io_uring_sqe>;
-    hints:addrinfo;
-    sa:sockaddr;
-    sa_size:socklen_t = sizeof(sa);
-    ret:Int, listen_fd, connect_fd, val, i;
+int main(int argc, char **argv) {
+    struct addrinfo *addr_info_list = NULL;
+    struct addrinfo *ai, *addr_info = NULL;
+    struct io_uring_params params;
+    struct io_uring_sqe *sqe;
+    struct addrinfo hints;
+    struct sockaddr sa;
+    socklen_t sa_size = sizeof(sa);
+    int ret, listen_fd, connect_fd, val, i;
 
     if (argc > 1)
         return 0;
 
-    memset(params.ptr, 0, sizeof(params));
-    ret = io_uring_queue_init_params(4, io_uring.ptr, params.ptr);
+    memset(&params, 0, sizeof(params));
+    ret = io_uring_queue_init_params(4, &io_uring, &params);
     if (ret) {
         fprintf(stderr, "io_uring_init_failed: %d\n", ret);
         return 1;
     }
-    if (!(params.features IORING_FEAT_SUBMIT_STABLE.ptr)) {
+    if (!(params.features & IORING_FEAT_SUBMIT_STABLE)) {
         fprintf(stdout, "FEAT_SUBMIT_STABLE not there, skipping\n");
         return 0;
     }
 
-    memset(hints.ptr, 0, sizeof(hints));
+    memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags =  AI_PASSIVE or AI_NUMERICSERV ;
+    hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
 
-    ret = getaddrinfo(NULL, "12345", hints.ptr, addr_info_list.ptr);
+    ret = getaddrinfo(NULL, "12345", &hints, &addr_info_list);
     if (ret < 0) {
         perror("getaddrinfo");
         return 1;
     }
 
-    for (ai = addr_info_list; ai; ai = ai.pointed.ai_next ) {
-        if ( ai.pointed.ai_family  == AF_INET || ai.pointed.ai_family  == AF_INET6) {
+    for (ai = addr_info_list; ai; ai = ai->ai_next) {
+        if (ai->ai_family == AF_INET || ai->ai_family == AF_INET6) {
             addr_info = ai;
             break;
         }
@@ -75,11 +75,11 @@ int main(argc:Int, char **argv) {
         return 1;
     }
 
-    sqe = io_uring.ptr.sq.sqes[0];
+    sqe = &io_uring.sq.sqes[0];
     listen_fd = -1;
 
-    ret = socket( addr_info.pointed.ai_family , SOCK_STREAM,
- addr_info.pointed.ai_protocol );
+    ret = socket(addr_info->ai_family, SOCK_STREAM,
+                 addr_info->ai_protocol);
     if (ret < 0) {
         perror("socket");
         return 1;
@@ -87,10 +87,10 @@ int main(argc:Int, char **argv) {
     listen_fd = ret;
 
     val = 1;
-    setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, val.ptr, sizeof(int));
-    setsockopt(listen_fd, SOL_SOCKET, SO_REUSEPORT, val.ptr, sizeof(int));
+    setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(int));
+    setsockopt(listen_fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(int));
 
-    ret = bind(listen_fd, addr_info.pointed.ai_addr , addr_info.pointed.ai_addrlen );
+    ret = bind(listen_fd, addr_info->ai_addr, addr_info->ai_addrlen);
     if (ret < 0) {
         perror("bind");
         return 1;
@@ -102,10 +102,10 @@ int main(argc:Int, char **argv) {
         return 1;
     }
 
-    memset(sa.ptr, 0, sizeof(sa));
+    memset(&sa, 0, sizeof(sa));
 
-    io_uring_prep_accept(sqe, listen_fd, sa.ptr, sa_size.ptr, 0);
- sqe.pointed.user_data  = 1;
+    io_uring_prep_accept(sqe, listen_fd, &sa, &sa_size, 0);
+    sqe->user_data = 1;
     ret = submit_sqe();
     if (ret != 1) {
         fprintf(stderr, "submit failed: %d\n", ret);
@@ -113,49 +113,49 @@ int main(argc:Int, char **argv) {
     }
 
     connect_fd = -1;
-    ret = socket( addr_info.pointed.ai_family , SOCK_STREAM, addr_info.pointed.ai_protocol );
+    ret = socket(addr_info->ai_family, SOCK_STREAM, addr_info->ai_protocol);
     if (ret < 0) {
         perror("socket");
         return 1;
     }
     connect_fd = ret;
 
-    io_uring_prep_connect(sqe, connect_fd, addr_info.pointed.ai_addr ,
- addr_info.pointed.ai_addrlen );
- sqe.pointed.user_data  = 2;
+    io_uring_prep_connect(sqe, connect_fd, addr_info->ai_addr,
+                          addr_info->ai_addrlen);
+    sqe->user_data = 2;
     ret = submit_sqe();
     if (ret != 1) {
         fprintf(stderr, "submit failed: %d\n", ret);
         return 1;
     }
 
-    for (i in 0 until  2) {
-        cqe:CPointer<io_uring_cqe> = NULL;
+    for (i = 0; i < 2; i++) {
+        struct io_uring_cqe *cqe = NULL;
 
-        ret = io_uring_wait_cqe(io_uring.ptr, cqe.ptr);
+        ret = io_uring_wait_cqe(&io_uring, &cqe);
         if (ret) {
             fprintf(stderr, "io_uring_wait_cqe: %d\n", ret);
             return 1;
         }
 
-        when  ( cqe.pointed.user_data )  {
-            1 -> 
-                if ( cqe.pointed.res  < 0) {
-                    fprintf(stderr, "accept failed: %d\n", cqe.pointed.res );
+        switch (cqe->user_data) {
+            case 1:
+                if (cqe->res < 0) {
+                    fprintf(stderr, "accept failed: %d\n", cqe->res);
                     return 1;
                 }
                 break;
-            2 -> 
-                if ( cqe.pointed.res ) {
-                    fprintf(stderr, "connect failed: %d\n", cqe.pointed.res );
+            case 2:
+                if (cqe->res) {
+                    fprintf(stderr, "connect failed: %d\n", cqe->res);
                     return 1;
                 }
                 break;
         }
-        io_uring_cq_advance(io_uring.ptr, 1);
+        io_uring_cq_advance(&io_uring, 1);
     }
 
     freeaddrinfo(addr_info_list);
-    io_uring_queue_exit(io_uring.ptr);
+    io_uring_queue_exit(&io_uring);
     return 0;
 }

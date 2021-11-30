@@ -25,19 +25,19 @@
 #include "liburing.h"
 #include "../src/syscall.h"
 
-static __io_uring_register_files:Int(ring_fd:Int, fd1:Int, fd2:Int) {
+static int __io_uring_register_files(int ring_fd, int fd1, int fd2) {
     __s32 fds[2] = {fd1, fd2};
 
     return __sys_io_uring_register(ring_fd, IORING_REGISTER_FILES, fds, 2);
 }
 
-static get_ring_fd:Int(void) {
-    p:io_uring_params;
-    fd:Int;
+static int get_ring_fd(void) {
+    struct io_uring_params p;
+    int fd;
 
-    memset(p.ptr, 0, sizeof(p));
+    memset(&p, 0, sizeof(p));
 
-    fd = __sys_io_uring_setup(2, p.ptr);
+    fd = __sys_io_uring_setup(2, &p);
     if (fd < 0) {
         perror("io_uring_setup");
         return -1;
@@ -46,37 +46,37 @@ static get_ring_fd:Int(void) {
     return fd;
 }
 
-static void send_fd(socket:Int, fd:Int) {
+static void send_fd(int socket, int fd) {
     char buf[CMSG_SPACE(sizeof(fd))];
-    cmsg:CPointer<cmsghdr>;
-    msg:msghdr;
+    struct cmsghdr *cmsg;
+    struct msghdr msg;
 
     memset(buf, 0, sizeof(buf));
-    memset(msg.ptr, 0, sizeof(msg));
+    memset(&msg, 0, sizeof(msg));
 
     msg.msg_control = buf;
     msg.msg_controllen = sizeof(buf);
 
-    cmsg = CMSG_FIRSTHDR(msg.ptr);
- cmsg.pointed.cmsg_level  = SOL_SOCKET;
- cmsg.pointed.cmsg_type  = SCM_RIGHTS;
- cmsg.pointed.cmsg_len  = CMSG_LEN(sizeof(fd));
+    cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(fd));
 
-    memmove(CMSG_DATA(cmsg), fd.ptr, sizeof(fd));
+    memmove(CMSG_DATA(cmsg), &fd, sizeof(fd));
 
     msg.msg_controllen = CMSG_SPACE(sizeof(fd));
 
-    if (sendmsg(socket, msg.ptr, 0) < 0)
+    if (sendmsg(socket, &msg, 0) < 0)
         perror("sendmsg");
 }
 
-static test_iowq_request_cancel:Int(void) {
+static int test_iowq_request_cancel(void) {
     char buffer[128];
-    ring:io_uring;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, fds[2];
+    struct io_uring ring;
+    struct io_uring_sqe *sqe;
+    int ret, fds[2];
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret < 0) {
         fprintf(stderr, "failed to init io_uring: %s\n", strerror(-ret));
         return ret;
@@ -85,39 +85,39 @@ static test_iowq_request_cancel:Int(void) {
         perror("pipe");
         return -1;
     }
-    ret = io_uring_register_files(ring.ptr, fds, 2);
+    ret = io_uring_register_files(&ring, fds, 2);
     if (ret) {
         fprintf(stderr, "file_register: %d\n", ret);
         return ret;
     }
     close(fds[1]);
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         fprintf(stderr, "%s: failed to get sqe\n", __FUNCTION__);
         return 1;
     }
     /* potentially sitting in internal polling */
     io_uring_prep_read(sqe, 0, buffer, 10, 0);
- sqe.pointed.flags  |= IOSQE_FIXED_FILE;
+    sqe->flags |= IOSQE_FIXED_FILE;
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         fprintf(stderr, "%s: failed to get sqe\n", __FUNCTION__);
         return 1;
     }
     /* staying in io-wq */
     io_uring_prep_read(sqe, 0, buffer, 10, 0);
- sqe.pointed.flags  |=  IOSQE_FIXED_FILE or IOSQE_ASYNC ;
+    sqe->flags |= IOSQE_FIXED_FILE | IOSQE_ASYNC;
 
-    ret = io_uring_submit(ring.ptr);
+    ret = io_uring_submit(&ring);
     if (ret != 2) {
         fprintf(stderr, "%s: got %d, wanted 1\n", __FUNCTION__, ret);
         return 1;
     }
 
     /* should unregister files and close the write fd */
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
 
     /*
      * We're trying to wait for the ring to "really" exit, that will be
@@ -130,8 +130,8 @@ static test_iowq_request_cancel:Int(void) {
     return 0;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    sp:Int[2], pid, ring_fd, ret;
+int main(int argc, char *argv[]) {
+    int sp[2], pid, ring_fd, ret;
 
     if (argc > 1)
         return 0;

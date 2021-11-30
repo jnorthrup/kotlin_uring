@@ -16,8 +16,8 @@
 /*
  * Helper for allocating memory in tests.
  */
-fun t_malloc(size:size_t): CPointer<ByteVar> {
-    ret:CPointer<ByteVar> ;
+void *t_malloc(size_t size) {
+    void *ret;
     ret = malloc(size);
     assert(ret);
     return ret;
@@ -26,8 +26,8 @@ fun t_malloc(size:size_t): CPointer<ByteVar> {
 /*
  * Helper for allocating size bytes aligned on a boundary.
  */
-fun t_posix_memalign(void **memptr, alignment:size_t, size:size_t):Unit{
-    ret:Int;
+void t_posix_memalign(void **memptr, size_t alignment, size_t size) {
+    int ret;
     ret = posix_memalign(memptr, alignment, size);
     assert(!ret);
 }
@@ -36,8 +36,8 @@ fun t_posix_memalign(void **memptr, alignment:size_t, size:size_t):Unit{
  * Helper for allocating space for an array of nmemb elements
  * with size bytes for each element.
  */
-fun t_calloc(nmemb:size_t, size:size_t): CPointer<ByteVar> {
-    ret:CPointer<ByteVar> ;
+void *t_calloc(size_t nmemb, size_t size) {
+    void *ret;
     ret = calloc(nmemb, size);
     assert(ret);
     return ret;
@@ -46,15 +46,15 @@ fun t_calloc(nmemb:size_t, size:size_t): CPointer<ByteVar> {
 /*
  * Helper for creating file and write @size byte buf with 0xaa value in the file.
  */
-fun t_create_file(file:String, size:size_t):Unit{
-    ret:ssize_t;
-    buf:CPointer<ByteVar>;
-    fd:Int;
+void t_create_file(const char *file, size_t size) {
+    ssize_t ret;
+    char *buf;
+    int fd;
 
     buf = t_malloc(size);
     memset(buf, 0xaa, size);
 
-    fd = open(file,  O_WRONLY or O_CREAT , 0644);
+    fd = open(file, O_WRONLY | O_CREAT, 0644);
     assert(fd >= 0);
 
     ret = write(fd, buf, size);
@@ -68,13 +68,13 @@ fun t_create_file(file:String, size:size_t):Unit{
  * Helper for creating @buf_num number of iovec
  * with @buf_size bytes buffer of each iovec.
  */
-t_create_buffers:CPointer<iovec>(buf_num:size_t, buf_size:size_t) {
-    vecs:CPointer<iovec>;
-    i:Int;
+struct iovec *t_create_buffers(size_t buf_num, size_t buf_size) {
+    struct iovec *vecs;
+    int i;
 
-    vecs = t_malloc(buf_num * sizeof(c:iove));
-    for (i in 0 until  buf_num) {
-        t_posix_memalign(vecs.ptr[i].iov_base, buf_size, buf_size);
+    vecs = t_malloc(buf_num * sizeof(struct iovec));
+    for (i = 0; i < buf_num; i++) {
+        t_posix_memalign(&vecs[i].iov_base, buf_size, buf_size);
         vecs[i].iov_len = buf_size;
     }
     return vecs;
@@ -84,14 +84,14 @@ t_create_buffers:CPointer<iovec>(buf_num:size_t, buf_size:size_t) {
  * Helper for setting up an io_uring instance, skipping if the given user isn't
  * allowed to.
  */
-enum t_setup_ret t_create_ring_params(depth:Int, ring:CPointer<io_uring>,
-        p:CPointer<io_uring_params>) {
-    ret:Int;
+enum t_setup_ret t_create_ring_params(int depth, struct io_uring *ring,
+        struct io_uring_params *p) {
+    int ret;
 
     ret = io_uring_queue_init_params(depth, ring, p);
     if (!ret)
         return T_SETUP_OK;
-    if (( p.pointed.flags  IORING_SETUP_SQPOLL.ptr) && ret == -EPERM && geteuid()) {
+    if ((p->flags & IORING_SETUP_SQPOLL) && ret == -EPERM && geteuid()) {
         fprintf(stdout, "SQPOLL skipped for regular user\n");
         return T_SETUP_SKIP;
     }
@@ -100,18 +100,18 @@ enum t_setup_ret t_create_ring_params(depth:Int, ring:CPointer<io_uring>,
     return ret;
 }
 
-enum t_setup_ret t_create_ring(depth:Int, ring:CPointer<io_uring>,
-        flags:UInt) {
-    p:io_uring_params = {};
+enum t_setup_ret t_create_ring(int depth, struct io_uring *ring,
+        unsigned int flags) {
+    struct io_uring_params p = {};
 
     p.flags = flags;
-    return t_create_ring_params(depth, ring, p.ptr);
+    return t_create_ring_params(depth, ring, &p);
 }
 
-enum t_setup_ret t_register_buffers(ring:CPointer<io_uring>,
-        const iovecs:CPointer<iovec>,
+enum t_setup_ret t_register_buffers(struct io_uring *ring,
+        const struct iovec *iovecs,
         unsigned nr_iovecs) {
-    ret:Int;
+    int ret;
 
     ret = io_uring_register_buffers(ring, iovecs, nr_iovecs);
     if (!ret)

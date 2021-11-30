@@ -12,10 +12,10 @@
 
 #include "liburing.h"
 
-static test_single_nop:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int;
+static int test_single_nop(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -31,7 +31,7 @@ static test_single_nop:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
         goto err;
@@ -43,12 +43,12 @@ static test_single_nop:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_barrier_nop:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i;
+static int test_barrier_nop(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i;
 
-    for (i in 0 until  8) {
+    for (i = 0; i < 8; i++) {
         sqe = io_uring_get_sqe(ring);
         if (!sqe) {
             fprintf(stderr, "get sqe failed\n");
@@ -57,7 +57,7 @@ static test_barrier_nop:Int(ring:CPointer<io_uring>) {
 
         io_uring_prep_nop(sqe);
         if (i == 4)
- sqe.pointed.flags  = IOSQE_IO_DRAIN;
+            sqe->flags = IOSQE_IO_DRAIN;
     }
 
     ret = io_uring_submit(ring);
@@ -69,8 +69,8 @@ static test_barrier_nop:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  8) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 8; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             fprintf(stderr, "wait completion %d\n", ret);
             goto err;
@@ -83,26 +83,26 @@ static test_barrier_nop:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed: %d\n", ret);
         return 1;
     }
 
-    ret = test_single_nop(ring.ptr);
+    ret = test_single_nop(&ring);
     if (ret) {
         fprintf(stderr, "test_single_nop failed\n");
         return ret;
     }
 
-    ret = test_barrier_nop(ring.ptr);
+    ret = test_barrier_nop(&ring);
     if (ret) {
         fprintf(stderr, "test_barrier_nop failed\n");
         return ret;

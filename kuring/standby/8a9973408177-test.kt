@@ -8,9 +8,9 @@
 
 #include "liburing.h"
 
-static register_file:Int(ring:CPointer<io_uring>) {
+static int register_file(struct io_uring *ring) {
     char buf[32];
-    ret:Int, fd;
+    int ret, fd;
 
     sprintf(buf, "./XXXXXX");
     fd = mkstemp(buf);
@@ -19,7 +19,7 @@ static register_file:Int(ring:CPointer<io_uring>) {
         return 1;
     }
 
-    ret = io_uring_register_files(ring, fd.ptr, 1);
+    ret = io_uring_register_files(ring, &fd, 1);
     if (ret) {
         fprintf(stderr, "file register %d\n", ret);
         return 1;
@@ -36,11 +36,11 @@ static register_file:Int(ring:CPointer<io_uring>) {
     return 0;
 }
 
-static test_single_fsync:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
+static int test_single_fsync(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
     char buf[32];
-    fd:Int, ret;
+    int fd, ret;
 
     sprintf(buf, "./XXXXXX");
     fd = mkstemp(buf);
@@ -63,7 +63,7 @@ static test_single_fsync:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         printf("wait completion %d\n", ret);
         goto err;
@@ -77,23 +77,23 @@ static test_single_fsync:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         printf("ring setup failed\n");
         return 1;
     }
 
-    ret = register_file(ring.ptr);
+    ret = register_file(&ring);
     if (ret)
         return ret;
-    ret = test_single_fsync(ring.ptr);
+    ret = test_single_fsync(&ring);
     if (ret) {
         printf("test_single_fsync failed\n");
         return ret;

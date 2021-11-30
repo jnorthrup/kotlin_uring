@@ -11,19 +11,19 @@
 
 #include "liburing.h"
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    p:io_uring_params;
-    ring:io_uring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring_params p;
+    struct io_uring ring;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    memset(p.ptr, 0, sizeof(p));
+    memset(&p, 0, sizeof(p));
     p.flags = IORING_SETUP_CQSIZE;
     p.cq_entries = 64;
 
-    ret = io_uring_queue_init_params(4, ring.ptr, p.ptr);
+    ret = io_uring_queue_init_params(4, &ring, &p);
     if (ret) {
         if (ret == -EINVAL) {
             printf("Skipped, not supported on this kernel\n");
@@ -37,16 +37,16 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         printf("cq entries invalid (%d)\n", p.cq_entries);
         goto err;
     }
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
 
-    memset(p.ptr, 0, sizeof(p));
+    memset(&p, 0, sizeof(p));
     p.flags = IORING_SETUP_CQSIZE;
     p.cq_entries = 0;
 
-    ret = io_uring_queue_init_params(4, ring.ptr, p.ptr);
+    ret = io_uring_queue_init_params(4, &ring, &p);
     if (ret >= 0) {
         printf("zero sized cq ring succeeded\n");
-        io_uring_queue_exit(ring.ptr);
+        io_uring_queue_exit(&ring);
         goto err;
     }
 

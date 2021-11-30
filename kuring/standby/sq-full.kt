@@ -12,15 +12,15 @@
 
 #include "liburing.h"
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    sqe:CPointer<io_uring_sqe>;
-    ring:io_uring;
-    ret:Int, i;
+int main(int argc, char *argv[]) {
+    struct io_uring_sqe *sqe;
+    struct io_uring ring;
+    int ret, i;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed: %d\n", ret);
         return 1;
@@ -28,7 +28,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     }
 
     i = 0;
-    while ((sqe = io_uring_get_sqe(ring.ptr)) != NULL)
+    while ((sqe = io_uring_get_sqe(&ring)) != NULL)
         i++;
 
     if (i != 8) {
@@ -36,9 +36,9 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         goto err;
     }
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
     err:
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 1;
 }

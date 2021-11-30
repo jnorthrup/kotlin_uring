@@ -19,12 +19,12 @@
 #define RWF_NOWAIT	8
 #endif
 
-static get_file_fd:Int(void) {
-    ret:ssize_t;
-    buf:CPointer<ByteVar>;
-    fd:Int;
+static int get_file_fd(void) {
+    ssize_t ret;
+    char *buf;
+    int fd;
 
-    fd = open("testfile",  O_RDWR or O_CREAT , 0644);
+    fd = open("testfile", O_RDWR | O_CREAT, 0644);
     unlink("testfile");
     if (fd < 0) {
         perror("open file");
@@ -54,12 +54,12 @@ static get_file_fd:Int(void) {
     return fd;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    sqe:CPointer<io_uring_sqe>;
-    cqe:CPointer<io_uring_cqe>;
-    iov:iovec;
-    ret:Int, fd;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
+    struct iovec iov;
+    int ret, fd;
 
     if (argc > 1)
         return 0;
@@ -67,14 +67,14 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     iov.iov_base = t_malloc(4096);
     iov.iov_len = 4096;
 
-    ret = io_uring_queue_init(2, ring.ptr, 0);
+    ret = io_uring_queue_init(2, &ring, 0);
     if (ret) {
         printf("ring setup failed\n");
         return 1;
 
     }
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         printf("get sqe failed\n");
         return 1;
@@ -84,23 +84,23 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (fd < 0)
         return 1;
 
-    io_uring_prep_readv(sqe, fd, iov.ptr, 1, 0);
- sqe.pointed.rw_flags  = RWF_NOWAIT;
+    io_uring_prep_readv(sqe, fd, &iov, 1, 0);
+    sqe->rw_flags = RWF_NOWAIT;
 
-    ret = io_uring_submit(ring.ptr);
+    ret = io_uring_submit(&ring);
     if (ret != 1) {
         printf("Got submit %d, expected 1\n", ret);
         goto err;
     }
 
-    ret = io_uring_peek_cqe(ring.ptr, cqe.ptr);
+    ret = io_uring_peek_cqe(&ring, &cqe);
     if (ret) {
         printf("Ring peek got %d\n", ret);
         goto err;
     }
 
-    if ( cqe.pointed.res  != -EAGAIN && cqe.pointed.res  != 4096) {
-        printf("cqe error: %d\n", cqe.pointed.res );
+    if (cqe->res != -EAGAIN && cqe->res != 4096) {
+        printf("cqe error: %d\n", cqe->res);
         goto err;
     }
 

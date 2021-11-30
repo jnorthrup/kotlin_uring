@@ -12,20 +12,20 @@
 #include <sys/resource.h>
 #include <unistd.h>
 
-static const RSIZE:Int = 2;
-static const OPEN_FLAGS:Int =  O_RDWR or O_CREAT ;
-static const OPEN_MODE:mode_t =  S_IRUSR or S_IWUSR ;
+static const int RSIZE = 2;
+static const int OPEN_FLAGS = O_RDWR | O_CREAT;
+static const mode_t OPEN_MODE = S_IRUSR | S_IWUSR;
 
 #define DIE(...) do {\
         fprintf(stderr, __VA_ARGS__);\
         abort();\
     } while(0);
 
-static do_write:Int(ring:CPointer<io_uring>, fd:Int, offset:off_t) {
+static int do_write(struct io_uring *ring, int fd, off_t offset) {
     char buf[] = "some test write buf";
-    sqe:CPointer<io_uring_sqe>;
-    cqe:CPointer<io_uring_cqe>;
-    res:Int, ret;
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
+    int res, ret;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -40,13 +40,13 @@ static do_write:Int(ring:CPointer<io_uring>, fd:Int, offset:off_t) {
         return 1;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait_cqe failed: %s\n", strerror(-ret));
         return 1;
     }
 
-    res = cqe.pointed.res ;
+    res = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     if (res < 0) {
         fprintf(stderr, "write failed: %s\n", strerror(-res));
@@ -56,10 +56,10 @@ static do_write:Int(ring:CPointer<io_uring>, fd:Int, offset:off_t) {
     return 0;
 }
 
-static test_open_write:Int(ring:CPointer<io_uring>, dfd:Int, fn:String) {
-    sqe:CPointer<io_uring_sqe>;
-    cqe:CPointer<io_uring_cqe>;
-    ret:Int, fd = -1;
+static int test_open_write(struct io_uring *ring, int dfd, const char *fn) {
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
+    int ret, fd = -1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -74,13 +74,13 @@ static test_open_write:Int(ring:CPointer<io_uring>, dfd:Int, fn:String) {
         return 1;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait_cqe failed: %s\n", strerror(-ret));
         return 1;
     }
 
-    fd = cqe.pointed.res ;
+    fd = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     if (fd < 0) {
         fprintf(stderr, "openat failed: %s\n", strerror(-fd));
@@ -90,24 +90,24 @@ static test_open_write:Int(ring:CPointer<io_uring>, dfd:Int, fn:String) {
     return do_write(ring, fd, 1ULL << 32);
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    dfd:Int, ret;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    int dfd, ret;
 
     if (argc > 1)
         return 0;
 
-    dfd = open("/tmp",  O_RDONLY or O_DIRECTORY );
+    dfd = open("/tmp", O_RDONLY | O_DIRECTORY);
     if (dfd < 0)
         DIE("open /tmp: %s\n", strerror(errno));
 
-    ret = io_uring_queue_init(RSIZE, ring.ptr, 0);
+    ret = io_uring_queue_init(RSIZE, &ring, 0);
     if (ret < 0)
         DIE("failed to init io_uring: %s\n", strerror(-ret));
 
-    ret = test_open_write(ring.ptr, dfd, "io_uring_openat_write_test1");
+    ret = test_open_write(&ring, dfd, "io_uring_openat_write_test1");
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     close(dfd);
     unlink("/tmp/io_uring_openat_write_test1");
     return ret;

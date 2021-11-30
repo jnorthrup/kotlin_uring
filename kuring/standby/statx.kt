@@ -18,36 +18,36 @@
 
 #ifdef __NR_statx
 
-static do_statx:Int(dfd:Int, path:String, flags:Int, unsigned mask,
-        statxbuf:CPointer<statx>) {
+static int do_statx(int dfd, const char *path, int flags, unsigned mask,
+        struct statx *statxbuf) {
     return syscall(__NR_statx, dfd, path, flags, mask, statxbuf);
 }
 
 #else
-static do_statx:Int(dfd:Int, path:String, flags:Int, unsigned mask,
-            statxbuf:CPointer<statx>)
+static int do_statx(int dfd, const char *path, int flags, unsigned mask,
+            struct statx *statxbuf)
 {
     errno = ENOSYS;
     return -1;
 }
 #endif
 
-static statx_syscall_supported:Int(void) {
+static int statx_syscall_supported(void) {
     return errno == ENOSYS ? 0 : -1;
 }
 
-static test_statx:Int(ring:CPointer<io_uring>, path:String) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    x1:statx, x2;
-    ret:Int;
+static int test_statx(struct io_uring *ring, const char *path) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    struct statx x1, x2;
+    int ret;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
         fprintf(stderr, "get sqe failed\n");
         goto err;
     }
-    io_uring_prep_statx(sqe, -1, path, 0, STATX_ALL, x1.ptr);
+    io_uring_prep_statx(sqe, -1, path, 0, STATX_ALL, &x1);
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
@@ -55,19 +55,19 @@ static test_statx:Int(ring:CPointer<io_uring>, path:String) {
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
         goto err;
     }
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     if (ret)
         return ret;
-    ret = do_statx(-1, path, 0, STATX_ALL, x2.ptr);
+    ret = do_statx(-1, path, 0, STATX_ALL, &x2);
     if (ret < 0)
         return statx_syscall_supported();
-    if (memcmp(x1.ptr, x2.ptr, sizeof(x1))) {
+    if (memcmp(&x1, &x2, sizeof(x1))) {
         fprintf(stderr, "Miscompare between io_uring and statx\n");
         goto err;
     }
@@ -76,11 +76,11 @@ static test_statx:Int(ring:CPointer<io_uring>, path:String) {
     return -1;
 }
 
-static test_statx_fd:Int(ring:CPointer<io_uring>, path:String) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    x1:statx, x2;
-    ret:Int, fd;
+static int test_statx_fd(struct io_uring *ring, const char *path) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    struct statx x1, x2;
+    int ret, fd;
 
     fd = open(path, O_RDONLY);
     if (fd < 0) {
@@ -88,14 +88,14 @@ static test_statx_fd:Int(ring:CPointer<io_uring>, path:String) {
         return 1;
     }
 
-    memset(x1.ptr, 0, sizeof(x1));
+    memset(&x1, 0, sizeof(x1));
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
         fprintf(stderr, "get sqe failed\n");
         goto err;
     }
-    io_uring_prep_statx(sqe, fd, "", AT_EMPTY_PATH, STATX_ALL, x1.ptr);
+    io_uring_prep_statx(sqe, fd, "", AT_EMPTY_PATH, STATX_ALL, &x1);
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
@@ -103,20 +103,20 @@ static test_statx_fd:Int(ring:CPointer<io_uring>, path:String) {
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
         goto err;
     }
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     if (ret)
         return ret;
-    memset(x2.ptr, 0, sizeof(x2));
-    ret = do_statx(fd, "", AT_EMPTY_PATH, STATX_ALL, x2.ptr);
+    memset(&x2, 0, sizeof(x2));
+    ret = do_statx(fd, "", AT_EMPTY_PATH, STATX_ALL, &x2);
     if (ret < 0)
         return statx_syscall_supported();
-    if (memcmp(x1.ptr, x2.ptr, sizeof(x1))) {
+    if (memcmp(&x1, &x2, sizeof(x1))) {
         fprintf(stderr, "Miscompare between io_uring and statx\n");
         goto err;
     }
@@ -125,12 +125,12 @@ static test_statx_fd:Int(ring:CPointer<io_uring>, path:String) {
     return -1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    fname:String;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    const char *fname;
+    int ret;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
@@ -143,7 +143,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         t_create_file(fname, 4096);
     }
 
-    ret = test_statx(ring.ptr, fname);
+    ret = test_statx(&ring, fname);
     if (ret) {
         if (ret == -EINVAL) {
             fprintf(stdout, "statx not supported, skipping\n");
@@ -153,7 +153,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         goto err;
     }
 
-    ret = test_statx_fd(ring.ptr, fname);
+    ret = test_statx_fd(&ring, fname);
     if (ret) {
         fprintf(stderr, "test_statx_fd failed: %d\n", ret);
         goto err;

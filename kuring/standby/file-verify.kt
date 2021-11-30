@@ -37,13 +37,13 @@
  * Each offset in the file has the offset / sizeof(int) stored for every
  * sizeof(int) address.
  */
-static verify_buf:Int(buf:CPointer<ByteVar> , size:size_t, off:off_t) {
-    i:Int, u_in_buf = size / sizeof(unsigned int);
+static int verify_buf(void *buf, size_t size, off_t off) {
+    int i, u_in_buf = size / sizeof(unsigned int);
     unsigned int *ptr;
 
     off /= sizeof(unsigned int);
     ptr = buf;
-    for (i in 0 until  u_in_buf) {
+    for (i = 0; i < u_in_buf; i++) {
         if (off != *ptr) {
             fprintf(stderr, "Found %u, wanted %lu\n", *ptr, off);
             return 1;
@@ -55,27 +55,27 @@ static verify_buf:Int(buf:CPointer<ByteVar> , size:size_t, off:off_t) {
     return 0;
 }
 
-static test_truncate:Int(ring:CPointer<io_uring>, fname:String, buffered:Int,
-        vectored:Int, provide_buf:Int) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    vec:iovec;
-    sb:stat;
-    punch_off:off_t, off, file_size;
-    buf:CPointer<ByteVar>  = NULL;
-    u_in_buf:Int, i, ret, fd, first_pass = 1;
+static int test_truncate(struct io_uring *ring, const char *fname, int buffered,
+        int vectored, int provide_buf) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    struct iovec vec;
+    struct stat sb;
+    off_t punch_off, off, file_size;
+    void *buf = NULL;
+    int u_in_buf, i, ret, fd, first_pass = 1;
     unsigned int *ptr;
 
     if (buffered)
         fd = open(fname, O_RDWR);
     else
-        fd = open(fname,  O_DIRECT or O_RDWR );
+        fd = open(fname, O_DIRECT | O_RDWR);
     if (fd < 0) {
         perror("open");
         return 1;
     }
 
-    if (fstat(fd, sb.ptr) < 0) {
+    if (fstat(fd, &sb) < 0) {
         perror("stat");
         close(fd);
         return 1;
@@ -84,9 +84,9 @@ static test_truncate:Int(ring:CPointer<io_uring>, fname:String, buffered:Int,
     if (S_ISREG(sb.st_mode)) {
         file_size = sb.st_size;
     } else if (S_ISBLK(sb.st_mode)) {
-long :ULongbytes
+        unsigned long long bytes;
 
-        if (ioctl(fd, BLKGETSIZE64, bytes.ptr) < 0) {
+        if (ioctl(fd, BLKGETSIZE64, &bytes) < 0) {
             perror("ioctl");
             close(fd);
             return 1;
@@ -99,14 +99,14 @@ long :ULongbytes
     if (file_size < CHUNK_SIZE)
         goto out;
 
-    t_posix_memalign(buf.ptr, 4096, CHUNK_SIZE);
+    t_posix_memalign(&buf, 4096, CHUNK_SIZE);
 
     off = file_size - (CHUNK_SIZE / 2);
     punch_off = off + CHUNK_SIZE / 4;
 
     u_in_buf = CHUNK_SIZE / sizeof(unsigned int);
     ptr = buf;
-    for (i in 0 until  u_in_buf) {
+    for (i = 0; i < u_in_buf; i++) {
         *ptr = i;
         ptr++;
     }
@@ -142,12 +142,12 @@ long :ULongbytes
             fprintf(stderr, "submit failed %d\n", ret);
             goto err;
         }
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             fprintf(stderr, "wait completion %d\n", ret);
             goto err;
         }
-        ret = cqe.pointed.res ;
+        ret = cqe->res;
         io_uring_cqe_seen(ring, cqe);
         if (ret) {
             fprintf(stderr, "Provide buffer failed %d\n", ret);
@@ -165,11 +165,11 @@ long :ULongbytes
         assert(!provide_buf);
         vec.iov_base = buf;
         vec.iov_len = CHUNK_SIZE;
-        io_uring_prep_readv(sqe, fd, vec.ptr, 1, off);
+        io_uring_prep_readv(sqe, fd, &vec, 1, off);
     } else {
         if (provide_buf) {
             io_uring_prep_read(sqe, fd, NULL, CHUNK_SIZE, off);
- sqe.pointed.flags  |= IOSQE_BUFFER_SELECT;
+            sqe->flags |= IOSQE_BUFFER_SELECT;
         } else {
             io_uring_prep_read(sqe, fd, buf, CHUNK_SIZE, off);
         }
@@ -182,13 +182,13 @@ long :ULongbytes
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
         goto err;
     }
 
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     if (ret != CHUNK_SIZE / 2) {
         fprintf(stderr, "Unexpected truncated read %d\n", ret);
@@ -230,26 +230,26 @@ enum {
  * written or after other reads. This forces (at least) the buffered reads
  * to be handled incrementally, exercising that path.
  */
-static do_punch:Int(fd:Int) {
-    offset:off_t = 0;
-    punch_type:Int;
+static int do_punch(int fd) {
+    off_t offset = 0;
+    int punch_type;
 
     while (offset + CHUNK_SIZE <= FSIZE) {
-        punch_off:off_t;
+        off_t punch_off;
 
         punch_type = rand() % (PUNCH_END + 1);
-        when  (punch_type)  {
+        switch (punch_type) {
             default:
-            PUNCH_NONE -> 
+            case PUNCH_NONE:
                 punch_off = -1; /* gcc... */
                 break;
-            PUNCH_FRONT -> 
+            case PUNCH_FRONT:
                 punch_off = offset;
                 break;
-            PUNCH_MIDDLE -> 
+            case PUNCH_MIDDLE:
                 punch_off = offset + PUNCH_SIZE;
                 break;
-            PUNCH_END -> 
+            case PUNCH_END:
                 punch_off = offset + CHUNK_SIZE - PUNCH_SIZE;
                 break;
         }
@@ -266,13 +266,13 @@ static do_punch:Int(fd:Int) {
     return 0;
 }
 
-static provide_buffers:Int(ring:CPointer<io_uring>, void **buf) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    i:Int, ret;
+static int provide_buffers(struct io_uring *ring, void **buf) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int i, ret;
 
     /* real use case would have one buffer chopped up, but... */
-    for (i in 0 until  READ_BATCH) {
+    for (i = 0; i < READ_BATCH; i++) {
         sqe = io_uring_get_sqe(ring);
         io_uring_prep_provide_buffers(sqe, buf[i], CHUNK_SIZE, 1, 0, i);
     }
@@ -283,14 +283,14 @@ static provide_buffers:Int(ring:CPointer<io_uring>, void **buf) {
         return 1;
     }
 
-    for (i in 0 until  READ_BATCH) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < READ_BATCH; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret) {
             fprintf(stderr, "wait cqe %d\n", ret);
             return 1;
         }
-        if ( cqe.pointed.res  < 0) {
-            fprintf(stderr, "cqe res provide %d\n", cqe.pointed.res );
+        if (cqe->res < 0) {
+            fprintf(stderr, "cqe res provide %d\n", cqe->res);
             return 1;
         }
         io_uring_cqe_seen(ring, cqe);
@@ -299,16 +299,16 @@ static provide_buffers:Int(ring:CPointer<io_uring>, void **buf) {
     return 0;
 }
 
-static test:Int(ring:CPointer<io_uring>, fname:String, buffered:Int,
-        vectored:Int, small_vecs:Int, registered:Int, provide:Int) {
-    vecs:iovec[READ_BATCH][MAX_VECS];
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    buf:CPointer<ByteVar> [READ_BATCH];
-    ret:Int, fd, flags;
-    i:Int, j, nr_vecs;
-    off:off_t, voff;
-    left:size_t;
+static int test(struct io_uring *ring, const char *fname, int buffered,
+        int vectored, int small_vecs, int registered, int provide) {
+    struct iovec vecs[READ_BATCH][MAX_VECS];
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    void *buf[READ_BATCH];
+    int ret, fd, flags;
+    int i, j, nr_vecs;
+    off_t off, voff;
+    size_t left;
 
     if (registered) {
         assert(!provide);
@@ -337,25 +337,25 @@ static test:Int(ring:CPointer<io_uring>, fname:String, buffered:Int,
         else
             nr_vecs = MAX_VECS;
 
-        for (j in 0 until  READ_BATCH) {
-            for (i in 0 until  nr_vecs) {
-                ptr:CPointer<ByteVar> ;
+        for (j = 0; j < READ_BATCH; j++) {
+            for (i = 0; i < nr_vecs; i++) {
+                void *ptr;
 
-                t_posix_memalign(ptr.ptr, 4096, CHUNK_SIZE / nr_vecs);
+                t_posix_memalign(&ptr, 4096, CHUNK_SIZE / nr_vecs);
                 vecs[j][i].iov_base = ptr;
                 vecs[j][i].iov_len = CHUNK_SIZE / nr_vecs;
             }
         }
     } else {
-        for (j in 0 until  READ_BATCH)
-            t_posix_memalign(buf.ptr[j], 4096, CHUNK_SIZE);
+        for (j = 0; j < READ_BATCH; j++)
+            t_posix_memalign(&buf[j], 4096, CHUNK_SIZE);
         nr_vecs = 0;
     }
 
     if (registered) {
-        v:iovec[READ_BATCH];
+        struct iovec v[READ_BATCH];
 
-        for (i in 0 until  READ_BATCH) {
+        for (i = 0; i < READ_BATCH; i++) {
             v[i].iov_base = buf[i];
             v[i].iov_len = CHUNK_SIZE;
         }
@@ -370,13 +370,13 @@ static test:Int(ring:CPointer<io_uring>, fname:String, buffered:Int,
     left = FSIZE;
     off = 0;
     while (left) {
-        pending:Int = 0;
+        int pending = 0;
 
         if (provide && provide_buffers(ring, buf))
             goto err;
 
-        for (i in 0 until  READ_BATCH) {
-            this:size_t = left;
+        for (i = 0; i < READ_BATCH; i++) {
+            size_t this = left;
 
             if (this > CHUNK_SIZE)
                 this = CHUNK_SIZE;
@@ -394,12 +394,12 @@ static test:Int(ring:CPointer<io_uring>, fname:String, buffered:Int,
                     io_uring_prep_read_fixed(sqe, fd, buf[i], this, off, i);
                 } else if (provide) {
                     io_uring_prep_read(sqe, fd, NULL, this, off);
- sqe.pointed.flags  |= IOSQE_BUFFER_SELECT;
+                    sqe->flags |= IOSQE_BUFFER_SELECT;
                 } else {
                     io_uring_prep_read(sqe, fd, buf[i], this, off);
                 }
             }
- sqe.pointed.user_data  = ((uint64_t) off << 32) | i;
+            sqe->user_data = ((uint64_t) off << 32) | i;
             off += this;
             left -= this;
             pending++;
@@ -413,28 +413,28 @@ static test:Int(ring:CPointer<io_uring>, fname:String, buffered:Int,
             goto err;
         }
 
-        for (i in 0 until  pending) {
-            index:Int;
+        for (i = 0; i < pending; i++) {
+            int index;
 
-            ret = io_uring_wait_cqe(ring, cqe.ptr);
+            ret = io_uring_wait_cqe(ring, &cqe);
             if (ret < 0) {
                 fprintf(stderr, "wait completion %d\n", ret);
                 goto err;
             }
-            if ( cqe.pointed.res  < 0) {
-                fprintf(stderr, "bad read %d, read %d\n", cqe.pointed.res , i);
+            if (cqe->res < 0) {
+                fprintf(stderr, "bad read %d, read %d\n", cqe->res, i);
                 goto err;
             }
-            if ( cqe.pointed.flags  IORING_CQE_F_BUFFER.ptr)
-                index = cqe.pointed.flags  >> 16;
+            if (cqe->flags & IORING_CQE_F_BUFFER)
+                index = cqe->flags >> 16;
             else
-                index = cqe.pointed.user_data  0xffffffff.ptr;
-            voff = cqe.pointed.user_data  >> 32;
+                index = cqe->user_data & 0xffffffff;
+            voff = cqe->user_data >> 32;
             io_uring_cqe_seen(ring, cqe);
             if (vectored) {
-                for (j in 0 until  nr_vecs) {
-                    buf:CPointer<ByteVar>  = vecs[index][j].iov_base;
-                    len:size_t = vecs[index][j].iov_len;
+                for (j = 0; j < nr_vecs; j++) {
+                    void *buf = vecs[index][j].iov_base;
+                    size_t len = vecs[index][j].iov_len;
 
                     if (verify_buf(buf, len, voff))
                         goto err;
@@ -452,11 +452,11 @@ static test:Int(ring:CPointer<io_uring>, fname:String, buffered:Int,
     if (registered)
         io_uring_unregister_buffers(ring);
     if (vectored) {
-        for (j in 0 until  READ_BATCH)
-            for (i in 0 until  nr_vecs)
+        for (j = 0; j < READ_BATCH; j++)
+            for (i = 0; i < nr_vecs; i++)
                 free(vecs[j][i].iov_base);
     } else {
-        for (j in 0 until  READ_BATCH)
+        for (j = 0; j < READ_BATCH; j++)
             free(buf[j]);
     }
     close(fd);
@@ -466,11 +466,11 @@ static test:Int(ring:CPointer<io_uring>, fname:String, buffered:Int,
     goto done;
 }
 
-static fill_pattern:Int(fname:String) {
-    left:size_t = FSIZE;
-    val:UInt, *ptr;
-    buf:CPointer<ByteVar> ;
-    fd:Int, i;
+static int fill_pattern(const char *fname) {
+    size_t left = FSIZE;
+    unsigned int val, *ptr;
+    void *buf;
+    int fd, i;
 
     fd = open(fname, O_WRONLY);
     if (fd < 0) {
@@ -481,13 +481,13 @@ static fill_pattern:Int(fname:String) {
     val = 0;
     buf = t_malloc(4096);
     while (left) {
-        u_in_buf:Int = 4096 / sizeof(val);
-        this:size_t = left;
+        int u_in_buf = 4096 / sizeof(val);
+        size_t this = left;
 
         if (this > 4096)
             this = 4096;
         ptr = buf;
-        for (i in 0 until  u_in_buf) {
+        for (i = 0; i < u_in_buf; i++) {
             *ptr = val;
             val++;
             ptr++;
@@ -503,11 +503,11 @@ static fill_pattern:Int(fname:String) {
     return 0;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    fname:String;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    const char *fname;
     char buf[32];
-    ret:Int;
+    int ret;
 
     srand(getpid());
 
@@ -519,7 +519,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         t_create_file(fname, FSIZE);
     }
 
-    ret = io_uring_queue_init(READ_BATCH, ring.ptr, 0);
+    ret = io_uring_queue_init(READ_BATCH, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed: %d\n", ret);
         goto err;
@@ -528,85 +528,85 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (fill_pattern(fname))
         goto err;
 
-    ret = test(ring.ptr, fname, 1, 0, 0, 0, 0);
+    ret = test(&ring, fname, 1, 0, 0, 0, 0);
     if (ret) {
         fprintf(stderr, "Buffered novec test failed\n");
         goto err;
     }
-    ret = test(ring.ptr, fname, 1, 0, 0, 1, 0);
+    ret = test(&ring, fname, 1, 0, 0, 1, 0);
     if (ret) {
         fprintf(stderr, "Buffered novec reg test failed\n");
         goto err;
     }
-    ret = test(ring.ptr, fname, 1, 0, 0, 0, 1);
+    ret = test(&ring, fname, 1, 0, 0, 0, 1);
     if (ret) {
         fprintf(stderr, "Buffered novec provide test failed\n");
         goto err;
     }
-    ret = test(ring.ptr, fname, 1, 1, 0, 0, 0);
+    ret = test(&ring, fname, 1, 1, 0, 0, 0);
     if (ret) {
         fprintf(stderr, "Buffered vec test failed\n");
         goto err;
     }
-    ret = test(ring.ptr, fname, 1, 1, 1, 0, 0);
+    ret = test(&ring, fname, 1, 1, 1, 0, 0);
     if (ret) {
         fprintf(stderr, "Buffered small vec test failed\n");
         goto err;
     }
 
-    ret = test(ring.ptr, fname, 0, 0, 0, 0, 0);
+    ret = test(&ring, fname, 0, 0, 0, 0, 0);
     if (ret) {
         fprintf(stderr, "O_DIRECT novec test failed\n");
         goto err;
     }
-    ret = test(ring.ptr, fname, 0, 0, 0, 1, 0);
+    ret = test(&ring, fname, 0, 0, 0, 1, 0);
     if (ret) {
         fprintf(stderr, "O_DIRECT novec reg test failed\n");
         goto err;
     }
-    ret = test(ring.ptr, fname, 0, 0, 0, 0, 1);
+    ret = test(&ring, fname, 0, 0, 0, 0, 1);
     if (ret) {
         fprintf(stderr, "O_DIRECT novec provide test failed\n");
         goto err;
     }
-    ret = test(ring.ptr, fname, 0, 1, 0, 0, 0);
+    ret = test(&ring, fname, 0, 1, 0, 0, 0);
     if (ret) {
         fprintf(stderr, "O_DIRECT vec test failed\n");
         goto err;
     }
-    ret = test(ring.ptr, fname, 0, 1, 1, 0, 0);
+    ret = test(&ring, fname, 0, 1, 1, 0, 0);
     if (ret) {
         fprintf(stderr, "O_DIRECT small vec test failed\n");
         goto err;
     }
 
-    ret = test_truncate(ring.ptr, fname, 1, 0, 0);
+    ret = test_truncate(&ring, fname, 1, 0, 0);
     if (ret) {
         fprintf(stderr, "Buffered end truncate read failed\n");
         goto err;
     }
-    ret = test_truncate(ring.ptr, fname, 1, 1, 0);
+    ret = test_truncate(&ring, fname, 1, 1, 0);
     if (ret) {
         fprintf(stderr, "Buffered end truncate vec read failed\n");
         goto err;
     }
-    ret = test_truncate(ring.ptr, fname, 1, 0, 1);
+    ret = test_truncate(&ring, fname, 1, 0, 1);
     if (ret) {
         fprintf(stderr, "Buffered end truncate pbuf read failed\n");
         goto err;
     }
 
-    ret = test_truncate(ring.ptr, fname, 0, 0, 0);
+    ret = test_truncate(&ring, fname, 0, 0, 0);
     if (ret) {
         fprintf(stderr, "O_DIRECT end truncate read failed\n");
         goto err;
     }
-    ret = test_truncate(ring.ptr, fname, 0, 1, 0);
+    ret = test_truncate(&ring, fname, 0, 1, 0);
     if (ret) {
         fprintf(stderr, "O_DIRECT end truncate vec read failed\n");
         goto err;
     }
-    ret = test_truncate(ring.ptr, fname, 0, 0, 1);
+    ret = test_truncate(&ring, fname, 0, 0, 1);
     if (ret) {
         fprintf(stderr, "O_DIRECT end truncate pbuf read failed\n");
         goto err;

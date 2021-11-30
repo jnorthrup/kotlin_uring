@@ -14,28 +14,28 @@
 #include "helpers.h"
 #include "liburing.h"
 
-static submit_wait:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    ret:Int;
+static int submit_wait(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    int ret;
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
         fprintf(stderr, "sqe submit failed: %d\n", ret);
         return 1;
     }
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
         return 1;
     }
 
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     return ret;
 }
 
-static inline try_close:Int(ring:CPointer<io_uring>, fd:Int, slot:Int) {
-    sqe:CPointer<io_uring_sqe>;
+static inline int try_close(struct io_uring *ring, int fd, int slot) {
+    struct io_uring_sqe *sqe;
 
     sqe = io_uring_get_sqe(ring);
     io_uring_prep_close(sqe, fd);
@@ -43,13 +43,13 @@ static inline try_close:Int(ring:CPointer<io_uring>, fd:Int, slot:Int) {
     return submit_wait(ring);
 }
 
-static test_close_fixed:Int(void) {
-    ring:io_uring;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, fds[2];
+static int test_close_fixed(void) {
+    struct io_uring ring;
+    struct io_uring_sqe *sqe;
+    int ret, fds[2];
     char buf[1];
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return -1;
@@ -59,7 +59,7 @@ static test_close_fixed:Int(void) {
         return -1;
     }
 
-    ret = try_close(ring.ptr, 0, 0);
+    ret = try_close(&ring, 0, 0);
     if (ret == -EINVAL) {
         fprintf(stderr, "close for fixed files is not supported\n");
         return 0;
@@ -68,46 +68,46 @@ static test_close_fixed:Int(void) {
         return -1;
     }
 
-    ret = try_close(ring.ptr, 1, 0);
+    ret = try_close(&ring, 1, 0);
     if (ret != -EINVAL) {
         fprintf(stderr, "set fd failed %i\n", ret);
         return -1;
     }
 
-    ret = io_uring_register_files(ring.ptr, fds, 2);
+    ret = io_uring_register_files(&ring, fds, 2);
     if (ret) {
         fprintf(stderr, "file_register: %d\n", ret);
         return ret;
     }
 
-    ret = try_close(ring.ptr, 0, 2);
+    ret = try_close(&ring, 0, 2);
     if (ret != -EINVAL) {
         fprintf(stderr, "out of table failed %i\n", ret);
         return -1;
     }
 
-    ret = try_close(ring.ptr, 0, 0);
+    ret = try_close(&ring, 0, 0);
     if (ret != 0) {
         fprintf(stderr, "close failed %i\n", ret);
         return -1;
     }
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     io_uring_prep_read(sqe, 0, buf, sizeof(buf), 0);
- sqe.pointed.flags  |= IOSQE_FIXED_FILE;
-    ret = submit_wait(ring.ptr);
+    sqe->flags |= IOSQE_FIXED_FILE;
+    ret = submit_wait(&ring);
     if (ret != -EBADF) {
         fprintf(stderr, "read failed %i\n", ret);
         return -1;
     }
 
-    ret = try_close(ring.ptr, 0, 1);
+    ret = try_close(&ring, 0, 1);
     if (ret != 0) {
         fprintf(stderr, "close 2 failed %i\n", ret);
         return -1;
     }
 
-    ret = try_close(ring.ptr, 0, 0);
+    ret = try_close(&ring, 0, 0);
     if (ret != -EBADF) {
         fprintf(stderr, "empty slot failed %i\n", ret);
         return -1;
@@ -115,14 +115,14 @@ static test_close_fixed:Int(void) {
 
     close(fds[0]);
     close(fds[1]);
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
 }
 
-static test_close:Int(ring:CPointer<io_uring>, fd:Int, is_ring_fd:Int) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int;
+static int test_close(struct io_uring *ring, int fd, int is_ring_fd) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -137,7 +137,7 @@ static test_close:Int(ring:CPointer<io_uring>, fd:Int, is_ring_fd:Int) {
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         if (!(is_ring_fd && ret == -EBADF)) {
             fprintf(stderr, "wait completion %d\n", ret);
@@ -145,17 +145,17 @@ static test_close:Int(ring:CPointer<io_uring>, fd:Int, is_ring_fd:Int) {
         }
         return ret;
     }
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     return ret;
     err:
     return -1;
 }
 
-static test_openat:Int(ring:CPointer<io_uring>, path:String, dfd:Int) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int;
+static int test_openat(struct io_uring *ring, const char *path, int dfd) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -170,24 +170,24 @@ static test_openat:Int(ring:CPointer<io_uring>, path:String, dfd:Int) {
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
         goto err;
     }
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     return ret;
     err:
     return -1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    path:String, *path_rel;
-    ret:Int, do_unlink;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    const char *path, *path_rel;
+    int ret, do_unlink;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
@@ -208,7 +208,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (do_unlink)
         t_create_file(path_rel, 4096);
 
-    ret = test_openat(ring.ptr, path, -1);
+    ret = test_openat(&ring, path, -1);
     if (ret < 0) {
         if (ret == -EINVAL) {
             fprintf(stdout, "Open not supported, skipping\n");
@@ -218,19 +218,19 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         goto err;
     }
 
-    ret = test_openat(ring.ptr, path_rel, AT_FDCWD);
+    ret = test_openat(&ring, path_rel, AT_FDCWD);
     if (ret < 0) {
         fprintf(stderr, "test_openat relative failed: %d\n", ret);
         goto err;
     }
 
-    ret = test_close(ring.ptr, ret, 0);
+    ret = test_close(&ring, ret, 0);
     if (ret) {
         fprintf(stderr, "test_close normal failed\n");
         goto err;
     }
 
-    ret = test_close(ring.ptr, ring.ring_fd, 1);
+    ret = test_close(&ring, ring.ring_fd, 1);
     if (ret != -EBADF) {
         fprintf(stderr, "test_close ring_fd failed\n");
         goto err;

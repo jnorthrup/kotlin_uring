@@ -17,17 +17,17 @@
 
 #define POLL_COUNT    30000
 
-static sqe_index:CPointer<ByteVar> [POLL_COUNT];
+static void *sqe_index[POLL_COUNT];
 
-static reap_events:Int(ring:CPointer<io_uring>, unsigned nr_events, nowait:Int) {
-    cqe:CPointer<io_uring_cqe>;
-    i:Int, ret = 0;
+static int reap_events(struct io_uring *ring, unsigned nr_events, int nowait) {
+    struct io_uring_cqe *cqe;
+    int i, ret = 0;
 
-    for (i in 0 until  nr_events) {
+    for (i = 0; i < nr_events; i++) {
         if (!i && !nowait)
-            ret = io_uring_wait_cqe(ring, cqe.ptr);
+            ret = io_uring_wait_cqe(ring, &cqe);
         else
-            ret = io_uring_peek_cqe(ring, cqe.ptr);
+            ret = io_uring_peek_cqe(ring, &cqe);
         if (ret) {
             if (ret != -EAGAIN)
                 fprintf(stderr, "cqe peek failed: %d\n", ret);
@@ -39,17 +39,17 @@ static reap_events:Int(ring:CPointer<io_uring>, unsigned nr_events, nowait:Int) 
     return i ? i : ret;
 }
 
-static del_polls:Int(ring:CPointer<io_uring>, fd:Int, nr:Int) {
-    batch:Int, i, ret;
-    sqe:CPointer<io_uring_sqe>;
+static int del_polls(struct io_uring *ring, int fd, int nr) {
+    int batch, i, ret;
+    struct io_uring_sqe *sqe;
 
     while (nr) {
         batch = 1024;
         if (batch > nr)
             batch = nr;
 
-        for (i in 0 until  batch) {
-            data:CPointer<ByteVar> ;
+        for (i = 0; i < batch; i++) {
+            void *data;
 
             sqe = io_uring_get_sqe(ring);
             data = sqe_index[lrand48() % nr];
@@ -67,9 +67,9 @@ static del_polls:Int(ring:CPointer<io_uring>, fd:Int, nr:Int) {
     return 0;
 }
 
-static add_polls:Int(ring:CPointer<io_uring>, fd:Int, nr:Int) {
-    batch:Int, i, count, ret;
-    sqe:CPointer<io_uring_sqe>;
+static int add_polls(struct io_uring *ring, int fd, int nr) {
+    int batch, i, count, ret;
+    struct io_uring_sqe *sqe;
 
     count = 0;
     while (nr) {
@@ -77,11 +77,11 @@ static add_polls:Int(ring:CPointer<io_uring>, fd:Int, nr:Int) {
         if (batch > nr)
             batch = nr;
 
-        for (i in 0 until  batch) {
+        for (i = 0; i < batch; i++) {
             sqe = io_uring_get_sqe(ring);
             io_uring_prep_poll_add(sqe, fd, POLLIN);
             sqe_index[count++] = sqe;
- sqe.pointed.user_data  = (unsigned long) sqe;
+            sqe->user_data = (unsigned long) sqe;
         }
 
         ret = io_uring_submit(ring);
@@ -95,11 +95,11 @@ static add_polls:Int(ring:CPointer<io_uring>, fd:Int, nr:Int) {
     return 0;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    p:io_uring_params = {};
-    pipe1:Int[2];
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    struct io_uring_params p = {};
+    int pipe1[2];
+    int ret;
 
     if (argc > 1)
         return 0;
@@ -111,11 +111,11 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
 
     p.flags = IORING_SETUP_CQSIZE;
     p.cq_entries = 16384;
-    ret = io_uring_queue_init_params(1024, ring.ptr, p.ptr);
+    ret = io_uring_queue_init_params(1024, &ring, &p);
     if (ret) {
         if (ret == -EINVAL) {
             fprintf(stdout, "No CQSIZE, trying without\n");
-            ret = io_uring_queue_init(1024, ring.ptr, 0);
+            ret = io_uring_queue_init(1024, &ring, 0);
             if (ret) {
                 fprintf(stderr, "ring setup failed: %d\n", ret);
                 return 1;
@@ -123,12 +123,12 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         }
     }
 
-    add_polls(ring.ptr, pipe1[0], 30000);
+    add_polls(&ring, pipe1[0], 30000);
 #if 0
     usleep(1000);
 #endif
-    del_polls(ring.ptr, pipe1[0], 30000);
+    del_polls(&ring, pipe1[0], 30000);
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
 }

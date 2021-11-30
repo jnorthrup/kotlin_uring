@@ -27,15 +27,15 @@ static char str[] = "This is a test of sendmsg and recvmsg over io_uring!";
 
 #define MAX_IOV_COUNT    10
 
-static recv_prep:Int(ring:CPointer<io_uring>, iov:iovec[], iov_count:Int,
-        bgid:Int) {
-    saddr:sockaddr_in;
-    msg:msghdr;
-    sqe:CPointer<io_uring_sqe>;
-    sockfd:Int, ret;
-    val:Int = 1;
+static int recv_prep(struct io_uring *ring, struct iovec iov[], int iov_count,
+        int bgid) {
+    struct sockaddr_in saddr;
+    struct msghdr msg;
+    struct io_uring_sqe *sqe;
+    int sockfd, ret;
+    int val = 1;
 
-    memset(saddr.ptr, 0, sizeof(saddr));
+    memset(&saddr, 0, sizeof(saddr));
     saddr.sin_family = AF_INET;
     saddr.sin_addr.s_addr = htonl(INADDR_ANY);
     saddr.sin_port = htons(PORT);
@@ -47,10 +47,10 @@ static recv_prep:Int(ring:CPointer<io_uring>, iov:iovec[], iov_count:Int,
     }
 
     val = 1;
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, val.ptr, sizeof(val));
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, val.ptr, sizeof(val));
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
 
-    ret = bind(sockfd, (r:sockadd *) saddr.ptr, sizeof(saddr));
+    ret = bind(sockfd, (struct sockaddr *) &saddr, sizeof(saddr));
     if (ret < 0) {
         perror("bind");
         goto err;
@@ -62,15 +62,15 @@ static recv_prep:Int(ring:CPointer<io_uring>, iov:iovec[], iov_count:Int,
         return 1;
     }
 
-    io_uring_prep_recvmsg(sqe, sockfd, msg.ptr, 0);
+    io_uring_prep_recvmsg(sqe, sockfd, &msg, 0);
     if (bgid) {
- iov.pointed.iov_base  = NULL;
- sqe.pointed.flags  |= IOSQE_BUFFER_SELECT;
- sqe.pointed.buf_group  = bgid;
+        iov->iov_base = NULL;
+        sqe->flags |= IOSQE_BUFFER_SELECT;
+        sqe->buf_group = bgid;
         iov_count = 1;
     }
-    memset(msg.ptr, 0, sizeof(msg));
-    msg.msg_namelen = sizeof(n:sockaddr_i);
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_namelen = sizeof(struct sockaddr_in);
     msg.msg_iov = iov;
     msg.msg_iovlen = iov_count;
 
@@ -87,42 +87,42 @@ static recv_prep:Int(ring:CPointer<io_uring>, iov:iovec[], iov_count:Int,
     return 1;
 }
 
-a:recv_dat {
+struct recv_data {
     pthread_mutex_t *mutex;
-    buf_select:Int;
-    no_buf_add:Int;
-    iov_count:Int;
+    int buf_select;
+    int no_buf_add;
+    int iov_count;
 };
 
-static do_recvmsg:Int(ring:CPointer<io_uring>, char buf[MAX_MSG + 1],
-        rd:CPointer<recv_data>) {
-    cqe:CPointer<io_uring_cqe>;
-    ret:Int;
+static int do_recvmsg(struct io_uring *ring, char buf[MAX_MSG + 1],
+        struct recv_data *rd) {
+    struct io_uring_cqe *cqe;
+    int ret;
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret) {
         fprintf(stdout, "wait_cqe: %d\n", ret);
         goto err;
     }
-    if ( cqe.pointed.res  < 0) {
-        if ( rd.pointed.no_buf_add  && rd.pointed.buf_select )
+    if (cqe->res < 0) {
+        if (rd->no_buf_add && rd->buf_select)
             return 0;
-        fprintf(stderr, "%s: failed cqe: %d\n", __FUNCTION__, cqe.pointed.res );
+        fprintf(stderr, "%s: failed cqe: %d\n", __FUNCTION__, cqe->res);
         goto err;
     }
-    if ( cqe.pointed.flags ) {
-        bid:Int = cqe.pointed.flags  >> 16;
+    if (cqe->flags) {
+        int bid = cqe->flags >> 16;
         if (bid != BUF_BID)
             fprintf(stderr, "Buffer ID mismatch %d\n", bid);
     }
 
-    if ( rd.pointed.no_buf_add  && rd.pointed.buf_select ) {
-        fprintf(stderr, "Expected -ENOBUFS: %d\n", cqe.pointed.res );
+    if (rd->no_buf_add && rd->buf_select) {
+        fprintf(stderr, "Expected -ENOBUFS: %d\n", cqe->res);
         goto err;
     }
 
-    if ( cqe.pointed.res  - 1 != strlen(str)) {
-        fprintf(stderr, "got wrong length: %d/%d\n", cqe.pointed.res ,
+    if (cqe->res - 1 != strlen(str)) {
+        fprintf(stderr, "got wrong length: %d/%d\n", cqe->res,
                 (int) strlen(str) + 1);
         goto err;
     }
@@ -137,12 +137,12 @@ static do_recvmsg:Int(ring:CPointer<io_uring>, char buf[MAX_MSG + 1],
     return 1;
 }
 
-static void init_iov(iov:iovec[MAX_IOV_COUNT], iov_to_use:Int,
+static void init_iov(struct iovec iov[MAX_IOV_COUNT], int iov_to_use,
         char buf[MAX_MSG + 1]) {
-    i:Int, last_idx = iov_to_use - 1;
+    int i, last_idx = iov_to_use - 1;
 
     assert(0 < iov_to_use && iov_to_use <= MAX_IOV_COUNT);
-    for (i in 0 until  last_idx) {
+    for (i = 0; i < last_idx; ++i) {
         iov[i].iov_base = buf + i;
         iov[i].iov_len = 1;
     }
@@ -151,41 +151,41 @@ static void init_iov(iov:iovec[MAX_IOV_COUNT], iov_to_use:Int,
     iov[last_idx].iov_len = MAX_MSG - last_idx;
 }
 
-static recv_fn:CPointer<ByteVar> (data:CPointer<ByteVar> ) {
-    rd:CPointer<recv_data> = data;
-    pthread_mutex_t *mutex = rd.pointed.mutex ;
+static void *recv_fn(void *data) {
+    struct recv_data *rd = data;
+    pthread_mutex_t *mutex = rd->mutex;
     char buf[MAX_MSG + 1];
-    iov:iovec[MAX_IOV_COUNT];
-    sqe:CPointer<io_uring_sqe>;
-    cqe:CPointer<io_uring_cqe>;
-    ring:io_uring;
-    ret:Int;
+    struct iovec iov[MAX_IOV_COUNT];
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
+    struct io_uring ring;
+    int ret;
 
-    init_iov(iov, rd.pointed.iov_count , buf);
+    init_iov(iov, rd->iov_count, buf);
 
-    ret = io_uring_queue_init(1, ring.ptr, 0);
+    ret = io_uring_queue_init(1, &ring, 0);
     if (ret) {
         fprintf(stderr, "queue init failed: %d\n", ret);
         goto err;
     }
 
-    if ( rd.pointed.buf_select  && ! rd.pointed.no_buf_add ) {
-        sqe = io_uring_get_sqe(ring.ptr);
+    if (rd->buf_select && !rd->no_buf_add) {
+        sqe = io_uring_get_sqe(&ring);
         io_uring_prep_provide_buffers(sqe, buf, sizeof(buf) - 1, 1,
                                       BUF_BGID, BUF_BID);
-        ret = io_uring_submit(ring.ptr);
+        ret = io_uring_submit(&ring);
         if (ret != 1) {
             fprintf(stderr, "submit ret=%d\n", ret);
             goto err;
         }
 
-        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
+        ret = io_uring_wait_cqe(&ring, &cqe);
         if (ret) {
             fprintf(stderr, "wait_cqe=%d\n", ret);
             goto err;
         }
-        ret = cqe.pointed.res ;
-        io_uring_cqe_seen(ring.ptr, cqe);
+        ret = cqe->res;
+        io_uring_cqe_seen(&ring, cqe);
         if (ret == -EINVAL) {
             fprintf(stdout, "PROVIDE_BUFFERS not supported, skip\n");
             goto out;
@@ -196,52 +196,52 @@ static recv_fn:CPointer<ByteVar> (data:CPointer<ByteVar> ) {
         }
     }
 
-    ret = recv_prep(ring.ptr, iov, rd.pointed.iov_count , rd.pointed.buf_select  ? BUF_BGID : 0);
+    ret = recv_prep(&ring, iov, rd->iov_count, rd->buf_select ? BUF_BGID : 0);
     if (ret) {
         fprintf(stderr, "recv_prep failed: %d\n", ret);
         goto err;
     }
 
     pthread_mutex_unlock(mutex);
-    ret = do_recvmsg(ring.ptr, buf, rd);
+    ret = do_recvmsg(&ring, buf, rd);
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
 
     err:
     return (void *) (intptr_t) ret;
     out:
     pthread_mutex_unlock(mutex);
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return NULL;
 }
 
-static do_sendmsg:Int(void) {
-    saddr:sockaddr_in;
-    iov:iovec = {
+static int do_sendmsg(void) {
+    struct sockaddr_in saddr;
+    struct iovec iov = {
             .iov_base = str,
             .iov_len = sizeof(str),
     };
-    msg:msghdr;
-    ring:io_uring;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    sockfd:Int, ret;
+    struct msghdr msg;
+    struct io_uring ring;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int sockfd, ret;
 
-    ret = io_uring_queue_init(1, ring.ptr, 0);
+    ret = io_uring_queue_init(1, &ring, 0);
     if (ret) {
         fprintf(stderr, "queue init failed: %d\n", ret);
         return 1;
     }
 
-    memset(saddr.ptr, 0, sizeof(saddr));
+    memset(&saddr, 0, sizeof(saddr));
     saddr.sin_family = AF_INET;
     saddr.sin_port = htons(PORT);
-    inet_pton(AF_INET, HOST, saddr.ptr.sin_addr);
+    inet_pton(AF_INET, HOST, &saddr.sin_addr);
 
-    memset(msg.ptr, 0, sizeof(msg));
-    msg.msg_name = saddr.ptr;
-    msg.msg_namelen = sizeof(n:sockaddr_i);
-    msg.msg_iov = iov.ptr;
+    memset(&msg, 0, sizeof(msg));
+    msg.msg_name = &saddr;
+    msg.msg_namelen = sizeof(struct sockaddr_in);
+    msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
 
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -250,18 +250,18 @@ static do_sendmsg:Int(void) {
         return 1;
     }
 
-    sqe = io_uring_get_sqe(ring.ptr);
-    io_uring_prep_sendmsg(sqe, sockfd, msg.ptr, 0);
+    sqe = io_uring_get_sqe(&ring);
+    io_uring_prep_sendmsg(sqe, sockfd, &msg, 0);
 
-    ret = io_uring_submit(ring.ptr);
+    ret = io_uring_submit(&ring);
     if (ret <= 0) {
         fprintf(stderr, "submit failed: %d\n", ret);
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
-    if ( cqe.pointed.res  < 0) {
-        fprintf(stderr, "%s: failed cqe: %d\n", __FUNCTION__, cqe.pointed.res );
+    ret = io_uring_wait_cqe(&ring, &cqe);
+    if (cqe->res < 0) {
+        fprintf(stderr, "%s: failed cqe: %d\n", __FUNCTION__, cqe->res);
         goto err;
     }
 
@@ -272,40 +272,40 @@ static do_sendmsg:Int(void) {
     return 1;
 }
 
-static test:Int(buf_select:Int, no_buf_add:Int, iov_count:Int) {
-    rd:recv_data;
-    attr:pthread_mutexattr_t;
-    recv_thread:pthread_t;
-    mutex:pthread_mutex_t;
-    ret:Int;
-    retval:CPointer<ByteVar> ;
+static int test(int buf_select, int no_buf_add, int iov_count) {
+    struct recv_data rd;
+    pthread_mutexattr_t attr;
+    pthread_t recv_thread;
+    pthread_mutex_t mutex;
+    int ret;
+    void *retval;
 
-    pthread_mutexattr_init(attr.ptr);
-    pthread_mutexattr_setpshared(attr.ptr, 1);
-    pthread_mutex_init(mutex.ptr, attr.ptr);
-    pthread_mutex_lock(mutex.ptr);
+    pthread_mutexattr_init(&attr);
+    pthread_mutexattr_setpshared(&attr, 1);
+    pthread_mutex_init(&mutex, &attr);
+    pthread_mutex_lock(&mutex);
 
-    rd.mutex = mutex.ptr;
+    rd.mutex = &mutex;
     rd.buf_select = buf_select;
     rd.no_buf_add = no_buf_add;
     rd.iov_count = iov_count;
-    ret = pthread_create(recv_thread.ptr, NULL, recv_fn, rd.ptr);
+    ret = pthread_create(&recv_thread, NULL, recv_fn, &rd);
     if (ret) {
-        pthread_mutex_unlock(mutex.ptr);
+        pthread_mutex_unlock(&mutex);
         fprintf(stderr, "Thread create failed\n");
         return 1;
     }
 
-    pthread_mutex_lock(mutex.ptr);
+    pthread_mutex_lock(&mutex);
     do_sendmsg();
-    pthread_join(recv_thread, retval.ptr);
+    pthread_join(recv_thread, &retval);
     ret = (int) (intptr_t) retval;
 
     return ret;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ret:Int;
+int main(int argc, char *argv[]) {
+    int ret;
 
     if (argc > 1)
         return 0;

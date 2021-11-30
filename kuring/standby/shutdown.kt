@@ -19,50 +19,50 @@
 
 #include "liburing.h"
 
-static void sig_pipe(sig:Int) {
+static void sig_pipe(int sig) {
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    p_fd:Int[2], ret;
-    recv_s0:int32_t;
-    val:int32_t = 1;
-    addr:sockaddr_in;
+int main(int argc, char *argv[]) {
+    int p_fd[2], ret;
+    int32_t recv_s0;
+    int32_t val = 1;
+    struct sockaddr_in addr;
 
     if (argc > 1)
         return 0;
 
     srand(getpid());
 
-    recv_s0 = socket(AF_INET,  SOCK_STREAM or SOCK_CLOEXEC , IPPROTO_TCP);
+    recv_s0 = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
 
-    ret = setsockopt(recv_s0, SOL_SOCKET, SO_REUSEPORT, val.ptr, sizeof(val));
+    ret = setsockopt(recv_s0, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
     assert(ret != -1);
-    ret = setsockopt(recv_s0, SOL_SOCKET, SO_REUSEADDR, val.ptr, sizeof(val));
+    ret = setsockopt(recv_s0, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
     assert(ret != -1);
 
     addr.sin_family = AF_INET;
     addr.sin_port = htons((rand() % 61440) + 4096);
     addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    ret = bind(recv_s0, (r:sockadd *) addr.ptr, sizeof(addr));
+    ret = bind(recv_s0, (struct sockaddr *) &addr, sizeof(addr));
     assert(ret != -1);
     ret = listen(recv_s0, 128);
     assert(ret != -1);
 
-    p_fd[1] = socket(AF_INET,  SOCK_STREAM or SOCK_CLOEXEC , IPPROTO_TCP);
+    p_fd[1] = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
 
     val = 1;
-    ret = setsockopt(p_fd[1], IPPROTO_TCP, TCP_NODELAY, val.ptr, sizeof(val));
+    ret = setsockopt(p_fd[1], IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
     assert(ret != -1);
 
-    flags:int32_t = fcntl(p_fd[1], F_GETFL, 0);
+    int32_t flags = fcntl(p_fd[1], F_GETFL, 0);
     assert(flags != -1);
 
     flags |= O_NONBLOCK;
     ret = fcntl(p_fd[1], F_SETFL, flags);
     assert(ret != -1);
 
-    ret = connect(p_fd[1], (r:sockadd *) addr.ptr, sizeof(addr));
+    ret = connect(p_fd[1], (struct sockaddr *) &addr, sizeof(addr));
     assert(ret == -1);
 
     flags = fcntl(p_fd[1], F_GETFL, 0);
@@ -78,85 +78,85 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     signal(SIGPIPE, sig_pipe);
 
     while (1) {
-        code:int32_t;
-        code_len:socklen_t = sizeof(code);
+        int32_t code;
+        socklen_t code_len = sizeof(code);
 
-        ret = getsockopt(p_fd[1], SOL_SOCKET, SO_ERROR, code.ptr, code_len.ptr);
+        ret = getsockopt(p_fd[1], SOL_SOCKET, SO_ERROR, &code, &code_len);
         assert(ret != -1);
 
         if (!code)
             break;
     }
 
-    m_io_uring:io_uring;
+    struct io_uring m_io_uring;
 
-    ret = io_uring_queue_init(32, m_io_uring.ptr, 0);
+    ret = io_uring_queue_init(32, &m_io_uring, 0);
     assert(ret >= 0);
 
     {
-        cqe:CPointer<io_uring_cqe>;
-        sqe:CPointer<io_uring_sqe>;
-        res:Int;
+        struct io_uring_cqe *cqe;
+        struct io_uring_sqe *sqe;
+        int res;
 
-        sqe = io_uring_get_sqe(m_io_uring.ptr);
+        sqe = io_uring_get_sqe(&m_io_uring);
         io_uring_prep_shutdown(sqe, p_fd[1], SHUT_WR);
- sqe.pointed.user_data  = 1;
+        sqe->user_data = 1;
 
-        res = io_uring_submit_and_wait(m_io_uring.ptr, 1);
+        res = io_uring_submit_and_wait(&m_io_uring, 1);
         assert(res != -1);
 
-        res = io_uring_wait_cqe(m_io_uring.ptr, cqe.ptr);
+        res = io_uring_wait_cqe(&m_io_uring, &cqe);
         if (res < 0) {
             fprintf(stderr, "wait: %s\n", strerror(-ret));
             goto err;
         }
 
-        if ( cqe.pointed.res ) {
-            if ( cqe.pointed.res  == -EINVAL) {
+        if (cqe->res) {
+            if (cqe->res == -EINVAL) {
                 fprintf(stdout, "Shutdown not supported, skipping\n");
                 goto done;
             }
-            fprintf(stderr, "writev: %d\n", cqe.pointed.res );
+            fprintf(stderr, "writev: %d\n", cqe->res);
             goto err;
         }
 
-        io_uring_cqe_seen(m_io_uring.ptr, cqe);
+        io_uring_cqe_seen(&m_io_uring, cqe);
     }
 
     {
-        cqe:CPointer<io_uring_cqe>;
-        sqe:CPointer<io_uring_sqe>;
-        iov:iovec[1];
+        struct io_uring_cqe *cqe;
+        struct io_uring_sqe *sqe;
+        struct iovec iov[1];
         char send_buff[128];
-        res:Int;
+        int res;
 
         iov[0].iov_base = send_buff;
         iov[0].iov_len = sizeof(send_buff);
 
-        sqe = io_uring_get_sqe(m_io_uring.ptr);
+        sqe = io_uring_get_sqe(&m_io_uring);
         assert(sqe != NULL);
 
         io_uring_prep_writev(sqe, p_fd[1], iov, 1, 0);
-        res = io_uring_submit_and_wait(m_io_uring.ptr, 1);
+        res = io_uring_submit_and_wait(&m_io_uring, 1);
         assert(res != -1);
 
-        res = io_uring_wait_cqe(m_io_uring.ptr, cqe.ptr);
+        res = io_uring_wait_cqe(&m_io_uring, &cqe);
         if (res < 0) {
             fprintf(stderr, "wait: %s\n", strerror(-ret));
             goto err;
         }
 
-        if ( cqe.pointed.res  != -EPIPE) {
-            fprintf(stderr, "writev: %d\n", cqe.pointed.res );
+        if (cqe->res != -EPIPE) {
+            fprintf(stderr, "writev: %d\n", cqe->res);
             goto err;
         }
-        io_uring_cqe_seen(m_io_uring.ptr, cqe);
+        io_uring_cqe_seen(&m_io_uring, cqe);
     }
 
     done:
-    io_uring_queue_exit(m_io_uring.ptr);
+    io_uring_queue_exit(&m_io_uring);
     return 0;
     err:
-    io_uring_queue_exit(m_io_uring.ptr);
+    io_uring_queue_exit(&m_io_uring);
     return 1;
 }

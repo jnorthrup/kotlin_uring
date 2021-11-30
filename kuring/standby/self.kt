@@ -14,20 +14,20 @@
 
 #include "liburing.h"
 
-static io_openat2:Int(ring:CPointer<io_uring>, path:String, dfd:Int) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    how:open_how;
-    ret:Int;
+static int io_openat2(struct io_uring *ring, const char *path, int dfd) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    struct open_how how;
+    int ret;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
         fprintf(stderr, "get sqe failed\n");
         goto err;
     }
-    memset(how.ptr, 0, sizeof(how));
+    memset(&how, 0, sizeof(how));
     how.flags = O_RDONLY;
-    io_uring_prep_openat2(sqe, dfd, path, how.ptr);
+    io_uring_prep_openat2(sqe, dfd, path, &how);
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
@@ -35,33 +35,33 @@ static io_openat2:Int(ring:CPointer<io_uring>, path:String, dfd:Int) {
         goto err;
     }
 
-    ret = io_uring_wait_cqe(ring, cqe.ptr);
+    ret = io_uring_wait_cqe(ring, &cqe);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
         goto err;
     }
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     return ret;
     err:
     return -1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
     char buf[64];
-    ret:Int;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(1, ring.ptr, 0);
+    ret = io_uring_queue_init(1, &ring, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
     }
 
-    ret = io_openat2(ring.ptr, "/proc/self/comm", -1);
+    ret = io_openat2(&ring, "/proc/self/comm", -1);
     if (ret < 0) {
         if (ret == -EOPNOTSUPP)
             return 0;

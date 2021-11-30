@@ -23,44 +23,44 @@
 #define RING_SIZE    512
 
 struct p {
-    fd:Int[2];
-    triggered:Int;
+    int fd[2];
+    int triggered;
 };
 
-static p:p[NFILES];
+static struct p p[NFILES];
 
-static has_poll_update:Int(void) {
-    ring:io_uring;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    has_update:Boolean = false;
-    ret:Int;
+static int has_poll_update(void) {
+    struct io_uring ring;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    bool has_update = false;
+    int ret;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret)
         return -1;
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     io_uring_prep_poll_update(sqe, NULL, NULL, POLLIN, IORING_TIMEOUT_UPDATE);
 
-    ret = io_uring_submit(ring.ptr);
+    ret = io_uring_submit(&ring);
     if (ret != 1)
         return -1;
 
-    ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
+    ret = io_uring_wait_cqe(&ring, &cqe);
     if (!ret) {
-        if ( cqe.pointed.res  == -ENOENT)
+        if (cqe->res == -ENOENT)
             has_update = true;
-        else if ( cqe.pointed.res  != -EINVAL)
+        else if (cqe->res != -EINVAL)
             return -1;
-        io_uring_cqe_seen(ring.ptr, cqe);
+        io_uring_cqe_seen(&ring, cqe);
     }
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return has_update;
 }
 
-static arm_poll:Int(ring:CPointer<io_uring>, off:Int) {
-    sqe:CPointer<io_uring_sqe>;
+static int arm_poll(struct io_uring *ring, int off) {
+    struct io_uring_sqe *sqe;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -69,23 +69,23 @@ static arm_poll:Int(ring:CPointer<io_uring>, off:Int) {
     }
 
     io_uring_prep_poll_multishot(sqe, p[off].fd[0], POLLIN);
- sqe.pointed.user_data  = off;
+    sqe->user_data = off;
     return 0;
 }
 
-static reap_polls:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    i:Int, ret, off;
+static int reap_polls(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    int i, ret, off;
     char c;
 
-    for (i in 0 until  BATCH) {
-        sqe:CPointer<io_uring_sqe>;
+    for (i = 0; i < BATCH; i++) {
+        struct io_uring_sqe *sqe;
 
         sqe = io_uring_get_sqe(ring);
         /* update event */
         io_uring_prep_poll_update(sqe, (void *) (unsigned long) i, NULL,
                                   POLLIN, IORING_POLL_UPDATE_EVENTS);
- sqe.pointed.user_data  = 0x12345678;
+        sqe->user_data = 0x12345678;
     }
 
     ret = io_uring_submit(ring);
@@ -94,16 +94,16 @@ static reap_polls:Int(ring:CPointer<io_uring>) {
         return 1;
     }
 
-    for (i in 0 until  2 * BATCH) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 2 * BATCH; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret) {
             fprintf(stderr, "wait cqe %d\n", ret);
             return ret;
         }
-        off = cqe.pointed.user_data ;
+        off = cqe->user_data;
         if (off == 0x12345678)
             goto seen;
-        ret = read(p[off].fd[0], c.ptr, 1);
+        ret = read(p[off].fd[0], &c, 1);
         if (ret != 1) {
             if (ret == -1 && errno == EAGAIN)
                 goto seen;
@@ -122,12 +122,12 @@ static reap_polls:Int(ring:CPointer<io_uring>) {
     return 0;
 }
 
-static trigger_polls:Int(void) {
+static int trigger_polls(void) {
     char c = 89;
-    i:Int, ret;
+    int i, ret;
 
-    for (i in 0 until  BATCH) {
-        off:Int;
+    for (i = 0; i < BATCH; i++) {
+        int off;
 
         do {
             off = rand() % NFILES;
@@ -136,7 +136,7 @@ static trigger_polls:Int(void) {
         } while (1);
 
         p[off].triggered = 1;
-        ret = write(p[off].fd[1], c.ptr, 1);
+        ret = write(p[off].fd[1], &c, 1);
         if (ret != 1) {
             fprintf(stderr, "write got %d/%d\n", ret, errno);
             return 1;
@@ -146,23 +146,23 @@ static trigger_polls:Int(void) {
     return 0;
 }
 
-static trigger_polls_fn:CPointer<ByteVar> (data:CPointer<ByteVar> ) {
+static void *trigger_polls_fn(void *data) {
     trigger_polls();
     return NULL;
 }
 
-static arm_polls:Int(ring:CPointer<io_uring>) {
-    ret:Int, to_arm = NFILES, i, off;
+static int arm_polls(struct io_uring *ring) {
+    int ret, to_arm = NFILES, i, off;
 
     off = 0;
     while (to_arm) {
-        this_arm:Int;
+        int this_arm;
 
         this_arm = to_arm;
         if (this_arm > RING_SIZE)
             this_arm = RING_SIZE;
 
-        for (i in 0 until  this_arm) {
+        for (i = 0; i < this_arm; i++) {
             if (arm_poll(ring, off)) {
                 fprintf(stderr, "arm failed at %d\n", off);
                 return 1;
@@ -181,12 +181,12 @@ static arm_polls:Int(ring:CPointer<io_uring>) {
     return 0;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    params:io_uring_params = {};
-    rlim:rlimit;
-    thread:pthread_t;
-    i:Int, j, ret;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    struct io_uring_params params = {};
+    struct rlimit rlim;
+    pthread_t thread;
+    int i, j, ret;
 
     if (argc > 1)
         return 0;
@@ -200,7 +200,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         return 0;
     }
 
-    if (getrlimit(RLIMIT_NOFILE, rlim.ptr) < 0) {
+    if (getrlimit(RLIMIT_NOFILE, &rlim) < 0) {
         perror("getrlimit");
         goto err_noring;
     }
@@ -208,7 +208,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (rlim.rlim_cur < (2 * NFILES + 5)) {
         rlim.rlim_cur = (2 * NFILES + 5);
         rlim.rlim_max = rlim.rlim_cur;
-        if (setrlimit(RLIMIT_NOFILE, rlim.ptr) < 0) {
+        if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
             if (errno == EPERM)
                 goto err_nofail;
             perror("setrlimit");
@@ -216,7 +216,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         }
     }
 
-    for (i in 0 until  NFILES) {
+    for (i = 0; i < NFILES; i++) {
         if (pipe(p[i].fd) < 0) {
             perror("pipe");
             goto err_noring;
@@ -226,11 +226,11 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
 
     params.flags = IORING_SETUP_CQSIZE;
     params.cq_entries = 4096;
-    ret = io_uring_queue_init_params(RING_SIZE, ring.ptr, params.ptr);
+    ret = io_uring_queue_init_params(RING_SIZE, &ring, &params);
     if (ret) {
         if (ret == -EINVAL) {
             fprintf(stdout, "No CQSIZE, trying without\n");
-            ret = io_uring_queue_init(RING_SIZE, ring.ptr, 0);
+            ret = io_uring_queue_init(RING_SIZE, &ring, 0);
             if (ret) {
                 fprintf(stderr, "ring setup failed: %d\n", ret);
                 return 1;
@@ -238,24 +238,24 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
         }
     }
 
-    if (arm_polls(ring.ptr))
+    if (arm_polls(&ring))
         goto err;
 
-    for (i in 0 until  NLOOPS) {
-        pthread_create(thread.ptr, NULL, trigger_polls_fn, NULL);
-        ret = reap_polls(ring.ptr);
+    for (i = 0; i < NLOOPS; i++) {
+        pthread_create(&thread, NULL, trigger_polls_fn, NULL);
+        ret = reap_polls(&ring);
         if (ret)
             goto err;
         pthread_join(thread, NULL);
 
-        for (j in 0 until  NFILES)
+        for (j = 0; j < NFILES; j++)
             p[j].triggered = 0;
     }
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
     err:
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     err_noring:
     fprintf(stderr, "poll-many failed\n");
     return 1;

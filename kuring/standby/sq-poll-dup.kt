@@ -23,16 +23,16 @@
 
 #define NR_RINGS    4
 
-static vecs:CPointer<iovec>;
-static rings:io_uring[NR_RINGS];
+static struct iovec *vecs;
+static struct io_uring rings[NR_RINGS];
 
-static wait_io:Int(ring:CPointer<io_uring>, nr_ios:Int) {
-    cqe:CPointer<io_uring_cqe>;
+static int wait_io(struct io_uring *ring, int nr_ios) {
+    struct io_uring_cqe *cqe;
 
     while (nr_ios) {
-        io_uring_wait_cqe(ring, cqe.ptr);
-        if ( cqe.pointed.res  != BS) {
-            fprintf(stderr, "Unexpected ret %d\n", cqe.pointed.res );
+        io_uring_wait_cqe(ring, &cqe);
+        if (cqe->res != BS) {
+            fprintf(stderr, "Unexpected ret %d\n", cqe->res);
             return 1;
         }
         io_uring_cqe_seen(ring, cqe);
@@ -42,14 +42,14 @@ static wait_io:Int(ring:CPointer<io_uring>, nr_ios:Int) {
     return 0;
 }
 
-static queue_io:Int(ring:CPointer<io_uring>, fd:Int, nr_ios:Int) {
-long :ULongoff
-    i:Int;
+static int queue_io(struct io_uring *ring, int fd, int nr_ios) {
+    unsigned long off;
+    int i;
 
     i = 0;
     off = 0;
     while (nr_ios) {
-        sqe:CPointer<io_uring_sqe>;
+        struct io_uring_sqe *sqe;
 
         sqe = io_uring_get_sqe(ring);
         if (!sqe)
@@ -64,19 +64,19 @@ long :ULongoff
     return i;
 }
 
-static do_io:Int(fd:Int, ring_start:Int, ring_end:Int) {
-    i:Int, rets[NR_RINGS];
+static int do_io(int fd, int ring_start, int ring_end) {
+    int i, rets[NR_RINGS];
     unsigned ios = 0;
 
     while (ios < 32) {
-        for (i in ring_start until  ring_end) {
-            ret:Int = queue_io(rings.ptr[i], fd, BUFFERS);
+        for (i = ring_start; i < ring_end; i++) {
+            int ret = queue_io(&rings[i], fd, BUFFERS);
             if (ret < 0)
                 goto err;
             rets[i] = ret;
         }
-        for (i in ring_start until  ring_end) {
-            if (wait_io(rings.ptr[i], rets[i]))
+        for (i = ring_start; i < ring_end; i++) {
+            if (wait_io(&rings[i], rets[i]))
                 goto err;
         }
         ios += BUFFERS;
@@ -87,11 +87,11 @@ static do_io:Int(fd:Int, ring_start:Int, ring_end:Int) {
     return 1;
 }
 
-static test:Int(fd:Int, do_dup_and_close:Int, close_ring:Int) {
-    i:Int, ret, ring_fd;
+static int test(int fd, int do_dup_and_close, int close_ring) {
+    int i, ret, ring_fd;
 
-    for (i in 0 until  NR_RINGS) {
-        p:io_uring_params = {};
+    for (i = 0; i < NR_RINGS; i++) {
+        struct io_uring_params p = {};
 
         p.flags = IORING_SETUP_SQPOLL;
         p.sq_thread_idle = 100;
@@ -99,13 +99,13 @@ static test:Int(fd:Int, do_dup_and_close:Int, close_ring:Int) {
             p.wq_fd = rings[0].ring_fd;
             p.flags |= IORING_SETUP_ATTACH_WQ;
         }
-        ret = io_uring_queue_init_params(BUFFERS, rings.ptr[i], p.ptr);
+        ret = io_uring_queue_init_params(BUFFERS, &rings[i], &p);
         if (ret) {
             fprintf(stderr, "queue_init: %d/%d\n", ret, i);
             goto err;
         }
         /* no sharing for non-fixed either */
-        if (!(p.features IORING_FEAT_SQPOLL_NONFIXED.ptr)) {
+        if (!(p.features & IORING_FEAT_SQPOLL_NONFIXED)) {
             fprintf(stdout, "No SQPOLL sharing, skipping\n");
             return 0;
         }
@@ -140,17 +140,17 @@ static test:Int(fd:Int, do_dup_and_close:Int, close_ring:Int) {
 
 
     done:
-    for (i in 0 until  NR_RINGS)
-        io_uring_queue_exit(rings.ptr[i]);
+    for (i = 0; i < NR_RINGS; i++)
+        io_uring_queue_exit(&rings[i]);
 
     return 0;
     err:
     return 1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    fname:CPointer<ByteVar>;
-    ret:Int, fd;
+int main(int argc, char *argv[]) {
+    char *fname;
+    int ret, fd;
 
     if (argc > 1) {
         fname = argv[1];
@@ -161,7 +161,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
 
     vecs = t_create_buffers(BUFFERS, BS);
 
-    fd = open(fname,  O_RDONLY or O_DIRECT );
+    fd = open(fname, O_RDONLY | O_DIRECT);
     if (fname != argv[1])
         unlink(fname);
 

@@ -12,16 +12,16 @@
 
 #include "liburing.h"
 
-static no_hardlink:Int;
+static int no_hardlink;
 
 /*
  * Timer with single nop
  */
-static test_single_hardlink:Int(ring:CPointer<io_uring>) {
-    ts:__kernel_timespec;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i;
+static int test_single_hardlink(struct io_uring *ring) {
+    struct __kernel_timespec ts;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -30,9 +30,9 @@ static test_single_hardlink:Int(ring:CPointer<io_uring>) {
     }
     ts.tv_sec = 0;
     ts.tv_nsec = 10000000ULL;
-    io_uring_prep_timeout(sqe, ts.ptr, 0, 0);
- sqe.pointed.flags  |=  IOSQE_IO_LINK or IOSQE_IO_HARDLINK ;
- sqe.pointed.user_data  = 1;
+    io_uring_prep_timeout(sqe, &ts, 0, 0);
+    sqe->flags |= IOSQE_IO_LINK | IOSQE_IO_HARDLINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -40,7 +40,7 @@ static test_single_hardlink:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_nop(sqe);
- sqe.pointed.user_data  = 2;
+    sqe->user_data = 2;
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
@@ -48,8 +48,8 @@ static test_single_hardlink:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  2) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 2; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             fprintf(stderr, "wait completion %d\n", ret);
             goto err;
@@ -60,17 +60,17 @@ static test_single_hardlink:Int(ring:CPointer<io_uring>) {
         }
         if (no_hardlink)
             goto next;
-        if ( cqe.pointed.user_data  == 1 && cqe.pointed.res  == -EINVAL) {
+        if (cqe->user_data == 1 && cqe->res == -EINVAL) {
             fprintf(stdout, "Hard links not supported, skipping\n");
             no_hardlink = 1;
             goto next;
         }
-        if ( cqe.pointed.user_data  == 1 && cqe.pointed.res  != -ETIME) {
-            fprintf(stderr, "timeout failed with %d\n", cqe.pointed.res );
+        if (cqe->user_data == 1 && cqe->res != -ETIME) {
+            fprintf(stderr, "timeout failed with %d\n", cqe->res);
             goto err;
         }
-        if ( cqe.pointed.user_data  == 2 && cqe.pointed.res ) {
-            fprintf(stderr, "nop failed with %d\n", cqe.pointed.res );
+        if (cqe->user_data == 2 && cqe->res) {
+            fprintf(stderr, "nop failed with %d\n", cqe->res);
             goto err;
         }
         next:
@@ -83,13 +83,13 @@ static test_single_hardlink:Int(ring:CPointer<io_uring>) {
 }
 
 /*
- * Timer.pointed. timer.pointed.nop 
+ * Timer -> timer -> nop
  */
-static test_double_hardlink:Int(ring:CPointer<io_uring>) {
-    ts1:__kernel_timespec, ts2;
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i;
+static int test_double_hardlink(struct io_uring *ring) {
+    struct __kernel_timespec ts1, ts2;
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i;
 
     if (no_hardlink)
         return 0;
@@ -101,9 +101,9 @@ static test_double_hardlink:Int(ring:CPointer<io_uring>) {
     }
     ts1.tv_sec = 0;
     ts1.tv_nsec = 10000000ULL;
-    io_uring_prep_timeout(sqe, ts1.ptr, 0, 0);
- sqe.pointed.flags  |=  IOSQE_IO_LINK or IOSQE_IO_HARDLINK ;
- sqe.pointed.user_data  = 1;
+    io_uring_prep_timeout(sqe, &ts1, 0, 0);
+    sqe->flags |= IOSQE_IO_LINK | IOSQE_IO_HARDLINK;
+    sqe->user_data = 1;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -112,9 +112,9 @@ static test_double_hardlink:Int(ring:CPointer<io_uring>) {
     }
     ts2.tv_sec = 0;
     ts2.tv_nsec = 15000000ULL;
-    io_uring_prep_timeout(sqe, ts2.ptr, 0, 0);
- sqe.pointed.flags  |=  IOSQE_IO_LINK or IOSQE_IO_HARDLINK ;
- sqe.pointed.user_data  = 2;
+    io_uring_prep_timeout(sqe, &ts2, 0, 0);
+    sqe->flags |= IOSQE_IO_LINK | IOSQE_IO_HARDLINK;
+    sqe->user_data = 2;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -122,7 +122,7 @@ static test_double_hardlink:Int(ring:CPointer<io_uring>) {
         goto err;
     }
     io_uring_prep_nop(sqe);
- sqe.pointed.user_data  = 3;
+    sqe->user_data = 3;
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
@@ -130,8 +130,8 @@ static test_double_hardlink:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  3) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 3; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             fprintf(stderr, "wait completion %d\n", ret);
             goto err;
@@ -140,16 +140,16 @@ static test_double_hardlink:Int(ring:CPointer<io_uring>) {
             fprintf(stderr, "failed to get cqe\n");
             goto err;
         }
-        if ( cqe.pointed.user_data  == 1 && cqe.pointed.res  != -ETIME) {
-            fprintf(stderr, "timeout failed with %d\n", cqe.pointed.res );
+        if (cqe->user_data == 1 && cqe->res != -ETIME) {
+            fprintf(stderr, "timeout failed with %d\n", cqe->res);
             goto err;
         }
-        if ( cqe.pointed.user_data  == 2 && cqe.pointed.res  != -ETIME) {
-            fprintf(stderr, "timeout failed with %d\n", cqe.pointed.res );
+        if (cqe->user_data == 2 && cqe->res != -ETIME) {
+            fprintf(stderr, "timeout failed with %d\n", cqe->res);
             goto err;
         }
-        if ( cqe.pointed.user_data  == 3 && cqe.pointed.res ) {
-            fprintf(stderr, "nop failed with %d\n", cqe.pointed.res );
+        if (cqe->user_data == 3 && cqe->res) {
+            fprintf(stderr, "nop failed with %d\n", cqe->res);
             goto err;
         }
         io_uring_cqe_seen(ring, cqe);
@@ -164,10 +164,10 @@ static test_double_hardlink:Int(ring:CPointer<io_uring>) {
 /*
  * Test failing head of chain, and dependent getting -ECANCELED
  */
-static test_single_link_fail:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i;
+static int test_single_link_fail(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -176,7 +176,7 @@ static test_single_link_fail:Int(ring:CPointer<io_uring>) {
     }
 
     io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+    sqe->flags |= IOSQE_IO_LINK;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -192,8 +192,8 @@ static test_single_link_fail:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  2) {
-        ret = io_uring_peek_cqe(ring, cqe.ptr);
+    for (i = 0; i < 2; i++) {
+        ret = io_uring_peek_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
@@ -202,12 +202,12 @@ static test_single_link_fail:Int(ring:CPointer<io_uring>) {
             printf("failed to get cqe\n");
             goto err;
         }
-        if (i == 0 && cqe.pointed.res  != -EINVAL) {
-            printf("sqe0 failed with %d, wanted -EINVAL\n", cqe.pointed.res );
+        if (i == 0 && cqe->res != -EINVAL) {
+            printf("sqe0 failed with %d, wanted -EINVAL\n", cqe->res);
             goto err;
         }
-        if (i == 1 && cqe.pointed.res  != -ECANCELED) {
-            printf("sqe1 failed with %d, wanted -ECANCELED\n", cqe.pointed.res );
+        if (i == 1 && cqe->res != -ECANCELED) {
+            printf("sqe1 failed with %d, wanted -ECANCELED\n", cqe->res);
             goto err;
         }
         io_uring_cqe_seen(ring, cqe);
@@ -221,10 +221,10 @@ static test_single_link_fail:Int(ring:CPointer<io_uring>) {
 /*
  * Test two independent chains
  */
-static test_double_chain:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i;
+static int test_double_chain(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -233,7 +233,7 @@ static test_double_chain:Int(ring:CPointer<io_uring>) {
     }
 
     io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+    sqe->flags |= IOSQE_IO_LINK;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -250,7 +250,7 @@ static test_double_chain:Int(ring:CPointer<io_uring>) {
     }
 
     io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+    sqe->flags |= IOSQE_IO_LINK;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -266,8 +266,8 @@ static test_double_chain:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  4) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 4; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
@@ -283,10 +283,10 @@ static test_double_chain:Int(ring:CPointer<io_uring>) {
 /*
  * Test multiple dependents
  */
-static test_double_link:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i;
+static int test_double_link(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -295,7 +295,7 @@ static test_double_link:Int(ring:CPointer<io_uring>) {
     }
 
     io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+    sqe->flags |= IOSQE_IO_LINK;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -304,7 +304,7 @@ static test_double_link:Int(ring:CPointer<io_uring>) {
     }
 
     io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+    sqe->flags |= IOSQE_IO_LINK;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -320,8 +320,8 @@ static test_double_link:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  3) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 3; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
@@ -337,10 +337,10 @@ static test_double_link:Int(ring:CPointer<io_uring>) {
 /*
  * Test single dependency
  */
-static test_single_link:Int(ring:CPointer<io_uring>) {
-    cqe:CPointer<io_uring_cqe>;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, i;
+static int test_single_link(struct io_uring *ring) {
+    struct io_uring_cqe *cqe;
+    struct io_uring_sqe *sqe;
+    int ret, i;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -349,7 +349,7 @@ static test_single_link:Int(ring:CPointer<io_uring>) {
     }
 
     io_uring_prep_nop(sqe);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+    sqe->flags |= IOSQE_IO_LINK;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -365,8 +365,8 @@ static test_single_link:Int(ring:CPointer<io_uring>) {
         goto err;
     }
 
-    for (i in 0 until  2) {
-        ret = io_uring_wait_cqe(ring, cqe.ptr);
+    for (i = 0; i < 2; i++) {
+        ret = io_uring_wait_cqe(ring, &cqe);
         if (ret < 0) {
             printf("wait completion %d\n", ret);
             goto err;
@@ -379,29 +379,29 @@ static test_single_link:Int(ring:CPointer<io_uring>) {
     return 1;
 }
 
-static test_early_fail_and_wait:Int(void) {
-    ring:io_uring;
-    sqe:CPointer<io_uring_sqe>;
-    ret:Int, invalid_fd = 42;
-    iov:iovec = {.iov_base = NULL, .iov_len = 0};
+static int test_early_fail_and_wait(void) {
+    struct io_uring ring;
+    struct io_uring_sqe *sqe;
+    int ret, invalid_fd = 42;
+    struct iovec iov = {.iov_base = NULL, .iov_len = 0};
 
     /* create a new ring as it leaves it dirty */
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         printf("ring setup failed\n");
         return 1;
     }
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         printf("get sqe failed\n");
         goto err;
     }
 
-    io_uring_prep_readv(sqe, invalid_fd, iov.ptr, 1, 0);
- sqe.pointed.flags  |= IOSQE_IO_LINK;
+    io_uring_prep_readv(sqe, invalid_fd, &iov, 1, 0);
+    sqe->flags |= IOSQE_IO_LINK;
 
-    sqe = io_uring_get_sqe(ring.ptr);
+    sqe = io_uring_get_sqe(&ring);
     if (!sqe) {
         printf("get sqe failed\n");
         goto err;
@@ -409,70 +409,70 @@ static test_early_fail_and_wait:Int(void) {
 
     io_uring_prep_nop(sqe);
 
-    ret = io_uring_submit_and_wait(ring.ptr, 2);
+    ret = io_uring_submit_and_wait(&ring, 2);
     if (ret <= 0 && ret != -EAGAIN) {
         printf("sqe submit failed: %d\n", ret);
         goto err;
     }
 
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
     err:
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring, poll_ring;
-    ret:Int;
+int main(int argc, char *argv[]) {
+    struct io_uring ring, poll_ring;
+    int ret;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         printf("ring setup failed\n");
         return 1;
 
     }
 
-    ret = io_uring_queue_init(8, poll_ring.ptr, IORING_SETUP_IOPOLL);
+    ret = io_uring_queue_init(8, &poll_ring, IORING_SETUP_IOPOLL);
     if (ret) {
         printf("poll_ring setup failed\n");
         return 1;
     }
 
-    ret = test_single_link(ring.ptr);
+    ret = test_single_link(&ring);
     if (ret) {
         printf("test_single_link failed\n");
         return ret;
     }
 
-    ret = test_double_link(ring.ptr);
+    ret = test_double_link(&ring);
     if (ret) {
         printf("test_double_link failed\n");
         return ret;
     }
 
-    ret = test_double_chain(ring.ptr);
+    ret = test_double_chain(&ring);
     if (ret) {
         printf("test_double_chain failed\n");
         return ret;
     }
 
-    ret = test_single_link_fail(poll_ring.ptr);
+    ret = test_single_link_fail(&poll_ring);
     if (ret) {
         printf("test_single_link_fail failed\n");
         return ret;
     }
 
-    ret = test_single_hardlink(ring.ptr);
+    ret = test_single_hardlink(&ring);
     if (ret) {
         fprintf(stderr, "test_single_hardlink\n");
         return ret;
     }
 
-    ret = test_double_hardlink(ring.ptr);
+    ret = test_double_hardlink(&ring);
     if (ret) {
         fprintf(stderr, "test_double_hardlink\n");
         return ret;

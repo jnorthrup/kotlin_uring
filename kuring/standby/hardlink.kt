@@ -12,10 +12,10 @@
 #include "liburing.h"
 
 
-static do_linkat:Int(ring:CPointer<io_uring>, oldname:String, const newname:CPointer<ByteVar>) {
-    ret:Int;
-    sqe:CPointer<io_uring_sqe>;
-    cqe:CPointer<io_uring_cqe>;
+static int do_linkat(struct io_uring *ring, const char *oldname, const char *newname) {
+    int ret;
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -30,26 +30,26 @@ static do_linkat:Int(ring:CPointer<io_uring>, oldname:String, const newname:CPoi
         goto err;
     }
 
-    ret = io_uring_wait_cqes(ring, cqe.ptr, 1, 0, 0);
+    ret = io_uring_wait_cqes(ring, &cqe, 1, 0, 0);
     if (ret) {
         fprintf(stderr, "wait_cqe failed: %d\n", ret);
         goto err;
     }
-    ret = cqe.pointed.res ;
+    ret = cqe->res;
     io_uring_cqe_seen(ring, cqe);
     return ret;
     err:
     return 1;
 }
 
-int files_linked_ok(fn1:String, const fn2:CPointer<ByteVar>) {
-    s1:stat, s2;
+int files_linked_ok(const char *fn1, const char *fn2) {
+    struct stat s1, s2;
 
-    if (stat(fn1, s1.ptr)) {
+    if (stat(fn1, &s1)) {
         fprintf(stderr, "stat(%s): %s\n", fn1, strerror(errno));
         return 0;
     }
-    if (stat(fn2, s2.ptr)) {
+    if (stat(fn2, &s2)) {
         fprintf(stderr, "stat(%s): %s\n", fn2, strerror(errno));
         return 0;
     }
@@ -64,22 +64,22 @@ int files_linked_ok(fn1:String, const fn2:CPointer<ByteVar>) {
     return 1;
 }
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
+int main(int argc, char *argv[]) {
     static const char target[] = "io_uring-linkat-test-target";
     static const char linkname[] = "io_uring-linkat-test-link";
-    ret:Int;
-    ring:io_uring;
+    int ret;
+    struct io_uring ring;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, ring.ptr, 0);
+    ret = io_uring_queue_init(8, &ring, 0);
     if (ret) {
         fprintf(stderr, "queue init failed: %d\n", ret);
         return ret;
     }
 
-    ret = open(target,  O_CREAT or  O_RDWR or O_EXCL , 0600);
+    ret = open(target, O_CREAT | O_RDWR | O_EXCL, 0600);
     if (ret < 0) {
         perror("open");
         goto err;
@@ -90,7 +90,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     }
     close(ret);
 
-    ret = do_linkat(ring.ptr, target, linkname);
+    ret = do_linkat(&ring, target, linkname);
     if (ret < 0) {
         if (ret == -EBADF || ret == -EINVAL) {
             fprintf(stdout, "linkat not supported, skipping\n");
@@ -105,13 +105,13 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     if (!files_linked_ok(linkname, target))
         goto err2;
 
-    ret = do_linkat(ring.ptr, target, linkname);
+    ret = do_linkat(&ring, target, linkname);
     if (ret != -EEXIST) {
         fprintf(stderr, "test_linkat linkname already exists failed: %d\n", ret);
         goto err2;
     }
 
-    ret = do_linkat(ring.ptr, target, "surely/this/does/not/exist");
+    ret = do_linkat(&ring, target, "surely/this/does/not/exist");
     if (ret != -ENOENT) {
         fprintf(stderr, "test_linkat no parent failed: %d\n", ret);
         goto err2;
@@ -120,14 +120,14 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     out:
     unlinkat(AT_FDCWD, linkname, 0);
     unlinkat(AT_FDCWD, target, 0);
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 0;
     err2:
     unlinkat(AT_FDCWD, linkname, 0);
     err1:
     unlinkat(AT_FDCWD, target, 0);
     err:
-    io_uring_queue_exit(ring.ptr);
+    io_uring_queue_exit(&ring);
     return 1;
 }
 

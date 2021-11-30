@@ -15,23 +15,23 @@
 
 #define BLOCKS    4096
 
-int main(argc:Int, argv:CPointer<ByteVar>[]) {
-    ring:io_uring;
-    sqe:CPointer<io_uring_sqe>;
-    cqe:CPointer<io_uring_cqe>;
-    iov:iovec;
+int main(int argc, char *argv[]) {
+    struct io_uring ring;
+    struct io_uring_sqe *sqe;
+    struct io_uring_cqe *cqe;
+    struct iovec iov;
     char buf[32];
-    offset:off_t;
+    off_t offset;
     unsigned blocks;
-    ret:Int, fd;
+    int ret, fd;
 
     if (argc > 1)
         return 0;
 
-    t_posix_memalign(iov.ptr.iov_base, 4096, 4096);
+    t_posix_memalign(&iov.iov_base, 4096, 4096);
     iov.iov_len = 4096;
 
-    ret = io_uring_queue_init(1, ring.ptr, IORING_SETUP_IOPOLL);
+    ret = io_uring_queue_init(1, &ring, IORING_SETUP_IOPOLL);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
@@ -39,7 +39,7 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     }
 
     sprintf(buf, "./XXXXXX");
-    fd = mkostemp(buf,  O_WRONLY or  O_DIRECT or O_CREAT );
+    fd = mkostemp(buf, O_WRONLY | O_DIRECT | O_CREAT);
     if (fd < 0) {
         perror("mkostemp");
         return 1;
@@ -48,28 +48,28 @@ int main(argc:Int, argv:CPointer<ByteVar>[]) {
     offset = 0;
     blocks = BLOCKS;
     do {
-        sqe = io_uring_get_sqe(ring.ptr);
+        sqe = io_uring_get_sqe(&ring);
         if (!sqe) {
             fprintf(stderr, "get sqe failed\n");
             goto err;
         }
-        io_uring_prep_writev(sqe, fd, iov.ptr, 1, offset);
-        ret = io_uring_submit_and_wait(ring.ptr, 1);
+        io_uring_prep_writev(sqe, fd, &iov, 1, offset);
+        ret = io_uring_submit_and_wait(&ring, 1);
         if (ret < 0) {
             fprintf(stderr, "submit_and_wait: %d\n", ret);
             goto err;
         }
-        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
+        ret = io_uring_wait_cqe(&ring, &cqe);
         if (ret < 0) {
             fprintf(stderr, "wait completion: %d\n", ret);
             goto err;
         }
-        if ( cqe.pointed.res  != 4096) {
-            if ( cqe.pointed.res  == -EOPNOTSUPP)
+        if (cqe->res != 4096) {
+            if (cqe->res == -EOPNOTSUPP)
                 goto skipped;
             goto err;
         }
-        io_uring_cqe_seen(ring.ptr, cqe);
+        io_uring_cqe_seen(&ring, cqe);
         offset += 4096;
     } while (--blocks);
 
