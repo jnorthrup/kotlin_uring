@@ -25,34 +25,34 @@ import simple.CZero.nz
 class FileRegister : NativeFreeablePlacement by nativeHeap {
     var no_update: Int = 0
 
-    fun close_files(files: IntArray?, nr_files: Int, add: Int): Unit {
-        files?.let {
+    fun close_files(files: IntArray?, nr_files: Int, add: Int,funcName:String) {
 
-            val fname: ByteArray = ByteArray(32)
+        val fname: ByteArray = ByteArray(256)
 
-
-            for (i in 0 until nr_files) {
+        for (i in 0 until nr_files) {
+            files?.let {
+                if(i < files.size)
                 close(files[i])
-                if (!add.nz)
-                    sprintf(fname.refTo(0), ".reg.%d", i)
-                else
-                    sprintf(fname.refTo(0), ".add.%d", i + add)
-                unlink(fname.toKString())
             }
+            if (!add.nz)
+                sprintf(fname.refTo(0), ".reg.$funcName.%d", i)
+            else
+                sprintf(fname.refTo(0), ".add.$funcName.%d", i + add)
+            unlink(fname.toKString())
         }
     }
 
-    fun open_files(nr_files: Int, extra: Int, add: Int): IntArray {
+    fun  open_files(nr_files: Int, extra: Int, add: Int,funcName: String): IntArray {
         val __FUNCTION__ = "open_files"
 
-        val fname = ByteArray(32)
+        val fname = ByteArray(256)
         val files = IntArray(nr_files + extra) { -1 }
 
         for (i in 0 until nr_files) {
             if (!add.nz)
-                sprintf(fname.refTo(0), ".reg.%d", i)
+                sprintf(fname.refTo(0), ".reg.$funcName.%d", i)
             else
-                sprintf(fname.refTo(0), ".add.%d", i + add)
+                sprintf(fname.refTo(0), ".add.$funcName.%d", i + add)
             files[i] = open(fname.toKString(), O_RDWR or O_CREAT, 644.fromOctal())
             if (files[i] < 0) {
                 perror("open")
@@ -66,7 +66,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
         val __FUNCTION__ = "test_shrink"
 
 
-        val files = open_files(50, 0, 0)
+        val files = open_files(50, 0, 0,__FUNCTION__)
         var ret = io_uring_register_files(ring, files.refTo(0), 50)
         err@ do {
             if (ret.nz) {
@@ -93,10 +93,10 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 break@err
             }
 
-            close_files(files, 50, 0)
+            close_files(files, 50, 0,__FUNCTION__)
             return 0
         } while (false)
-        close_files(files, 50, 0)
+        close_files(files, 50, 0,__FUNCTION__)
         return 1
     }
 
@@ -105,7 +105,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
         val __FUNCTION__ = "test_grow"
 
 
-        val files = open_files(50, 250, 0)
+        val files = open_files(50, 250, 0,__FUNCTION__)
         var ret = io_uring_register_files(ring, files.refTo(0), 300)
         err@ do {
             if (ret.nz) {
@@ -117,7 +117,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
 
             var fds: IntArray
             do {
-                fds = open_files(1, 0, off.toInt())
+                fds = open_files(1, 0, off.toInt(),__FUNCTION__)
                 ret = io_uring_register_files_update(ring, off.toUInt(), fds.refTo(0), 1)
                 if (ret != 1) {
                     if (300u == off && ret == -EINVAL)
@@ -138,13 +138,13 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 break@err
             }
 
-            close_files(files, 100, 0)
-            close_files(null, 251, 50)
+            close_files(files, 100, 0,__FUNCTION__)
+            close_files(null, 251, 50,__FUNCTION__)
             return 0
         } while (false)
 
-        close_files(files, 100, 0)
-        close_files(null, 251, 50)
+        close_files(files, 100, 0,__FUNCTION__)
+        close_files(null, 251, 50,__FUNCTION__)
         return 1
     }
 
@@ -152,7 +152,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
         val __FUNCTION__ = "test_replace_all"
 
 
-        val files = open_files(100, 0, 0)
+        val files = open_files(100, 0, 0,__FUNCTION__)
         var ret = io_uring_register_files(ring, files.refTo(0), 100)
         var fds: CPointer<IntVarOf<Int>>? = null
         err@ do {
@@ -177,12 +177,12 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 break@err
             }
 
-            close_files(files, 100, 0)
+            close_files(files, 100, 0,__FUNCTION__)
             fds.let(::free)
             return 0
         } while (false)
 
-        close_files(files, 100, 0)
+        close_files(files, 100, 0,__FUNCTION__)
         fds?.let(::free)
         return 1
     }
@@ -190,7 +190,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
     fun test_replace(ring: CPointer<io_uring>): Int {
         val __FUNCTION__ = "test_replace"
 
-        val files = open_files(100, 0, 0)
+        val files = open_files(100, 0, 0,__FUNCTION__)
         var ret = io_uring_register_files(ring, files.refTo(0), 100)
         var fds: IntArray? = null
 
@@ -201,7 +201,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 break@err
             }
 
-            fds = open_files(10, 0, 1)
+            fds = open_files(10, 0, 1,__FUNCTION__)
             ret = io_uring_register_files_update(ring, 90, fds.refTo(0), 10)
             if (ret != 10) {
                 fprintf(stderr, "%s: update ret=%d\n", __FUNCTION__, ret)
@@ -214,17 +214,17 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 break@err
             }
 
-            close_files(files, 100, 0)
+            close_files(files, 100, 0,__FUNCTION__)
 
             fds.let {
-                close_files(fds, 10, 1)
+                close_files(fds, 10, 1,__FUNCTION__)
             }
             return 0
 
         } while (false)
-        close_files(files, 100, 0)
+        close_files(files, 100, 0,__FUNCTION__)
         fds.let {
-            close_files(fds, 10, 1)
+            close_files(fds, 10, 1,__FUNCTION__)
         }
         return 1
     }
@@ -233,7 +233,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
         val __FUNCTION__ = "test_removals"
 
 
-        val files = open_files(100, 0, 0)
+        val files = open_files(100, 0, 0,__FUNCTION__)
         var ret = io_uring_register_files(ring, files.refTo(0), 100)
 
         var fds: CPointer<IntVarOf<Int>>? = null
@@ -259,12 +259,12 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 break@err
             }
 
-            close_files(files, 100, 0)
+            close_files(files, 100, 0,__FUNCTION__)
             fds.let(this::free)
             return 0
         } while (false)
 
-        close_files(files, 100, 0)
+        close_files(files, 100, 0,__FUNCTION__)
         fds?.let(this::free)
         return 1
     }
@@ -272,7 +272,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
     fun test_additions(ring: CPointer<io_uring>): Int {
         val __FUNCTION__ = "test_additions"
 
-        val files = open_files(100, 100, 0)
+        val files = open_files(100, 100, 0,__FUNCTION__)
         var fds: IntArray? = null
         err@ do {
             var ret: Int = io_uring_register_files(ring, files.refTo(0), 200)
@@ -281,7 +281,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 break@err
             }
 
-            fds = open_files(2, 0, 1)
+            fds = open_files(2, 0, 1,__FUNCTION__)
             ret = io_uring_register_files_update(ring, 100, fds.refTo(0), 2)
             if (ret != 2) {
                 fprintf(stderr, "%s: update ret=%d\n", __FUNCTION__, ret)
@@ -294,17 +294,17 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 break@err
             }
 
-            close_files(files, 100, 0)
+            close_files(files, 100, 0,__FUNCTION__)
             if (fds != null) {
 
-                close_files(fds, 2, 1)
+                close_files(fds, 2, 1,__FUNCTION__)
             }
             return 0
         } while (false)
-        close_files(files, 100, 0)
+        close_files(files, 100, 0,__FUNCTION__)
         if (fds != null) {
 
-            close_files(fds, 2, 1)
+            close_files(fds, 2, 1,__FUNCTION__)
         }
         return 1
     }
@@ -312,7 +312,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
     fun test_sparse(ring: CPointer<io_uring>): Int {
         val __FUNCTION__ = "test_sparse"
 
-        val files = open_files(100, 100, 0)
+        val files = open_files(100, 100, 0,__FUNCTION__)
         var ret = io_uring_register_files(ring, files.refTo(0), 200)
         err@ do {
             done@ do {
@@ -331,17 +331,17 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                     break@err
                 }
             } while (false)
-            close_files(files, 100, 0)
+            close_files(files, 100, 0,__FUNCTION__)
             return 0
         } while (false)
-        close_files(files, 100, 0)
+        close_files(files, 100, 0,__FUNCTION__)
         return 1
     }
 
     fun test_basic_many(ring: CPointer<io_uring>): Int {
         val __FUNCTION__ = "test_basic_many"
 
-        val files = open_files(768, 0, 0)
+        val files = open_files(768, 0, 0,__FUNCTION__)
         var ret = io_uring_register_files(ring, files.refTo(0), 768)
         err@ do {
             if (ret.nz) {
@@ -353,25 +353,25 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 fprintf(stderr, "%s: unregister %d\n", __FUNCTION__, ret)
                 break@err
             }
-            close_files(files, 768, 0)
+            close_files(files, 768, 0,__FUNCTION__)
             return 0
         } while (false)
-        close_files(files, 768, 0)
+        close_files(files, 768, 0,__FUNCTION__)
         return 1
     }
 
     fun test_basic(ring: CPointer<io_uring>, fail: Int): Int {
         val __FUNCTION__ = "test_basic"
-
-
-        val nr_files: Int = fail.takeIf { it.nz }?.let { 10 } ?: 100
-        val files = open_files(nr_files, 0, 0)
+        val nr_files: Int = if(fail.nz)10 else 100
+        val files = open_files(nr_files, 0, 0,__FUNCTION__)
         var ret = io_uring_register_files(ring, files.refTo(0), 100)
         err@ do {
             if (ret.nz) {
                 if (fail.nz) {
-                    if (ret == -EBADF || ret == -EFAULT)
+                    if (ret == -EBADF || ret == -EFAULT) {
+                        close_files(files, nr_files, 0, __FUNCTION__)
                         return 0
+                    }
                 }
                 fprintf(stderr, "%s: register %d\n", __FUNCTION__, ret)
                 break@err
@@ -385,10 +385,11 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 fprintf(stderr, "%s: unregister %d\n", __FUNCTION__, ret)
                 break@err
             }
-            close_files(files, nr_files, 0)
+            close_files(files, nr_files, 0,__FUNCTION__)
             return 0
         } while (false)
-        close_files(files, nr_files, 0)
+
+        close_files(files, nr_files, 0,__FUNCTION__)
         return 1
     }
 
@@ -399,7 +400,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
         val __FUNCTION__ = "test_zero"
 
 
-        val files = open_files(0, 10, 0)
+        val files = open_files(0, 10, 0,__FUNCTION__)
         var ret = io_uring_register_files(ring, files.refTo(0), 10)
         var fds: IntArray? = null
         err@ do {
@@ -408,7 +409,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 break@err
             }
 
-            fds = open_files(1, 0, 1)
+            fds = open_files(1, 0, 1,__FUNCTION__)
             ret = io_uring_register_files_update(ring, 0, fds.refTo(0), 1)
             if (ret != 1) {
                 fprintf(stderr, "%s: update ret=%d\n", __FUNCTION__, ret)
@@ -420,12 +421,12 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 fprintf(stderr, "%s: unregister ret=%d\n", __FUNCTION__, ret)
                 break@err
             }
+            close_files(fds, 1, 1,__FUNCTION__)
             return 0
 
         } while (false)
 
-        if (fds != null) close_files(fds, 1, 1)
-
+        close_files(fds, 1, 1,__FUNCTION__)
         return 1
     }
 
@@ -524,7 +525,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
 
         adjust_nfiles(16384)
 
-        val files: IntArray = open_files(0, 8192, 0)
+        val files: IntArray = open_files(0, 8192, 0,__FUNCTION__)
         var ret = io_uring_register_files(ring, files.refTo(0), 8192)
         err@ do {
             out@ do {
@@ -579,7 +580,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
         val __FUNCTION__ = "test_skip"
 
 
-        val files = open_files(100, 0, 0)
+        val files = open_files(100, 0, 0,__FUNCTION__)
         var ret = io_uring_register_files(ring, files.refTo(0), 100)
         err@ do {
             done@ do {
@@ -614,10 +615,10 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                 }
 
             } while (false)
-            close_files(files, 100, 0)
+            close_files(files, 100, 0,__FUNCTION__)
             return 0
         } while (false)
-        close_files(files, 100, 0)
+        close_files(files, 100, 0,__FUNCTION__)
         return 1
     }
 
@@ -632,10 +633,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
             return ret
         }
 
-        val fds = IntArray(25)
-        for (i in 0 until 256)
-            fds[i] = -1
-
+        val fds = IntArray(256) { -1 }
         ret = io_uring_register_files(ring.ptr, fds.refTo(0), 256)
         if (ret.nz) {
             fprintf(stderr, "file_register: %d\n", ret)
@@ -643,7 +641,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
         }
 
         val newfd: IntVar = alloc { value = 1 }
-        for (i in 0 until 256) {
+        for (i: Int in 0 until 256) {
             ret = io_uring_register_files_update(ring.ptr, i.toUInt(), newfd.ptr, 1)
             if (ret != 1) {
                 fprintf(stderr, "file_update: %d\n", ret)
@@ -752,11 +750,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
 
 
     fun main(argc: Int): Int {
-        val __FUNCTION__ = "main"
-
         val ring: io_uring = alloc()
-
-
         var ret = io_uring_queue_init(8, ring.ptr, 0)
         if (ret.nz) {
             printf("ring setup failed\n")
@@ -855,12 +849,12 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
             printf("test_fixed_removal_ordering failed\n")
             return 1
         }
-
         return 0
     }
 }
 
 
 fun main(args: Array<String>) = memScoped {
-    exit(FileRegister().main(args.size))
+    val __status = FileRegister().main(args.size)
+    exit(__status )
 }
