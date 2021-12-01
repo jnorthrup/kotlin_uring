@@ -181,7 +181,7 @@ static int test_accept_timeout(int do_connect, unsigned long timeout) {
     struct io_uring ring;
     struct io_uring_params p = {};
 
-    
+
     pthread_t t1, t2;
     struct data d;
     void *tret;
