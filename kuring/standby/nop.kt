@@ -3,24 +3,26 @@
  * Description: run various nop tests
  *
  */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <fcntl.h>
 
-#include "liburing.h"
+//include "liburing.h"
 
-static int test_single_nop(struct io_uring *ring) {
-    struct io_uring_cqe *cqe;
-    struct io_uring_sqe *sqe;
-    int ret;
+fun test_single_nop(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="test_single_nop"
+
+    cqe:CPointer<io_uring_cqe>;
+    sqe:CPointer<io_uring_sqe>;
+    ret:Int;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
         fprintf(stderr, "get sqe failed\n");
-        goto err;
+        break@err;
     }
 
     io_uring_prep_nop(sqe);
@@ -28,13 +30,13 @@ static int test_single_nop(struct io_uring *ring) {
     ret = io_uring_submit(ring);
     if (ret <= 0) {
         fprintf(stderr, "sqe submit failed: %d\n", ret);
-        goto err;
+        break@err;
     }
 
-    ret = io_uring_wait_cqe(ring, &cqe);
+    ret = io_uring_wait_cqe(ring, cqe.ptr);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
-        goto err;
+        break@err;
     }
 
     io_uring_cqe_seen(ring, cqe);
@@ -43,37 +45,39 @@ static int test_single_nop(struct io_uring *ring) {
     return 1;
 }
 
-static int test_barrier_nop(struct io_uring *ring) {
-    struct io_uring_cqe *cqe;
-    struct io_uring_sqe *sqe;
-    int ret, i;
+fun test_barrier_nop(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="test_barrier_nop"
 
-    for (i = 0; i < 8; i++) {
+    cqe:CPointer<io_uring_cqe>;
+    sqe:CPointer<io_uring_sqe>;
+    ret:Int, i;
+
+    for (i in 0 until  8) {
         sqe = io_uring_get_sqe(ring);
         if (!sqe) {
             fprintf(stderr, "get sqe failed\n");
-            goto err;
+            break@err;
         }
 
         io_uring_prep_nop(sqe);
         if (i == 4)
-            sqe->flags = IOSQE_IO_DRAIN;
+            sqe.pointed.flags = IOSQE_IO_DRAIN;
     }
 
     ret = io_uring_submit(ring);
     if (ret < 0) {
         fprintf(stderr, "sqe submit failed: %d\n", ret);
-        goto err;
+        break@err;
     } else if (ret < 8) {
         fprintf(stderr, "Submitted only %d\n", ret);
-        goto err;
+        break@err;
     }
 
-    for (i = 0; i < 8; i++) {
-        ret = io_uring_wait_cqe(ring, &cqe);
+    for (i in 0 until  8) {
+        ret = io_uring_wait_cqe(ring, cqe.ptr);
         if (ret < 0) {
             fprintf(stderr, "wait completion %d\n", ret);
-            goto err;
+            break@err;
         }
         io_uring_cqe_seen(ring, cqe);
     }
@@ -83,26 +87,28 @@ static int test_barrier_nop(struct io_uring *ring) {
     return 1;
 }
 
-int main(int argc, char *argv[]) {
-    struct io_uring ring;
-    int ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    ring:io_uring;
+    ret:Int;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, &ring, 0);
+    ret = io_uring_queue_init(8, ring.ptr, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed: %d\n", ret);
         return 1;
     }
 
-    ret = test_single_nop(&ring);
+    ret = test_single_nop(ring.ptr);
     if (ret) {
         fprintf(stderr, "test_single_nop failed\n");
         return ret;
     }
 
-    ret = test_barrier_nop(&ring);
+    ret = test_barrier_nop(ring.ptr);
     if (ret) {
         fprintf(stderr, "test_barrier_nop failed\n");
         return ret;

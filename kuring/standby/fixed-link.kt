@@ -1,21 +1,23 @@
 /* SPDX-License-Identifier: MIT */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <sys/types.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <fcntl.h>
+//include <sys/types.h>
 
-#include "helpers.h"
-#include "liburing.h"
+//include "helpers.h"
+//include "liburing.h"
 
 #define IOVECS_LEN 2
 
-int main(int argc, char *argv[]) {
-    struct iovec iovecs[IOVECS_LEN];
-    struct io_uring ring;
-    int i, fd, ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    iovecs:iovec[IOVECS_LEN];
+    ring:io_uring;
+    i:Int, fd, ret;
 
     if (argc > 1)
         return 0;
@@ -26,26 +28,26 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (io_uring_queue_init(32, &ring, 0) < 0) {
+    if (io_uring_queue_init(32, ring.ptr, 0) < 0) {
         fprintf(stderr, "Faild to init io_uring\n");
         close(fd);
         return 1;
     }
 
-    for (i = 0; i < IOVECS_LEN; ++i) {
+    for (i in 0 until  IOVECS_LEN) {
         iovecs[i].iov_base = t_malloc(64);
         iovecs[i].iov_len = 64;
     };
 
-    ret = io_uring_register_buffers(&ring, iovecs, IOVECS_LEN);
+    ret = io_uring_register_buffers(ring.ptr, iovecs, IOVECS_LEN);
     if (ret) {
         fprintf(stderr, "Failed to register buffers\n");
         return 1;
     }
 
-    for (i = 0; i < IOVECS_LEN; ++i) {
-        struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
-        const char *str = "#include <errno.h>";
+    for (i in 0 until  IOVECS_LEN) {
+        sqe:CPointer<io_uring_sqe> = io_uring_get_sqe(ring.ptr);
+        str:String = "#include <errno.h>";
 
         iovecs[i].iov_len = strlen(str);
         io_uring_prep_read_fixed(sqe, fd, iovecs[i].iov_base, strlen(str), 0, i);
@@ -54,7 +56,7 @@ int main(int argc, char *argv[]) {
         io_uring_sqe_set_data(sqe, (void *) str);
     }
 
-    ret = io_uring_submit_and_wait(&ring, IOVECS_LEN);
+    ret = io_uring_submit_and_wait(ring.ptr, IOVECS_LEN);
     if (ret < 0) {
         fprintf(stderr, "Failed to submit IO\n");
         return 1;
@@ -63,26 +65,26 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    for (i = 0; i < IOVECS_LEN; i++) {
-        struct io_uring_cqe *cqe;
+    for (i in 0 until  IOVECS_LEN) {
+        cqe:CPointer<io_uring_cqe>;
 
-        ret = io_uring_wait_cqe(&ring, &cqe);
+        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
         if (ret) {
             fprintf(stderr, "wait_cqe=%d\n", ret);
             return 1;
         }
-        if (cqe->res != iovecs[i].iov_len) {
+        if (cqe.pointed.res != iovecs[i].iov_len) {
             fprintf(stderr, "read: wanted %ld, got %d\n",
-                    (long) iovecs[i].iov_len, cqe->res);
+                    (long) iovecs[i].iov_len, cqe.pointed.res);
             return 1;
         }
-        io_uring_cqe_seen(&ring, cqe);
+        io_uring_cqe_seen(ring.ptr, cqe);
     }
 
     close(fd);
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
 
-    for (i = 0; i < IOVECS_LEN; ++i)
+    for (i in 0 until  IOVECS_LEN)
         free(iovecs[i].iov_base);
 
     return 0;

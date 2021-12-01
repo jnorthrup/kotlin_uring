@@ -3,21 +3,21 @@
  *              process ended with or without closing the io_uring fd
  *
  */
-#include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-#include <signal.h>
-#include <sys/poll.h>
-#include <sys/wait.h>
-#include <sys/epoll.h>
+//include <errno.h>
+//include <fcntl.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <pthread.h>
+//include <stdbool.h>
+//include <stdlib.h>
+//include <string.h>
+//include <signal.h>
+//include <sys/poll.h>
+//include <sys/wait.h>
+//include <sys/epoll.h>
 
-#include "liburing.h"
-#include "helpers.h"
+//include "liburing.h"
+//include "helpers.h"
 
 #define SQ_THREAD_IDLE  2000
 #define BUF_SIZE        128
@@ -29,85 +29,87 @@ enum {
     TEST_FAILED = 2,
 };
 
-static int do_test_sq_poll_kthread_stopped(bool do_exit) {
-    int ret = 0, pipe1[2];
-    struct io_uring_params param;
-    struct io_uring ring;
-    struct io_uring_sqe *sqe;
-    struct io_uring_cqe *cqe;
-    uint8_t buf[BUF_SIZE];
-    struct iovec iov;
+fun do_test_sq_poll_kthread_stopped(do_exit:Boolean):Int{
+	val __FUNCTION__="do_test_sq_poll_kthread_stopped"
+
+    ret:Int = 0, pipe1[2];
+    param:io_uring_params;
+    ring:io_uring;
+    sqe:CPointer<io_uring_sqe>;
+    cqe:CPointer<io_uring_cqe>;
+    buf:uint8_t[BUF_SIZE];
+    iov:iovec;
 
     if (pipe(pipe1) != 0) {
         perror("pipe");
         return TEST_FAILED;
     }
 
-    memset(&param, 0, sizeof(param));
+    memset(param.ptr, 0, sizeof(param));
     param.flags |= IORING_SETUP_SQPOLL;
     param.sq_thread_idle = SQ_THREAD_IDLE;
 
-    ret = t_create_ring_params(16, &ring, &param);
+    ret = t_create_ring_params(16, ring.ptr, param.ptr);
     if (ret == T_SETUP_SKIP) {
         ret = TEST_FAILED;
-        goto err_pipe;
+        break@err_pipe;
     } else if (ret != T_SETUP_OK) {
         fprintf(stderr, "ring setup failed\n");
         ret = TEST_FAILED;
-        goto err_pipe;
+        break@err_pipe;
     }
 
-    ret = io_uring_register_files(&ring, &pipe1[1], 1);
+    ret = io_uring_register_files(ring.ptr, pipe1.ptr[1], 1);
     if (ret) {
         fprintf(stderr, "file reg failed: %d\n", ret);
         ret = TEST_FAILED;
-        goto err_uring;
+        break@err_uring;
     }
 
     iov.iov_base = buf;
     iov.iov_len = BUF_SIZE;
 
-    sqe = io_uring_get_sqe(&ring);
+    sqe = io_uring_get_sqe(ring.ptr);
     if (!sqe) {
         fprintf(stderr, "io_uring_get_sqe failed\n");
         ret = TEST_FAILED;
-        goto err_uring;
+        break@err_uring;
     }
 
-    io_uring_prep_writev(sqe, 0, &iov, 1, 0);
-    sqe->flags |= IOSQE_FIXED_FILE;
+    io_uring_prep_writev(sqe, 0, iov.ptr, 1, 0);
+    sqe.pointed.flags |= IOSQE_FIXED_FILE;
 
-    ret = io_uring_submit(&ring);
+    ret = io_uring_submit(ring.ptr);
     if (ret < 0) {
         fprintf(stderr, "io_uring_submit failed - ret: %d\n",
                 ret);
         ret = TEST_FAILED;
-        goto err_uring;
+        break@err_uring;
     }
 
-    ret = io_uring_wait_cqe(&ring, &cqe);
+    ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
     if (ret < 0) {
         fprintf(stderr, "io_uring_wait_cqe - ret: %d\n",
                 ret);
         ret = TEST_FAILED;
-        goto err_uring;
+        break@err_uring;
     }
 
-    if (cqe->res != BUF_SIZE) {
-        fprintf(stderr, "unexpected cqe->res %d [expected %d]\n",
-                cqe->res, BUF_SIZE);
+    if (cqe.pointed.res != BUF_SIZE) {
+        fprintf(stderr, "unexpected cqe.pointed.res %d [expected %d]\n",
+                cqe.pointed.res, BUF_SIZE);
         ret = TEST_FAILED;
-        goto err_uring;
+        break@err_uring;
 
     }
 
-    io_uring_cqe_seen(&ring, cqe);
+    io_uring_cqe_seen(ring.ptr, cqe);
 
     ret = TEST_OK;
 
     err_uring:
     if (do_exit)
-        io_uring_queue_exit(&ring);
+        io_uring_queue_exit(ring.ptr);
     err_pipe:
     close(pipe1[0]);
     close(pipe1[1]);
@@ -115,23 +117,25 @@ static int do_test_sq_poll_kthread_stopped(bool do_exit) {
     return ret;
 }
 
-int test_sq_poll_kthread_stopped(bool do_exit) {
-    pid_t pid;
-    int status = 0;
+fun test_sq_poll_kthread_stopped(do_exit:Boolean):Int{
+	val __FUNCTION__="test_sq_poll_kthread_stopped"
+
+    pid:pid_t;
+    status:Int = 0;
 
     pid = fork();
 
     if (pid == 0) {
-        int ret = do_test_sq_poll_kthread_stopped(do_exit);
+        ret:Int = do_test_sq_poll_kthread_stopped(do_exit);
         exit(ret);
     }
 
-    pid = wait(&status);
+    pid = wait(status.ptr);
     if (status != 0)
         return WEXITSTATUS(status);
 
     sleep(1);
-    if (system("ps --ppid 2 | grep " KTHREAD_NAME) == 0) {
+    if (system("ps --ppid  2 or grep  " KTHREAD_NAME) == 0) {
         fprintf(stderr, "%s kthread still running!\n", KTHREAD_NAME);
         return TEST_FAILED;
     }
@@ -139,8 +143,10 @@ int test_sq_poll_kthread_stopped(bool do_exit) {
     return 0;
 }
 
-int main(int argc, char *argv[]) {
-    int ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    ret:Int;
 
     if (argc > 1)
         return 0;

@@ -1,35 +1,37 @@
 /* SPDX-License-Identifier: MIT */
 /*
  * Test reads that will punt to blocking context, with immediate overwrite
- * of iovec->iov_base to NULL. If the kernel doesn't properly handle
+ * of iovec.pointed.iov_base to NULL. If the kernel doesn't properly handle
  * reuse of the iovec, we should get -EFAULT.
  */
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <sys/time.h>
+//include <unistd.h>
+//include <fcntl.h>
+//include <stdio.h>
+//include <string.h>
+//include <stdlib.h>
+//include <pthread.h>
+//include <sys/time.h>
 
-#include "helpers.h"
-#include "liburing.h"
+//include "helpers.h"
+//include "liburing.h"
 
 #define STR_SIZE    32768
 #define FILE_SIZE    65536
 
 struct thread_data {
-    int fd1, fd2;
-    volatile int do_exit;
+    fd1:Int, fd2;
+    volatile do_exit:Int;
 };
 
-static void *flusher(void *__data) {
-    struct thread_data *data = __data;
-    int i = 0;
+fun flusher(void:CPointer<ByteVar>__data:CPointer<void>{
+	val __FUNCTION__="flusher"
 
-    while (!data->do_exit) {
-        posix_fadvise(data->fd1, 0, FILE_SIZE, POSIX_FADV_DONTNEED);
-        posix_fadvise(data->fd2, 0, FILE_SIZE, POSIX_FADV_DONTNEED);
+    data:CPointer<thread_data> = __data;
+    i:Int = 0;
+
+    while (!data.pointed.do_exit) {
+        posix_fadvise(data.pointed.fd1, 0, FILE_SIZE, POSIX_FADV_DONTNEED);
+        posix_fadvise(data.pointed.fd2, 0, FILE_SIZE, POSIX_FADV_DONTNEED);
         usleep(10);
         i++;
     }
@@ -40,20 +42,22 @@ static void *flusher(void *__data) {
 static char str1[STR_SIZE];
 static char str2[STR_SIZE];
 
-static struct io_uring ring;
+static ring:io_uring;
 
-static int no_stable;
+static no_stable:Int;
 
-static int prep(int fd, char *str, int split, int async) {
-    struct io_uring_sqe *sqe;
-    struct iovec iovs[16];
-    int ret, i;
+fun prep(fd:Int, char:CPointer<ByteVar>str split:Int, async:Int):Int{
+	val __FUNCTION__="prep"
+
+    sqe:CPointer<io_uring_sqe>;
+    iovs:iovec[16];
+    ret:Int, i;
 
     if (split) {
-        int vsize = STR_SIZE / 16;
-        void *ptr = str;
+        vsize:Int = STR_SIZE / 16;
+        void:CPointer<ByteVar>ptr= str;
 
-        for (i = 0; i < 16; i++) {
+        for (i in 0 until  16) {
             iovs[i].iov_base = ptr;
             iovs[i].iov_len = vsize;
             ptr += vsize;
@@ -63,18 +67,18 @@ static int prep(int fd, char *str, int split, int async) {
         iovs[0].iov_len = STR_SIZE;
     }
 
-    sqe = io_uring_get_sqe(&ring);
+    sqe = io_uring_get_sqe(ring.ptr);
     io_uring_prep_readv(sqe, fd, iovs, split ? 16 : 1, 0);
-    sqe->user_data = fd;
+    sqe.pointed.user_data = fd;
     if (async)
-        sqe->flags = IOSQE_ASYNC;
-    ret = io_uring_submit(&ring);
+        sqe.pointed.flags = IOSQE_ASYNC;
+    ret = io_uring_submit(ring.ptr);
     if (ret != 1) {
         fprintf(stderr, "submit got %d\n", ret);
         return 1;
     }
     if (split) {
-        for (i = 0; i < 16; i++)
+        for (i in 0 until  16)
             iovs[i].iov_base = NULL;
     } else {
         iovs[0].iov_base = NULL;
@@ -82,31 +86,33 @@ static int prep(int fd, char *str, int split, int async) {
     return 0;
 }
 
-static int wait_nr(int nr) {
-    int i, ret;
+fun wait_nr(nr:Int):Int{
+	val __FUNCTION__="wait_nr"
 
-    for (i = 0; i < nr; i++) {
-        struct io_uring_cqe *cqe;
+    i:Int, ret;
 
-        ret = io_uring_wait_cqe(&ring, &cqe);
+    for (i in 0 until  nr) {
+        cqe:CPointer<io_uring_cqe>;
+
+        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
         if (ret)
             return ret;
-        if (cqe->res < 0) {
-            fprintf(stderr, "cqe->res=%d\n", cqe->res);
+        if (cqe.pointed.res < 0) {
+            fprintf(stderr, "cqe.pointed.res=%d\n", cqe.pointed.res);
             return 1;
         }
-        io_uring_cqe_seen(&ring, cqe);
+        io_uring_cqe_seen(ring.ptr, cqe);
     }
 
     return 0;
 }
 
-static unsigned long long mtime_since(const struct timeval *s,
-        const struct timeval *e) {
-    long long sec, usec;
+static mtime_since:ULong (const s:CPointer<timeval>,
+        const e:CPointer<timeval>) {
+    sec:Long, usec;
 
-    sec = e->tv_sec - s->tv_sec;
-    usec = (e->tv_usec - s->tv_usec);
+    sec = e.pointed.tv_sec - s.pointed.tv_sec;
+    usec = (e.pointed.tv_usec - s.pointed.tv_usec);
     if (sec > 0 && usec < 0) {
         sec--;
         usec += 1000000;
@@ -117,32 +123,34 @@ static unsigned long long mtime_since(const struct timeval *s,
     return sec + usec;
 }
 
-static unsigned long long mtime_since_now(struct timeval *tv) {
-    struct timeval end;
+unsigned mtime_since_now:Long(tv:CPointer<timeval>) {
+    end:timeval;
 
-    gettimeofday(&end, NULL);
-    return mtime_since(tv, &end);
+    gettimeofday(end.ptr, NULL);
+    return mtime_since(tv, end.ptr);
 }
 
-static int test_reuse(int argc, char *argv[], int split, int async) {
-    struct thread_data data;
-    struct io_uring_params p = {};
-    int fd1, fd2, ret, i;
-    struct timeval tv;
-    pthread_t thread;
-    char *fname1 = ".reuse.1";
-    int do_unlink = 1;
-    void *tret;
+fun test_reuse(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>, split:Int, async:Int):Int{
+	val __FUNCTION__="test_reuse"
 
-    ret = io_uring_queue_init_params(32, &ring, &p);
+    data:thread_data;
+    p:io_uring_params = {};
+    fd1:Int, fd2, ret, i;
+    tv:timeval;
+    thread:pthread_t;
+    char:CPointer<ByteVar>fname1= ".reuse.1";
+    do_unlink:Int = 1;
+    void:CPointer<ByteVar>tret
+
+    ret = io_uring_queue_init_params(32, ring.ptr, p.ptr);
     if (ret) {
         fprintf(stderr, "io_uring_queue_init: %d\n", ret);
         return 1;
     }
 
-    if (!(p.features & IORING_FEAT_SUBMIT_STABLE)) {
+    if (!(p. features and IORING_FEAT_SUBMIT_STABLE )) {
         fprintf(stdout, "FEAT_SUBMIT_STABLE not there, skipping\n");
-        io_uring_queue_exit(&ring);
+        io_uring_queue_exit(ring.ptr);
         no_stable = 1;
         return 0;
     }
@@ -159,7 +167,7 @@ static int test_reuse(int argc, char *argv[], int split, int async) {
         unlink(fname1);
     if (fd1 < 0) {
         perror("open fname1");
-        goto err;
+        break@err;
     }
 
     t_create_file(".reuse.2", FILE_SIZE);
@@ -167,57 +175,59 @@ static int test_reuse(int argc, char *argv[], int split, int async) {
     unlink(".reuse.2");
     if (fd2 < 0) {
         perror("open .reuse.2");
-        goto err;
+        break@err;
     }
 
     data.fd1 = fd1;
     data.fd2 = fd2;
     data.do_exit = 0;
-    pthread_create(&thread, NULL, flusher, &data);
+    pthread_create(thread.ptr, NULL, flusher, data.ptr);
     usleep(10000);
 
-    gettimeofday(&tv, NULL);
-    for (i = 0; i < 1000; i++) {
+    gettimeofday(tv.ptr, NULL);
+    for (i in 0 until  1000) {
         ret = prep(fd1, str1, split, async);
         if (ret) {
             fprintf(stderr, "prep1 failed: %d\n", ret);
-            goto err;
+            break@err;
         }
         ret = prep(fd2, str2, split, async);
         if (ret) {
             fprintf(stderr, "prep1 failed: %d\n", ret);
-            goto err;
+            break@err;
         }
         ret = wait_nr(2);
         if (ret) {
             fprintf(stderr, "wait_nr: %d\n", ret);
-            goto err;
+            break@err;
         }
-        if (mtime_since_now(&tv) > 5000)
+        if (mtime_since_now(tv.ptr) > 5000)
             break;
     }
 
     data.do_exit = 1;
-    pthread_join(thread, &tret);
+    pthread_join(thread, tret.ptr);
 
     close(fd2);
     close(fd1);
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return 0;
     err:
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return 1;
 
 }
 
-int main(int argc, char *argv[]) {
-    int ret, i;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
 
-    for (i = 0; i < 4; i++) {
-        int split, async;
+    ret:Int, i;
 
-        split = (i & 1) != 0;
-        async = (i & 2) != 0;
+    for (i in 0 until  4) {
+        split:Int, async;
+
+        split = ( i and 1 ) != 0;
+        async = ( i and 2 ) != 0;
 
         ret = test_reuse(argc, argv, split, async);
         if (ret) {

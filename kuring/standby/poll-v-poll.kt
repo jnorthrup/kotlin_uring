@@ -3,36 +3,38 @@
  * Description: test io_uring poll handling
  *
  */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <signal.h>
-#include <fcntl.h>
-#include <sys/poll.h>
-#include <sys/wait.h>
-#include <sys/select.h>
-#include <pthread.h>
-#include <sys/epoll.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <signal.h>
+//include <fcntl.h>
+//include <sys/poll.h>
+//include <sys/wait.h>
+//include <sys/select.h>
+//include <pthread.h>
+//include <sys/epoll.h>
 
-#include "liburing.h"
+//include "liburing.h"
 
 struct thread_data {
-    struct io_uring *ring;
-    int fd;
-    int events;
-    const char *test;
-    int out[2];
+    ring:CPointer<io_uring>;
+    fd:Int;
+    events:Int;
+    test:String;
+    out:Int[2];
 };
 
-static void *epoll_wait_fn(void *data) {
-    struct thread_data *td = data;
-    struct epoll_event ev;
+fun epoll_wait_fn(void:CPointer<ByteVar>data:CPointer<void>{
+	val __FUNCTION__="epoll_wait_fn"
 
-    if (epoll_wait(td->fd, &ev, 1, -1) < 0) {
+    td:CPointer<thread_data> = data;
+    ev:epoll_event;
+
+    if (epoll_wait(td.pointed.fd, ev.ptr, 1, -1) < 0) {
         perror("epoll_wait");
-        goto err;
+        break@err;
     }
 
     return NULL;
@@ -40,54 +42,60 @@ static void *epoll_wait_fn(void *data) {
     return (void *) 1;
 }
 
-static void *iou_poll(void *data) {
-    struct thread_data *td = data;
-    struct io_uring_sqe *sqe;
-    struct io_uring_cqe *cqe;
-    int ret;
+fun iou_poll(void:CPointer<ByteVar>data:CPointer<void>{
+	val __FUNCTION__="iou_poll"
 
-    sqe = io_uring_get_sqe(td->ring);
-    io_uring_prep_poll_add(sqe, td->fd, td->events);
+    td:CPointer<thread_data> = data;
+    sqe:CPointer<io_uring_sqe>;
+    cqe:CPointer<io_uring_cqe>;
+    ret:Int;
 
-    ret = io_uring_submit(td->ring);
+    sqe = io_uring_get_sqe(td.pointed.ring);
+    io_uring_prep_poll_add(sqe, td.pointed.fd, td.pointed.events);
+
+    ret = io_uring_submit(td.pointed.ring);
     if (ret != 1) {
         fprintf(stderr, "submit got %d\n", ret);
-        goto err;
+        break@err;
     }
 
-    ret = io_uring_wait_cqe(td->ring, &cqe);
+    ret = io_uring_wait_cqe(td.pointed.ring, cqe.ptr);
     if (ret) {
         fprintf(stderr, "wait_cqe: %d\n", ret);
-        goto err;
+        break@err;
     }
 
-    td->out[0] = cqe->res & 0x3f;
-    io_uring_cqe_seen(td->ring, cqe);
+    td.pointed.out[0] = cqe.pointed. res and 0x3f ;
+    io_uring_cqe_seen(td.pointed.ring, cqe);
     return NULL;
     err:
     return (void *) 1;
 }
 
-static void *poll_pipe(void *data) {
-    struct thread_data *td = data;
-    struct pollfd pfd;
-    int ret;
+fun poll_pipe(void:CPointer<ByteVar>data:CPointer<void>{
+	val __FUNCTION__="poll_pipe"
 
-    pfd.fd = td->fd;
-    pfd.events = td->events;
+    td:CPointer<thread_data> = data;
+    pfd:pollfd;
+    ret:Int;
 
-    ret = poll(&pfd, 1, -1);
+    pfd.fd = td.pointed.fd;
+    pfd.events = td.pointed.events;
+
+    ret = poll(pfd.ptr, 1, -1);
     if (ret < 0)
         perror("poll");
 
-    td->out[1] = pfd.revents;
+    td.pointed.out[1] = pfd.revents;
     return NULL;
 }
 
-static int do_pipe_pollin_test(struct io_uring *ring) {
-    struct thread_data td;
-    pthread_t threads[2];
-    int ret, pipe1[2];
+fun do_pipe_pollin_test(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="do_pipe_pollin_test"
+
+    td:thread_data;
+    threads:pthread_t[2];
+    ret:Int, pipe1[2];
     char buf;
 
     if (pipe(pipe1) < 0) {
@@ -100,12 +108,12 @@ static int do_pipe_pollin_test(struct io_uring *ring) {
     td.events = POLLIN;
     td.test = __FUNCTION__;
 
-    pthread_create(&threads[1], NULL, iou_poll, &td);
-    pthread_create(&threads[0], NULL, poll_pipe, &td);
+    pthread_create(threads.ptr[1], NULL, iou_poll, td.ptr);
+    pthread_create(threads.ptr[0], NULL, poll_pipe, td.ptr);
     usleep(100000);
 
     buf = 0x89;
-    ret = write(pipe1[1], &buf, sizeof(buf));
+    ret = write(pipe1[1], buf.ptr, sizeof(buf));
     if (ret != sizeof(buf)) {
         fprintf(stderr, "write failed: %d\n", ret);
         return 1;
@@ -122,10 +130,12 @@ static int do_pipe_pollin_test(struct io_uring *ring) {
     return 0;
 }
 
-static int do_pipe_pollout_test(struct io_uring *ring) {
-    struct thread_data td;
-    pthread_t threads[2];
-    int ret, pipe1[2];
+fun do_pipe_pollout_test(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="do_pipe_pollout_test"
+
+    td:thread_data;
+    threads:pthread_t[2];
+    ret:Int, pipe1[2];
     char buf;
 
     if (pipe(pipe1) < 0) {
@@ -138,12 +148,12 @@ static int do_pipe_pollout_test(struct io_uring *ring) {
     td.events = POLLOUT;
     td.test = __FUNCTION__;
 
-    pthread_create(&threads[0], NULL, poll_pipe, &td);
-    pthread_create(&threads[1], NULL, iou_poll, &td);
+    pthread_create(threads.ptr[0], NULL, poll_pipe, td.ptr);
+    pthread_create(threads.ptr[1], NULL, iou_poll, td.ptr);
     usleep(100000);
 
     buf = 0x89;
-    ret = write(pipe1[1], &buf, sizeof(buf));
+    ret = write(pipe1[1], buf.ptr, sizeof(buf));
     if (ret != sizeof(buf)) {
         fprintf(stderr, "write failed: %d\n", ret);
         return 1;
@@ -161,10 +171,12 @@ static int do_pipe_pollout_test(struct io_uring *ring) {
     return 0;
 }
 
-static int do_fd_test(struct io_uring *ring, const char *fname, int events) {
-    struct thread_data td;
-    pthread_t threads[2];
-    int fd;
+fun do_fd_test(ring:CPointer<io_uring>, fname:String, events:Int):Int{
+	val __FUNCTION__="do_fd_test"
+
+    td:thread_data;
+    threads:pthread_t[2];
+    fd:Int;
 
     fd = open(fname, O_RDONLY);
     if (fd < 0) {
@@ -177,8 +189,8 @@ static int do_fd_test(struct io_uring *ring, const char *fname, int events) {
     td.events = events;
     td.test = __FUNCTION__;
 
-    pthread_create(&threads[0], NULL, poll_pipe, &td);
-    pthread_create(&threads[1], NULL, iou_poll, &td);
+    pthread_create(threads.ptr[0], NULL, poll_pipe, td.ptr);
+    pthread_create(threads.ptr[1], NULL, iou_poll, td.ptr);
 
     pthread_join(threads[0], NULL);
     pthread_join(threads[1], NULL);
@@ -192,11 +204,11 @@ static int do_fd_test(struct io_uring *ring, const char *fname, int events) {
     return 0;
 }
 
-static int iou_epoll_ctl(struct io_uring *ring, int epfd, int fd,
-        struct epoll_event *ev) {
-    struct io_uring_sqe *sqe;
-    struct io_uring_cqe *cqe;
-    int ret;
+static iou_epoll_ctl:Int(ring:CPointer<io_uring>, epfd:Int, fd:Int,
+        ev:CPointer<epoll_event>) {
+    sqe:CPointer<io_uring_sqe>;
+    cqe:CPointer<io_uring_cqe>;
+    ret:Int;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -212,24 +224,26 @@ static int iou_epoll_ctl(struct io_uring *ring, int epfd, int fd,
         return 1;
     }
 
-    ret = io_uring_wait_cqe(ring, &cqe);
+    ret = io_uring_wait_cqe(ring, cqe.ptr);
     if (ret) {
         fprintf(stderr, "wait_cqe: %d\n", ret);
         return 1;
     }
 
-    ret = cqe->res;
+    ret = cqe.pointed.res;
     io_uring_cqe_seen(ring, cqe);
     return ret;
 }
 
-static int do_test_epoll(struct io_uring *ring, int iou_epoll_add) {
-    struct epoll_event ev;
-    struct thread_data td;
-    pthread_t threads[2];
-    int ret, pipe1[2];
+fun do_test_epoll(ring:CPointer<io_uring>, iou_epoll_add:Int):Int{
+	val __FUNCTION__="do_test_epoll"
+
+    ev:epoll_event;
+    td:thread_data;
+    threads:pthread_t[2];
+    ret:Int, pipe1[2];
     char buf;
-    int fd;
+    fd:Int;
 
     fd = epoll_create1(0);
     if (fd < 0) {
@@ -246,12 +260,12 @@ static int do_test_epoll(struct io_uring *ring, int iou_epoll_add) {
     ev.data.fd = pipe1[0];
 
     if (!iou_epoll_add) {
-        if (epoll_ctl(fd, EPOLL_CTL_ADD, pipe1[0], &ev) < 0) {
+        if (epoll_ctl(fd, EPOLL_CTL_ADD, pipe1[0], ev.ptr) < 0) {
             perror("epoll_ctrl");
             return 1;
         }
     } else {
-        ret = iou_epoll_ctl(ring, fd, pipe1[0], &ev);
+        ret = iou_epoll_ctl(ring, fd, pipe1[0], ev.ptr);
         if (ret == -EINVAL) {
             fprintf(stdout, "epoll not supported, skipping\n");
             return 0;
@@ -265,12 +279,12 @@ static int do_test_epoll(struct io_uring *ring, int iou_epoll_add) {
     td.events = POLLIN;
     td.test = __FUNCTION__;
 
-    pthread_create(&threads[0], NULL, iou_poll, &td);
-    pthread_create(&threads[1], NULL, epoll_wait_fn, &td);
+    pthread_create(threads.ptr[0], NULL, iou_poll, td.ptr);
+    pthread_create(threads.ptr[1], NULL, epoll_wait_fn, td.ptr);
     usleep(100000);
 
     buf = 0x89;
-    ret = write(pipe1[1], &buf, sizeof(buf));
+    ret = write(pipe1[1], buf.ptr, sizeof(buf));
     if (ret != sizeof(buf)) {
         fprintf(stderr, "write failed: %d\n", ret);
         return 1;
@@ -281,36 +295,38 @@ static int do_test_epoll(struct io_uring *ring, int iou_epoll_add) {
     return 0;
 }
 
-int main(int argc, char *argv[]) {
-    struct io_uring ring;
-    const char *fname;
-    int ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
 
-    ret = io_uring_queue_init(1, &ring, 0);
+    ring:io_uring;
+    fname:String;
+    ret:Int;
+
+    ret = io_uring_queue_init(1, ring.ptr, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
     }
 
-    ret = do_pipe_pollin_test(&ring);
+    ret = do_pipe_pollin_test(ring.ptr);
     if (ret) {
         fprintf(stderr, "pipe pollin test failed\n");
         return ret;
     }
 
-    ret = do_pipe_pollout_test(&ring);
+    ret = do_pipe_pollout_test(ring.ptr);
     if (ret) {
         fprintf(stderr, "pipe pollout test failed\n");
         return ret;
     }
 
-    ret = do_test_epoll(&ring, 0);
+    ret = do_test_epoll(ring.ptr, 0);
     if (ret) {
         fprintf(stderr, "epoll test 0 failed\n");
         return ret;
     }
 
-    ret = do_test_epoll(&ring, 1);
+    ret = do_test_epoll(ring.ptr, 1);
     if (ret) {
         fprintf(stderr, "epoll test 1 failed\n");
         return ret;
@@ -321,21 +337,21 @@ int main(int argc, char *argv[]) {
     else
         fname = argv[0];
 
-    ret = do_fd_test(&ring, fname, POLLIN);
+    ret = do_fd_test(ring.ptr, fname, POLLIN);
     if (ret) {
         fprintf(stderr, "fd test IN failed\n");
         return ret;
     }
 
-    ret = do_fd_test(&ring, fname, POLLOUT);
+    ret = do_fd_test(ring.ptr, fname, POLLOUT);
     if (ret) {
         fprintf(stderr, "fd test OUT failed\n");
         return ret;
     }
 
-    ret = do_fd_test(&ring, fname, POLLOUT | POLLIN);
+    ret = do_fd_test(ring.ptr, fname,  POLLOUT or POLLIN );
     if (ret) {
-        fprintf(stderr, "fd test IN|OUT failed\n");
+        fprintf(stderr, "fd test  IN or OUT  failed\n");
         return ret;
     }
 

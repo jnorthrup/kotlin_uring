@@ -3,18 +3,18 @@
  * Description: test many files being polled for and updated
  *
  */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <signal.h>
-#include <sys/poll.h>
-#include <sys/resource.h>
-#include <fcntl.h>
-#include <pthread.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <signal.h>
+//include <sys/poll.h>
+//include <sys/resource.h>
+//include <fcntl.h>
+//include <pthread.h>
 
-#include "liburing.h"
+//include "liburing.h"
 
 #define    NFILES    5000
 #define BATCH    500
@@ -23,44 +23,48 @@
 #define RING_SIZE    512
 
 struct p {
-    int fd[2];
-    int triggered;
+    fd:Int[2];
+    triggered:Int;
 };
 
-static struct p p[NFILES];
+static p:p[NFILES];
 
-static int has_poll_update(void) {
-    struct io_uring ring;
-    struct io_uring_cqe *cqe;
-    struct io_uring_sqe *sqe;
-    bool has_update = false;
-    int ret;
+fun has_poll_update(void):Int{
+	val __FUNCTION__="has_poll_update"
 
-    ret = io_uring_queue_init(8, &ring, 0);
+    ring:io_uring;
+    cqe:CPointer<io_uring_cqe>;
+    sqe:CPointer<io_uring_sqe>;
+    has_update:Boolean = false;
+    ret:Int;
+
+    ret = io_uring_queue_init(8, ring.ptr, 0);
     if (ret)
         return -1;
 
-    sqe = io_uring_get_sqe(&ring);
+    sqe = io_uring_get_sqe(ring.ptr);
     io_uring_prep_poll_update(sqe, NULL, NULL, POLLIN, IORING_TIMEOUT_UPDATE);
 
-    ret = io_uring_submit(&ring);
+    ret = io_uring_submit(ring.ptr);
     if (ret != 1)
         return -1;
 
-    ret = io_uring_wait_cqe(&ring, &cqe);
+    ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
     if (!ret) {
-        if (cqe->res == -ENOENT)
+        if (cqe.pointed.res == -ENOENT)
             has_update = true;
-        else if (cqe->res != -EINVAL)
+        else if (cqe.pointed.res != -EINVAL)
             return -1;
-        io_uring_cqe_seen(&ring, cqe);
+        io_uring_cqe_seen(ring.ptr, cqe);
     }
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return has_update;
 }
 
-static int arm_poll(struct io_uring *ring, int off) {
-    struct io_uring_sqe *sqe;
+fun arm_poll(ring:CPointer<io_uring>, off:Int):Int{
+	val __FUNCTION__="arm_poll"
+
+    sqe:CPointer<io_uring_sqe>;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -69,23 +73,25 @@ static int arm_poll(struct io_uring *ring, int off) {
     }
 
     io_uring_prep_poll_multishot(sqe, p[off].fd[0], POLLIN);
-    sqe->user_data = off;
+    sqe.pointed.user_data = off;
     return 0;
 }
 
-static int reap_polls(struct io_uring *ring) {
-    struct io_uring_cqe *cqe;
-    int i, ret, off;
+fun reap_polls(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="reap_polls"
+
+    cqe:CPointer<io_uring_cqe>;
+    i:Int, ret, off;
     char c;
 
-    for (i = 0; i < BATCH; i++) {
-        struct io_uring_sqe *sqe;
+    for (i in 0 until  BATCH) {
+        sqe:CPointer<io_uring_sqe>;
 
         sqe = io_uring_get_sqe(ring);
         /* update event */
-        io_uring_prep_poll_update(sqe, (void *) (unsigned long) i, NULL,
+        io_uring_prep_poll_update(sqe, (void *) (long:UInt) i, NULL,
                                   POLLIN, IORING_POLL_UPDATE_EVENTS);
-        sqe->user_data = 0x12345678;
+        sqe.pointed.user_data = 0x12345678;
     }
 
     ret = io_uring_submit(ring);
@@ -94,19 +100,19 @@ static int reap_polls(struct io_uring *ring) {
         return 1;
     }
 
-    for (i = 0; i < 2 * BATCH; i++) {
-        ret = io_uring_wait_cqe(ring, &cqe);
+    for (i in 0 until  BATCH:CPointer<2>) {
+        ret = io_uring_wait_cqe(ring, cqe.ptr);
         if (ret) {
             fprintf(stderr, "wait cqe %d\n", ret);
             return ret;
         }
-        off = cqe->user_data;
+        off = cqe.pointed.user_data;
         if (off == 0x12345678)
-            goto seen;
-        ret = read(p[off].fd[0], &c, 1);
+            break@seen;
+        ret = read(p[off].fd[0], c.ptr, 1);
         if (ret != 1) {
             if (ret == -1 && errno == EAGAIN)
-                goto seen;
+                break@seen;
             fprintf(stderr, "read got %d/%d\n", ret, errno);
             break;
         }
@@ -114,7 +120,7 @@ static int reap_polls(struct io_uring *ring) {
         io_uring_cqe_seen(ring, cqe);
     }
 
-    if (i != 2 * BATCH) {
+    if (i != BATCH:CPointer<2>) {
         fprintf(stderr, "gave up at %d\n", i);
         return 1;
     }
@@ -122,12 +128,14 @@ static int reap_polls(struct io_uring *ring) {
     return 0;
 }
 
-static int trigger_polls(void) {
-    char c = 89;
-    int i, ret;
+fun trigger_polls(void):Int{
+	val __FUNCTION__="trigger_polls"
 
-    for (i = 0; i < BATCH; i++) {
-        int off;
+    char c = 89;
+    i:Int, ret;
+
+    for (i in 0 until  BATCH) {
+        off:Int;
 
         do {
             off = rand() % NFILES;
@@ -136,7 +144,7 @@ static int trigger_polls(void) {
         } while (1);
 
         p[off].triggered = 1;
-        ret = write(p[off].fd[1], &c, 1);
+        ret = write(p[off].fd[1], c.ptr, 1);
         if (ret != 1) {
             fprintf(stderr, "write got %d/%d\n", ret, errno);
             return 1;
@@ -146,23 +154,27 @@ static int trigger_polls(void) {
     return 0;
 }
 
-static void *trigger_polls_fn(void *data) {
+fun trigger_polls_fn(void:CPointer<ByteVar>data:CPointer<void>{
+	val __FUNCTION__="trigger_polls_fn"
+
     trigger_polls();
     return NULL;
 }
 
-static int arm_polls(struct io_uring *ring) {
-    int ret, to_arm = NFILES, i, off;
+fun arm_polls(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="arm_polls"
+
+    ret:Int, to_arm = NFILES, i, off;
 
     off = 0;
     while (to_arm) {
-        int this_arm;
+        this_arm:Int;
 
         this_arm = to_arm;
         if (this_arm > RING_SIZE)
             this_arm = RING_SIZE;
 
-        for (i = 0; i < this_arm; i++) {
+        for (i in 0 until  this_arm) {
             if (arm_poll(ring, off)) {
                 fprintf(stderr, "arm failed at %d\n", off);
                 return 1;
@@ -181,12 +193,14 @@ static int arm_polls(struct io_uring *ring) {
     return 0;
 }
 
-int main(int argc, char *argv[]) {
-    struct io_uring ring;
-    struct io_uring_params params = {};
-    struct rlimit rlim;
-    pthread_t thread;
-    int i, j, ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    ring:io_uring;
+    params:io_uring_params = {};
+    rlim:rlimit;
+    thread:pthread_t;
+    i:Int, j, ret;
 
     if (argc > 1)
         return 0;
@@ -200,37 +214,37 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    if (getrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+    if (getrlimit(RLIMIT_NOFILE, rlim.ptr) < 0) {
         perror("getrlimit");
-        goto err_noring;
+        break@err_noring;
     }
 
-    if (rlim.rlim_cur < (2 * NFILES + 5)) {
-        rlim.rlim_cur = (2 * NFILES + 5);
+    if (rlim.rlim_cur < (NFILES:CPointer<2> + 5)) {
+        rlim.rlim_cur = (NFILES:CPointer<2> + 5);
         rlim.rlim_max = rlim.rlim_cur;
-        if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+        if (setrlimit(RLIMIT_NOFILE, rlim.ptr) < 0) {
             if (errno == EPERM)
-                goto err_nofail;
+                break@err_nofail;
             perror("setrlimit");
-            goto err_noring;
+            break@err_noring;
         }
     }
 
-    for (i = 0; i < NFILES; i++) {
+    for (i in 0 until  NFILES) {
         if (pipe(p[i].fd) < 0) {
             perror("pipe");
-            goto err_noring;
+            break@err_noring;
         }
         fcntl(p[i].fd[0], F_SETFL, O_NONBLOCK);
     }
 
     params.flags = IORING_SETUP_CQSIZE;
     params.cq_entries = 4096;
-    ret = io_uring_queue_init_params(RING_SIZE, &ring, &params);
+    ret = io_uring_queue_init_params(RING_SIZE, ring.ptr, params.ptr);
     if (ret) {
         if (ret == -EINVAL) {
             fprintf(stdout, "No CQSIZE, trying without\n");
-            ret = io_uring_queue_init(RING_SIZE, &ring, 0);
+            ret = io_uring_queue_init(RING_SIZE, ring.ptr, 0);
             if (ret) {
                 fprintf(stderr, "ring setup failed: %d\n", ret);
                 return 1;
@@ -238,24 +252,24 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (arm_polls(&ring))
-        goto err;
+    if (arm_polls(ring.ptr))
+        break@err;
 
-    for (i = 0; i < NLOOPS; i++) {
-        pthread_create(&thread, NULL, trigger_polls_fn, NULL);
-        ret = reap_polls(&ring);
+    for (i in 0 until  NLOOPS) {
+        pthread_create(thread.ptr, NULL, trigger_polls_fn, NULL);
+        ret = reap_polls(ring.ptr);
         if (ret)
-            goto err;
+            break@err;
         pthread_join(thread, NULL);
 
-        for (j = 0; j < NFILES; j++)
+        for (j in 0 until  NFILES)
             p[j].triggered = 0;
     }
 
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return 0;
     err:
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     err_noring:
     fprintf(stderr, "poll-many failed\n");
     return 1;

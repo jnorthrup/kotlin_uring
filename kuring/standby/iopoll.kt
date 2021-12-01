@@ -2,34 +2,36 @@
 /*
  * Description: basic read/write tests with polled IO
  */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/poll.h>
-#include <sys/eventfd.h>
-#include <sys/resource.h>
-#include "helpers.h"
-#include "liburing.h"
-#include "../src/syscall.h"
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <fcntl.h>
+//include <sys/types.h>
+//include <sys/poll.h>
+//include <sys/eventfd.h>
+//include <sys/resource.h>
+//include "helpers.h"
+//include "liburing.h"
+//include "../src/syscall.h"
 
 #define FILE_SIZE    (128 * 1024)
 #define BS        4096
 #define BUFFERS        (FILE_SIZE / BS)
 
-static struct iovec *vecs;
-static int no_buf_select;
-static int no_iopoll;
+static vecs:CPointer<iovec>;
+static no_buf_select:Int;
+static no_iopoll:Int;
 
-static int provide_buffers(struct io_uring *ring) {
-    struct io_uring_sqe *sqe;
-    struct io_uring_cqe *cqe;
-    int ret, i;
+fun provide_buffers(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="provide_buffers"
 
-    for (i = 0; i < BUFFERS; i++) {
+    sqe:CPointer<io_uring_sqe>;
+    cqe:CPointer<io_uring_cqe>;
+    ret:Int, i;
+
+    for (i in 0 until  BUFFERS) {
         sqe = io_uring_get_sqe(ring);
         io_uring_prep_provide_buffers(sqe, vecs[i].iov_base,
                                       vecs[i].iov_len, 1, 1, i);
@@ -41,10 +43,10 @@ static int provide_buffers(struct io_uring *ring) {
         return 1;
     }
 
-    for (i = 0; i < BUFFERS; i++) {
-        ret = io_uring_wait_cqe(ring, &cqe);
-        if (cqe->res < 0) {
-            fprintf(stderr, "cqe->res=%d\n", cqe->res);
+    for (i in 0 until  BUFFERS) {
+        ret = io_uring_wait_cqe(ring, cqe.ptr);
+        if (cqe.pointed.res < 0) {
+            fprintf(stderr, "cqe.pointed.res=%d\n", cqe.pointed.res);
             return 1;
         }
         io_uring_cqe_seen(ring, cqe);
@@ -53,13 +55,13 @@ static int provide_buffers(struct io_uring *ring) {
     return 0;
 }
 
-static int __test_io(const char *file, struct io_uring *ring, int write, int sqthread,
-        int fixed, int buf_select) {
-    struct io_uring_sqe *sqe;
-    struct io_uring_cqe *cqe;
-    int open_flags;
-    int i, fd = -1, ret;
-    off_t offset;
+static __test_io:Int(file:String, ring:CPointer<io_uring>, write:Int, sqthread:Int,
+        fixed:Int, buf_select:Int) {
+    sqe:CPointer<io_uring_sqe>;
+    cqe:CPointer<io_uring_cqe>;
+    open_flags:Int;
+    i:Int, fd = -1, ret;
+    offset:off_t;
 
     if (buf_select) {
         write = 0;
@@ -80,91 +82,91 @@ static int __test_io(const char *file, struct io_uring *ring, int write, int sqt
             return 0;
         if (ret != T_SETUP_OK) {
             fprintf(stderr, "buffer reg failed: %d\n", ret);
-            goto err;
+            break@err;
         }
     }
     fd = open(file, open_flags);
     if (fd < 0) {
         perror("file open");
-        goto err;
+        break@err;
     }
     if (sqthread) {
-        ret = io_uring_register_files(ring, &fd, 1);
+        ret = io_uring_register_files(ring, fd.ptr, 1);
         if (ret) {
             fprintf(stderr, "file reg failed: %d\n", ret);
-            goto err;
+            break@err;
         }
     }
 
     offset = 0;
-    for (i = 0; i < BUFFERS; i++) {
+    for (i in 0 until  BUFFERS) {
         sqe = io_uring_get_sqe(ring);
         if (!sqe) {
             fprintf(stderr, "sqe get failed\n");
-            goto err;
+            break@err;
         }
         offset = BS * (rand() % BUFFERS);
         if (write) {
-            int do_fixed = fixed;
-            int use_fd = fd;
+            do_fixed:Int = fixed;
+            use_fd:Int = fd;
 
             if (sqthread)
                 use_fd = 0;
-            if (fixed && (i & 1))
+            if (fixed && ( i and 1 ))
                 do_fixed = 0;
             if (do_fixed) {
                 io_uring_prep_write_fixed(sqe, use_fd, vecs[i].iov_base,
                                           vecs[i].iov_len,
                                           offset, i);
             } else {
-                io_uring_prep_writev(sqe, use_fd, &vecs[i], 1,
+                io_uring_prep_writev(sqe, use_fd, vecs.ptr[i], 1,
                                      offset);
             }
         } else {
-            int do_fixed = fixed;
-            int use_fd = fd;
+            do_fixed:Int = fixed;
+            use_fd:Int = fd;
 
             if (sqthread)
                 use_fd = 0;
-            if (fixed && (i & 1))
+            if (fixed && ( i and 1 ))
                 do_fixed = 0;
             if (do_fixed) {
                 io_uring_prep_read_fixed(sqe, use_fd, vecs[i].iov_base,
                                          vecs[i].iov_len,
                                          offset, i);
             } else {
-                io_uring_prep_readv(sqe, use_fd, &vecs[i], 1,
+                io_uring_prep_readv(sqe, use_fd, vecs.ptr[i], 1,
                                     offset);
             }
 
         }
         if (sqthread)
-            sqe->flags |= IOSQE_FIXED_FILE;
+            sqe.pointed.flags |= IOSQE_FIXED_FILE;
         if (buf_select) {
-            sqe->flags |= IOSQE_BUFFER_SELECT;
-            sqe->buf_group = buf_select;
-            sqe->user_data = i;
+            sqe.pointed.flags |= IOSQE_BUFFER_SELECT;
+            sqe.pointed.buf_group = buf_select;
+            sqe.pointed.user_data = i;
         }
     }
 
     ret = io_uring_submit(ring);
     if (ret != BUFFERS) {
         fprintf(stderr, "submit got %d, wanted %d\n", ret, BUFFERS);
-        goto err;
+        break@err;
     }
 
-    for (i = 0; i < BUFFERS; i++) {
-        ret = io_uring_wait_cqe(ring, &cqe);
+    for (i in 0 until  BUFFERS) {
+        ret = io_uring_wait_cqe(ring, cqe.ptr);
         if (ret) {
             fprintf(stderr, "wait_cqe=%d\n", ret);
-            goto err;
-        } else if (cqe->res == -EOPNOTSUPP) {
+            break@err;
+        } else if (cqe.pointed.res == -EOPNOTSUPP) {
             fprintf(stdout, "File/device/fs doesn't support polled IO\n");
             no_iopoll = 1;
-            goto out;
-        } else if (cqe->res != BS) {
-            fprintf(stderr, "cqe res %d, wanted %d\n", cqe->res, BS);
-            goto err;
+            break@out;
+        } else if (cqe.pointed.res != BS) {
+            fprintf(stderr, "cqe res %d, wanted %d\n", cqe.pointed.res, BS);
+            break@err;
         }
         io_uring_cqe_seen(ring, cqe);
     }
@@ -173,14 +175,14 @@ static int __test_io(const char *file, struct io_uring *ring, int write, int sqt
         ret = io_uring_unregister_buffers(ring);
         if (ret) {
             fprintf(stderr, "buffer unreg failed: %d\n", ret);
-            goto err;
+            break@err;
         }
     }
     if (sqthread) {
         ret = io_uring_unregister_files(ring);
         if (ret) {
             fprintf(stderr, "file unreg failed: %d\n", ret);
-            goto err;
+            break@err;
         }
     }
 
@@ -193,64 +195,66 @@ static int __test_io(const char *file, struct io_uring *ring, int write, int sqt
     return 1;
 }
 
-extern int __io_uring_flush_sq(struct io_uring *ring);
+extern __io_uring_flush_sq:Int(ring:CPointer<io_uring>);
 
 /*
  * if we are polling io_uring_submit needs to always enter the
  * kernel to fetch events
  */
-static int test_io_uring_submit_enters(const char *file) {
-    struct io_uring ring;
-    int fd, i, ret, ring_flags, open_flags;
-    unsigned head;
-    struct io_uring_cqe *cqe;
+fun test_io_uring_submit_enters(file:String):Int{
+	val __FUNCTION__="test_io_uring_submit_enters"
+
+    ring:io_uring;
+    fd:Int, i, ret, ring_flags, open_flags;
+    head:UInt;
+    cqe:CPointer<io_uring_cqe>;
 
     if (no_iopoll)
         return 0;
 
     ring_flags = IORING_SETUP_IOPOLL;
-    ret = io_uring_queue_init(64, &ring, ring_flags);
+    ret = io_uring_queue_init(64, ring.ptr, ring_flags);
     if (ret) {
         fprintf(stderr, "ring create failed: %d\n", ret);
         return 1;
     }
 
-    open_flags = O_WRONLY | O_DIRECT;
+    open_flags =  O_WRONLY or O_DIRECT ;
     fd = open(file, open_flags);
     if (fd < 0) {
         perror("file open");
-        goto err;
+        break@err;
     }
 
-    for (i = 0; i < BUFFERS; i++) {
-        struct io_uring_sqe *sqe;
-        off_t offset = BS * (rand() % BUFFERS);
+    for (i in 0 until  BUFFERS) {
+        sqe:CPointer<io_uring_sqe>;
+        offset:off_t = BS * (rand() % BUFFERS);
 
-        sqe = io_uring_get_sqe(&ring);
-        io_uring_prep_writev(sqe, fd, &vecs[i], 1, offset);
-        sqe->user_data = 1;
+        sqe = io_uring_get_sqe(ring.ptr);
+        io_uring_prep_writev(sqe, fd, vecs.ptr[i], 1, offset);
+        sqe.pointed.user_data = 1;
     }
 
     /* submit manually to avoid adding IORING_ENTER_GETEVENTS */
-    ret = __sys_io_uring_enter(ring.ring_fd, __io_uring_flush_sq(&ring), 0,
+    ret = __sys_io_uring_enter(ring.ring_fd, __io_uring_flush_sq(ring.ptr), 0,
                                0, NULL);
     if (ret < 0)
-        goto err;
+        break@err;
 
-    for (i = 0; i < 500; i++) {
-        ret = io_uring_submit(&ring);
+    for (i in 0 until  500) {
+        ret = io_uring_submit(ring.ptr);
         if (ret != 0) {
             fprintf(stderr, "still had %d sqes to submit, this is unexpected", ret);
-            goto err;
+            break@err;
         }
 
-        io_uring_for_each_cqe(&ring, head, cqe) {
+        io_uring_for_each_cqe(ring.ptr, head, cqe) {
             /* runs after test_io so should not have happened */
-            if (cqe->res == -EOPNOTSUPP) {
+            if (cqe.pointed.res == -EOPNOTSUPP) {
                 fprintf(stdout, "File/device/fs doesn't support polled IO\n");
-                goto err;
+                break@err;
             }
-            goto ok;
+            break@ok;
         }
         usleep(10000);
     }
@@ -260,42 +264,44 @@ static int test_io_uring_submit_enters(const char *file) {
         close(fd);
 
     ok:
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return ret;
 }
 
-static int test_io(const char *file, int write, int sqthread, int fixed,
-        int buf_select) {
-    struct io_uring ring;
-    int ret, ring_flags = IORING_SETUP_IOPOLL;
+static test_io:Int(file:String, write:Int, sqthread:Int, fixed:Int,
+        buf_select:Int) {
+    ring:io_uring;
+    ret:Int, ring_flags = IORING_SETUP_IOPOLL;
 
     if (no_iopoll)
         return 0;
 
-    ret = t_create_ring(64, &ring, ring_flags);
+    ret = t_create_ring(64, ring.ptr, ring_flags);
     if (ret == T_SETUP_SKIP)
         return 0;
     if (ret != T_SETUP_OK) {
         fprintf(stderr, "ring create failed: %d\n", ret);
         return 1;
     }
-    ret = __test_io(file, &ring, write, sqthread, fixed, buf_select);
-    io_uring_queue_exit(&ring);
+    ret = __test_io(file, ring.ptr, write, sqthread, fixed, buf_select);
+    io_uring_queue_exit(ring.ptr);
     return ret;
 }
 
-static int probe_buf_select(void) {
-    struct io_uring_probe *p;
-    struct io_uring ring;
-    int ret;
+fun probe_buf_select(void):Int{
+	val __FUNCTION__="probe_buf_select"
 
-    ret = io_uring_queue_init(1, &ring, 0);
+    p:CPointer<io_uring_probe>;
+    ring:io_uring;
+    ret:Int;
+
+    ret = io_uring_queue_init(1, ring.ptr, 0);
     if (ret) {
         fprintf(stderr, "ring create failed: %d\n", ret);
         return 1;
     }
 
-    p = io_uring_get_probe_ring(&ring);
+    p = io_uring_get_probe_ring(ring.ptr);
     if (!p || !io_uring_opcode_supported(p, IORING_OP_PROVIDE_BUFFERS)) {
         no_buf_select = 1;
         fprintf(stdout, "Buffer select not supported, skipping\n");
@@ -305,10 +311,12 @@ static int probe_buf_select(void) {
     return 0;
 }
 
-int main(int argc, char *argv[]) {
-    int i, ret, nr;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    i:Int, ret, nr;
     char buf[256];
-    char *fname;
+    char:CPointer<ByteVar>fname
 
     if (probe_buf_select())
         return 1;
@@ -328,17 +336,17 @@ int main(int argc, char *argv[]) {
     nr = 16;
     if (no_buf_select)
         nr = 8;
-    for (i = 0; i < nr; i++) {
-        int write = (i & 1) != 0;
-        int sqthread = (i & 2) != 0;
-        int fixed = (i & 4) != 0;
-        int buf_select = (i & 8) != 0;
+    for (i in 0 until  nr) {
+        write:Int = ( i and 1 ) != 0;
+        sqthread:Int = ( i and 2 ) != 0;
+        fixed:Int = ( i and 4 ) != 0;
+        buf_select:Int = ( i and 8 ) != 0;
 
         ret = test_io(fname, write, sqthread, fixed, buf_select);
         if (ret) {
             fprintf(stderr, "test_io failed %d/%d/%d/%d\n",
                     write, sqthread, fixed, buf_select);
-            goto err;
+            break@err;
         }
         if (no_iopoll)
             break;
@@ -347,7 +355,7 @@ int main(int argc, char *argv[]) {
     ret = test_io_uring_submit_enters(fname);
     if (ret) {
         fprintf(stderr, "test_io_uring_submit_enters failed\n");
-        goto err;
+        break@err;
     }
 
     if (fname != argv[1])

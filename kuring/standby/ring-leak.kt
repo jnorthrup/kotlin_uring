@@ -8,36 +8,40 @@
  * https://lore.kernel.org/linux-block/20190129192702.3605-1-axboe@kernel.dk/T/#m6c87fc64e4d063786af6ec6fadce3ac1e95d3184
  *
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <signal.h>
-#include <inttypes.h>
-#include <sys/types.h>
-#include <sys/syscall.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <string.h>
-#include <linux/fs.h>
+//include <stdio.h>
+//include <stdlib.h>
+//include <stddef.h>
+//include <signal.h>
+//include <inttypes.h>
+//include <sys/types.h>
+//include <sys/syscall.h>
+//include <sys/socket.h>
+//include <sys/wait.h>
+//include <fcntl.h>
+//include <unistd.h>
+//include <string.h>
+//include <linux/fs.h>
 
-#include "liburing.h"
-#include "../src/syscall.h"
+//include "liburing.h"
+//include "../src/syscall.h"
 
-static int __io_uring_register_files(int ring_fd, int fd1, int fd2) {
+fun __io_uring_register_files(ring_fd:Int, fd1:Int, fd2:Int):Int{
+	val __FUNCTION__="__io_uring_register_files"
+
     __s32 fds[2] = {fd1, fd2};
 
     return __sys_io_uring_register(ring_fd, IORING_REGISTER_FILES, fds, 2);
 }
 
-static int get_ring_fd(void) {
-    struct io_uring_params p;
-    int fd;
+fun get_ring_fd(void):Int{
+	val __FUNCTION__="get_ring_fd"
 
-    memset(&p, 0, sizeof(p));
+    p:io_uring_params;
+    fd:Int;
 
-    fd = __sys_io_uring_setup(2, &p);
+    memset(p.ptr, 0, sizeof(p));
+
+    fd = __sys_io_uring_setup(2, p.ptr);
     if (fd < 0) {
         perror("io_uring_setup");
         return -1;
@@ -46,37 +50,41 @@ static int get_ring_fd(void) {
     return fd;
 }
 
-static void send_fd(int socket, int fd) {
+fun send_fd(socket:Int, fd:Int):Unit{
+	val __FUNCTION__="send_fd"
+
     char buf[CMSG_SPACE(sizeof(fd))];
-    struct cmsghdr *cmsg;
-    struct msghdr msg;
+    cmsg:CPointer<cmsghdr>;
+    msg:msghdr;
 
     memset(buf, 0, sizeof(buf));
-    memset(&msg, 0, sizeof(msg));
+    memset(msg.ptr, 0, sizeof(msg));
 
     msg.msg_control = buf;
     msg.msg_controllen = sizeof(buf);
 
-    cmsg = CMSG_FIRSTHDR(&msg);
-    cmsg->cmsg_level = SOL_SOCKET;
-    cmsg->cmsg_type = SCM_RIGHTS;
-    cmsg->cmsg_len = CMSG_LEN(sizeof(fd));
+    cmsg = CMSG_FIRSTHDR(msg.ptr);
+    cmsg.pointed.cmsg_level = SOL_SOCKET;
+    cmsg.pointed.cmsg_type = SCM_RIGHTS;
+    cmsg.pointed.cmsg_len = CMSG_LEN(sizeof(fd));
 
-    memmove(CMSG_DATA(cmsg), &fd, sizeof(fd));
+    memmove(CMSG_DATA(cmsg), fd.ptr, sizeof(fd));
 
     msg.msg_controllen = CMSG_SPACE(sizeof(fd));
 
-    if (sendmsg(socket, &msg, 0) < 0)
+    if (sendmsg(socket, msg.ptr, 0) < 0)
         perror("sendmsg");
 }
 
-static int test_iowq_request_cancel(void) {
-    char buffer[128];
-    struct io_uring ring;
-    struct io_uring_sqe *sqe;
-    int ret, fds[2];
+fun test_iowq_request_cancel(void):Int{
+	val __FUNCTION__="test_iowq_request_cancel"
 
-    ret = io_uring_queue_init(8, &ring, 0);
+    char buffer[128];
+    ring:io_uring;
+    sqe:CPointer<io_uring_sqe>;
+    ret:Int, fds[2];
+
+    ret = io_uring_queue_init(8, ring.ptr, 0);
     if (ret < 0) {
         fprintf(stderr, "failed to init io_uring: %s\n", strerror(-ret));
         return ret;
@@ -85,39 +93,39 @@ static int test_iowq_request_cancel(void) {
         perror("pipe");
         return -1;
     }
-    ret = io_uring_register_files(&ring, fds, 2);
+    ret = io_uring_register_files(ring.ptr, fds, 2);
     if (ret) {
         fprintf(stderr, "file_register: %d\n", ret);
         return ret;
     }
     close(fds[1]);
 
-    sqe = io_uring_get_sqe(&ring);
+    sqe = io_uring_get_sqe(ring.ptr);
     if (!sqe) {
         fprintf(stderr, "%s: failed to get sqe\n", __FUNCTION__);
         return 1;
     }
     /* potentially sitting in internal polling */
     io_uring_prep_read(sqe, 0, buffer, 10, 0);
-    sqe->flags |= IOSQE_FIXED_FILE;
+    sqe.pointed.flags |= IOSQE_FIXED_FILE;
 
-    sqe = io_uring_get_sqe(&ring);
+    sqe = io_uring_get_sqe(ring.ptr);
     if (!sqe) {
         fprintf(stderr, "%s: failed to get sqe\n", __FUNCTION__);
         return 1;
     }
     /* staying in io-wq */
     io_uring_prep_read(sqe, 0, buffer, 10, 0);
-    sqe->flags |= IOSQE_FIXED_FILE | IOSQE_ASYNC;
+    sqe.pointed.flags |=  IOSQE_FIXED_FILE or IOSQE_ASYNC ;
 
-    ret = io_uring_submit(&ring);
+    ret = io_uring_submit(ring.ptr);
     if (ret != 2) {
         fprintf(stderr, "%s: got %d, wanted 1\n", __FUNCTION__, ret);
         return 1;
     }
 
     /* should unregister files and close the write fd */
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
 
     /*
      * We're trying to wait for the ring to "really" exit, that will be
@@ -130,8 +138,10 @@ static int test_iowq_request_cancel(void) {
     return 0;
 }
 
-int main(int argc, char *argv[]) {
-    int sp[2], pid, ring_fd, ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    sp:Int[2], pid, ring_fd, ret;
 
     if (argc > 1)
         return 0;

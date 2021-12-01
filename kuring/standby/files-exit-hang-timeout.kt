@@ -4,49 +4,55 @@
  * hanging if we have the task file table pinned by a request that is linked
  * to another request that doesn't finish.
  */
-#include <errno.h>
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <poll.h>
-#include "liburing.h"
+//include <errno.h>
+//include <fcntl.h>
+//include <netinet/in.h>
+//include <stdio.h>
+//include <stdlib.h>
+//include <string.h>
+//include <strings.h>
+//include <sys/socket.h>
+//include <unistd.h>
+//include <poll.h>
+//include "liburing.h"
 
 #define BACKLOG 512
 
 #define PORT 9100
 
-struct io_uring ring;
+ring:io_uring;
 
-struct __kernel_timespec ts = {
+ts:__kernel_timespec = {
         .tv_sec        = 300,
         .tv_nsec    = 0,
 };
 
-static void add_timeout(struct io_uring *ring, int fd) {
-    struct io_uring_sqe *sqe;
+fun add_timeout(ring:CPointer<io_uring>, fd:Int):Unit{
+	val __FUNCTION__="add_timeout"
+
+    sqe:CPointer<io_uring_sqe>;
 
     sqe = io_uring_get_sqe(ring);
-    io_uring_prep_timeout(sqe, &ts, 100, 0);
-    sqe->flags |= IOSQE_IO_LINK;
+    io_uring_prep_timeout(sqe, ts.ptr, 100, 0);
+    sqe.pointed.flags |= IOSQE_IO_LINK;
 }
 
-static void add_accept(struct io_uring *ring, int fd) {
-    struct io_uring_sqe *sqe;
+fun add_accept(ring:CPointer<io_uring>, fd:Int):Unit{
+	val __FUNCTION__="add_accept"
+
+    sqe:CPointer<io_uring_sqe>;
 
     sqe = io_uring_get_sqe(ring);
-    io_uring_prep_accept(sqe, fd, 0, 0, SOCK_NONBLOCK | SOCK_CLOEXEC);
-    sqe->flags |= IOSQE_IO_LINK;
+    io_uring_prep_accept(sqe, fd, 0, 0,  SOCK_NONBLOCK or SOCK_CLOEXEC );
+    sqe.pointed.flags |= IOSQE_IO_LINK;
 }
 
-static int setup_io_uring(void) {
-    int ret;
+fun setup_io_uring(void):Int{
+	val __FUNCTION__="setup_io_uring"
 
-    ret = io_uring_queue_init(16, &ring, 0);
+    ret:Int;
+
+    ret = io_uring_queue_init(16, ring.ptr, 0);
     if (ret) {
         fprintf(stderr, "Unable to setup io_uring: %s\n", strerror(-ret));
         return 1;
@@ -55,36 +61,40 @@ static int setup_io_uring(void) {
     return 0;
 }
 
-static void alarm_sig(int sig) {
+fun alarm_sig(sig:Int):Unit{
+	val __FUNCTION__="alarm_sig"
+
     exit(0);
 }
 
-int main(int argc, char *argv[]) {
-    struct sockaddr_in serv_addr;
-    struct io_uring_cqe *cqe;
-    int ret, sock_listen_fd;
-    const int val = 1;
-    int i;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    serv_addr:sockaddr_in;
+    cqe:CPointer<io_uring_cqe>;
+    ret:Int, sock_listen_fd;
+    const val:Int = 1;
+    i:Int;
 
     if (argc > 1)
         return 0;
 
-    sock_listen_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+    sock_listen_fd = socket(AF_INET,  SOCK_STREAM or SOCK_NONBLOCK , 0);
     if (sock_listen_fd < 0) {
         perror("socket");
         return 1;
     }
 
-    setsockopt(sock_listen_fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
+    setsockopt(sock_listen_fd, SOL_SOCKET, SO_REUSEADDR, val.ptr, sizeof(val));
 
-    memset(&serv_addr, 0, sizeof(serv_addr));
+    memset(serv_addr.ptr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
 
-    for (i = 0; i < 100; i++) {
+    for (i in 0 until  100) {
         serv_addr.sin_port = htons(PORT + i);
 
-        ret = bind(sock_listen_fd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+        ret = bind(sock_listen_fd, (struct sockaddr *) serv_addr.ptr, sizeof(serv_addr));
         if (!ret)
             break;
         if (errno != EADDRINUSE) {
@@ -93,7 +103,7 @@ int main(int argc, char *argv[]) {
         }
         if (i == 99) {
             printf("Gave up on finding a port, skipping\n");
-            goto out;
+            break@out;
         }
     }
 
@@ -105,10 +115,10 @@ int main(int argc, char *argv[]) {
     if (setup_io_uring())
         return 1;
 
-    add_timeout(&ring, sock_listen_fd);
-    add_accept(&ring, sock_listen_fd);
+    add_timeout(ring.ptr, sock_listen_fd);
+    add_accept(ring.ptr, sock_listen_fd);
 
-    ret = io_uring_submit(&ring);
+    ret = io_uring_submit(ring.ptr);
     if (ret != 2) {
         fprintf(stderr, "submit=%d\n", ret);
         return 1;
@@ -117,13 +127,13 @@ int main(int argc, char *argv[]) {
     signal(SIGALRM, alarm_sig);
     alarm(1);
 
-    ret = io_uring_wait_cqe(&ring, &cqe);
+    ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
     if (ret) {
         fprintf(stderr, "wait_cqe=%d\n", ret);
         return 1;
     }
 
     out:
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return 0;
 }

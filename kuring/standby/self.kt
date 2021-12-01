@@ -5,63 +5,67 @@
  * async worker.
  *
  */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <fcntl.h>
 
-#include "liburing.h"
+//include "liburing.h"
 
-static int io_openat2(struct io_uring *ring, const char *path, int dfd) {
-    struct io_uring_cqe *cqe;
-    struct io_uring_sqe *sqe;
-    struct open_how how;
-    int ret;
+fun io_openat2(ring:CPointer<io_uring>, path:String, dfd:Int):Int{
+	val __FUNCTION__="io_openat2"
+
+    cqe:CPointer<io_uring_cqe>;
+    sqe:CPointer<io_uring_sqe>;
+    how:open_how;
+    ret:Int;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
         fprintf(stderr, "get sqe failed\n");
-        goto err;
+        break@err;
     }
-    memset(&how, 0, sizeof(how));
+    memset(how.ptr, 0, sizeof(how));
     how.flags = O_RDONLY;
-    io_uring_prep_openat2(sqe, dfd, path, &how);
+    io_uring_prep_openat2(sqe, dfd, path, how.ptr);
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
         fprintf(stderr, "sqe submit failed: %d\n", ret);
-        goto err;
+        break@err;
     }
 
-    ret = io_uring_wait_cqe(ring, &cqe);
+    ret = io_uring_wait_cqe(ring, cqe.ptr);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
-        goto err;
+        break@err;
     }
-    ret = cqe->res;
+    ret = cqe.pointed.res;
     io_uring_cqe_seen(ring, cqe);
     return ret;
     err:
     return -1;
 }
 
-int main(int argc, char *argv[]) {
-    struct io_uring ring;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    ring:io_uring;
     char buf[64];
-    int ret;
+    ret:Int;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(1, &ring, 0);
+    ret = io_uring_queue_init(1, ring.ptr, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
     }
 
-    ret = io_openat2(&ring, "/proc/self/comm", -1);
+    ret = io_openat2(ring.ptr, "/proc/self/comm", -1);
     if (ret < 0) {
         if (ret == -EOPNOTSUPP)
             return 0;

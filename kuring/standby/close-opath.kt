@@ -13,23 +13,25 @@
 // gcc -O2 -Wall -Wextra -std=c11 -o close_opath close_opath.c -luring
 // ./close_opath testfilepath
 
-#include <errno.h>
-#include <fcntl.h>
-#include <liburing.h>
-#include <sys/stat.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
+//include <errno.h>
+//include <fcntl.h>
+//include <liburing.h>
+//include <sys/stat.h>
+//include <stdio.h>
+//include <string.h>
+//include <unistd.h>
 
 typedef struct {
-    const char *const flnames;
-    const int oflags;
+    const:String flnames;
+    const oflags:Int;
 } oflgs_t;
 
-static int test_io_uring_close(struct io_uring *ring, int fd) {
-    struct io_uring_sqe *sqe;
-    struct io_uring_cqe *cqe;
-    int ret;
+fun test_io_uring_close(ring:CPointer<io_uring>, fd:Int):Int{
+	val __FUNCTION__="test_io_uring_close"
+
+    sqe:CPointer<io_uring_sqe>;
+    cqe:CPointer<io_uring_cqe>;
+    ret:Int;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -46,14 +48,14 @@ static int test_io_uring_close(struct io_uring *ring, int fd) {
         return ret;
     }
 
-    ret = io_uring_wait_cqe(ring, &cqe);
+    ret = io_uring_wait_cqe(ring, cqe.ptr);
     if (ret < 0) {
         fprintf(stderr, "io_uring_wait_cqe() failed, errno %d: %s\n",
                 -ret, strerror(-ret));
         return ret;
     }
 
-    ret = cqe->res;
+    ret = cqe.pointed.res;
     io_uring_cqe_seen(ring, cqe);
 
     if (ret < 0 && ret != -EOPNOTSUPP && ret != -EINVAL && ret != -EBADF) {
@@ -65,30 +67,34 @@ static int test_io_uring_close(struct io_uring *ring, int fd) {
     return 0;
 }
 
-static int open_file(const char *path, const oflgs_t *oflgs) {
-    int fd;
+fun open_file(path:String, const oflgs:CPointer<oflgs_t>):Int{
+	val __FUNCTION__="open_file"
 
-    fd = openat(AT_FDCWD, path, oflgs->oflags, 0);
+    fd:Int;
+
+    fd = openat(AT_FDCWD, path, oflgs.pointed.oflags, 0);
     if (fd < 0) {
-        int err = errno;
+        err:Int = errno;
         fprintf(stderr, "openat(%s, %s) failed, errno %d: %s\n",
-                path, oflgs->flnames, err, strerror(err));
+                path, oflgs.pointed.flnames, err, strerror(err));
         return -err;
     }
 
     return fd;
 }
 
-int main(int argc, char *argv[]) {
-    const char *fname = ".";
-    struct io_uring ring;
-    int ret, i;
-    static const oflgs_t oflgs[] = {
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    fname:String = ".";
+    ring:io_uring;
+    ret:Int, i;
+    static const oflgs:CPointer<oflgs_t> = {
             {"O_RDONLY", O_RDONLY},
             {"O_PATH",   O_PATH}
     };
 
-    ret = io_uring_queue_init(2, &ring, 0);
+    ret = io_uring_queue_init(2, ring.ptr, 0);
     if (ret < 0) {
         fprintf(stderr, "io_uring_queue_init() failed, errno %d: %s\n",
                 -ret, strerror(-ret));
@@ -98,21 +104,21 @@ int main(int argc, char *argv[]) {
 #define OFLGS_SIZE (sizeof(oflgs) / sizeof(oflgs[0]))
 
     ret = 0;
-    for (i = 0; i < OFLGS_SIZE; i++) {
-        int fd;
+    for (i in 0 until  OFLGS_SIZE) {
+        fd:Int;
 
-        fd = open_file(fname, &oflgs[i]);
+        fd = open_file(fname, oflgs.ptr[i]);
         if (fd < 0) {
             ret |= 0x02;
             break;
         }
 
         /* Should always succeed */
-        if (test_io_uring_close(&ring, fd) < 0)
+        if (test_io_uring_close(ring.ptr, fd) < 0)
             ret |= 0x04 << i;
     }
 #undef OFLGS_SIZE
 
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return ret;
 }

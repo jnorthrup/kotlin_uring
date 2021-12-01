@@ -2,18 +2,20 @@
 /*
  * Test if entering with nothing to submit/wait for SQPOLL returns an error.
  */
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
+//include <stdio.h>
+//include <errno.h>
+//include <string.h>
 
-#include "liburing.h"
-#include "helpers.h"
-#include "../src/syscall.h"
+//include "liburing.h"
+//include "helpers.h"
+//include "../src/syscall.h"
 
-int main(int argc, char *argv[]) {
-    struct io_uring_params p = {};
-    struct io_uring ring;
-    int ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    p:io_uring_params = {};
+    ring:io_uring;
+    ret:Int;
 
     if (argc > 1)
         return 0;
@@ -21,21 +23,21 @@ int main(int argc, char *argv[]) {
     p.flags = IORING_SETUP_SQPOLL;
     p.sq_thread_idle = 100;
 
-    ret = t_create_ring_params(1, &ring, &p);
+    ret = t_create_ring_params(1, ring.ptr, p.ptr);
     if (ret == T_SETUP_SKIP)
         return 0;
     else if (ret < 0)
-        goto err;
+        break@err;
 
     ret = __sys_io_uring_enter(ring.ring_fd, 0, 0, 0, NULL);
     if (ret < 0) {
-        int __e = errno;
+        __e:Int = errno;
 
         if (__e == EOWNERDEAD)
             fprintf(stderr, "sqe submit unexpected failure due old kernel bug: %s\n", strerror(__e));
         else
             fprintf(stderr, "sqe submit unexpected failure: %s\n", strerror(__e));
-        goto err;
+        break@err;
     }
 
     return 0;

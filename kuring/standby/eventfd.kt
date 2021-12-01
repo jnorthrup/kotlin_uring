@@ -3,38 +3,40 @@
  * Description: run various nop tests
  *
  */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <sys/poll.h>
-#include <sys/eventfd.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <fcntl.h>
+//include <sys/poll.h>
+//include <sys/eventfd.h>
 
-#include "liburing.h"
+//include "liburing.h"
 
-int main(int argc, char *argv[]) {
-    struct io_uring_params p = {};
-    struct io_uring_sqe *sqe;
-    struct io_uring_cqe *cqe;
-    struct io_uring ring;
-    uint64_t ptr;
-    struct iovec vec = {
-            .iov_base = &ptr,
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    p:io_uring_params = {};
+    sqe:CPointer<io_uring_sqe>;
+    cqe:CPointer<io_uring_cqe>;
+    ring:io_uring;
+    ptr:uint64_t;
+    vec:iovec = {
+            .iov_base = ptr.ptr,
             .iov_len = sizeof(ptr)
     };
-    int ret, evfd, i;
+    ret:Int, evfd, i;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init_params(8, &ring, &p);
+    ret = io_uring_queue_init_params(8, ring.ptr, p.ptr);
     if (ret) {
         fprintf(stderr, "ring setup failed: %d\n", ret);
         return 1;
     }
-    if (!(p.features & IORING_FEAT_CUR_PERSONALITY)) {
+    if (!(p. features and IORING_FEAT_CUR_PERSONALITY )) {
         fprintf(stdout, "Skipping\n");
         return 0;
     }
@@ -45,66 +47,66 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    ret = io_uring_register_eventfd(&ring, evfd);
+    ret = io_uring_register_eventfd(ring.ptr, evfd);
     if (ret) {
         fprintf(stderr, "failed to register evfd: %d\n", ret);
         return 1;
     }
 
-    sqe = io_uring_get_sqe(&ring);
+    sqe = io_uring_get_sqe(ring.ptr);
     io_uring_prep_poll_add(sqe, evfd, POLLIN);
-    sqe->flags |= IOSQE_IO_LINK;
-    sqe->user_data = 1;
+    sqe.pointed.flags |= IOSQE_IO_LINK;
+    sqe.pointed.user_data = 1;
 
-    sqe = io_uring_get_sqe(&ring);
-    io_uring_prep_readv(sqe, evfd, &vec, 1, 0);
-    sqe->flags |= IOSQE_IO_LINK;
-    sqe->user_data = 2;
+    sqe = io_uring_get_sqe(ring.ptr);
+    io_uring_prep_readv(sqe, evfd, vec.ptr, 1, 0);
+    sqe.pointed.flags |= IOSQE_IO_LINK;
+    sqe.pointed.user_data = 2;
 
-    ret = io_uring_submit(&ring);
+    ret = io_uring_submit(ring.ptr);
     if (ret != 2) {
         fprintf(stderr, "submit: %d\n", ret);
         return 1;
     }
 
-    sqe = io_uring_get_sqe(&ring);
+    sqe = io_uring_get_sqe(ring.ptr);
     io_uring_prep_nop(sqe);
-    sqe->user_data = 3;
+    sqe.pointed.user_data = 3;
 
-    ret = io_uring_submit(&ring);
+    ret = io_uring_submit(ring.ptr);
     if (ret != 1) {
         fprintf(stderr, "submit: %d\n", ret);
         return 1;
     }
 
-    for (i = 0; i < 3; i++) {
-        ret = io_uring_wait_cqe(&ring, &cqe);
+    for (i in 0 until  3) {
+        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
         if (ret) {
             fprintf(stderr, "wait: %d\n", ret);
             return 1;
         }
-        switch (cqe->user_data) {
-            case 1:
+        when  (cqe.pointed.user_data)  {
+            1 -> 
                 /* POLLIN */
-                if (cqe->res != 1) {
-                    fprintf(stderr, "poll: %d\n", cqe->res);
+                if (cqe.pointed.res != 1) {
+                    fprintf(stderr, "poll: %d\n", cqe.pointed.res);
                     return 1;
                 }
                 break;
-            case 2:
-                if (cqe->res != sizeof(ptr)) {
-                    fprintf(stderr, "read: %d\n", cqe->res);
+            2 -> 
+                if (cqe.pointed.res != sizeof(ptr)) {
+                    fprintf(stderr, "read: %d\n", cqe.pointed.res);
                     return 1;
                 }
                 break;
-            case 3:
-                if (cqe->res) {
-                    fprintf(stderr, "nop: %d\n", cqe->res);
+            3 -> 
+                if (cqe.pointed.res) {
+                    fprintf(stderr, "nop: %d\n", cqe.pointed.res);
                     return 1;
                 }
                 break;
         }
-        io_uring_cqe_seen(&ring, cqe);
+        io_uring_cqe_seen(ring.ptr, cqe);
     }
 
     return 0;

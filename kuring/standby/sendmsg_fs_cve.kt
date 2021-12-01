@@ -18,18 +18,18 @@
  * along with this program; if not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <unistd.h>
-#include <stdio.h>
-#include <sys/mman.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <inttypes.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include "liburing.h"
+//include <unistd.h>
+//include <stdio.h>
+//include <sys/mman.h>
+//include <sys/socket.h>
+//include <sys/un.h>
+//include <fcntl.h>
+//include <errno.h>
+//include <inttypes.h>
+//include <stdlib.h>
+//include <sys/types.h>
+//include <sys/wait.h>
+//include "liburing.h"
 
 /*
  * This attempts to make the kernel issue a sendmsg() to
@@ -42,20 +42,22 @@
  * implemented by writing repeatedly to an auxiliary O_NONBLOCK
  * AF_UNIX socketpair with a small SO_SNDBUF.
  */
-static int try_sendmsg_async(const char *const path) {
-    int snd_sock, r;
-    struct io_uring ring;
+fun try_sendmsg_async(const:String path):Int{
+	val __FUNCTION__="try_sendmsg_async"
+
+    snd_sock:Int, r;
+    ring:io_uring;
     char sbuf[16] = {};
-    struct iovec siov = {.iov_base = &sbuf, .iov_len = sizeof(sbuf)};
-    struct sockaddr_un addr = {};
-    struct msghdr msg = {
-            .msg_name = &addr,
+    siov:iovec = {.iov_base = sbuf.ptr, .iov_len = sizeof(sbuf)};
+    addr:sockaddr_un = {};
+    msg:msghdr = {
+            .msg_name = addr.ptr,
             .msg_namelen = sizeof(addr),
-            .msg_iov = &siov,
+            .msg_iov = siov.ptr,
             .msg_iovlen = 1,
     };
-    struct io_uring_cqe *cqe;
-    struct io_uring_sqe *sqe;
+    cqe:CPointer<io_uring_cqe>;
+    sqe:CPointer<io_uring_sqe>;
 
     snd_sock = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (snd_sock < 0) {
@@ -66,63 +68,65 @@ static int try_sendmsg_async(const char *const path) {
     addr.sun_family = AF_UNIX;
     strcpy(addr.sun_path, path);
 
-    r = io_uring_queue_init(512, &ring, 0);
+    r = io_uring_queue_init(512, ring.ptr, 0);
     if (r < 0) {
         fprintf(stderr, "ring setup failed: %d\n", r);
-        goto close_iour;
+        break@close_iour;
     }
 
-    sqe = io_uring_get_sqe(&ring);
+    sqe = io_uring_get_sqe(ring.ptr);
     if (!sqe) {
         fprintf(stderr, "get sqe failed\n");
         r = -EFAULT;
-        goto close_iour;
+        break@close_iour;
     }
 
     /* the actual one supposed to fail with -ENOENT. */
-    io_uring_prep_sendmsg(sqe, snd_sock, &msg, 0);
-    sqe->flags = IOSQE_ASYNC;
-    sqe->user_data = 255;
+    io_uring_prep_sendmsg(sqe, snd_sock, msg.ptr, 0);
+    sqe.pointed.flags = IOSQE_ASYNC;
+    sqe.pointed.user_data = 255;
 
-    r = io_uring_submit(&ring);
+    r = io_uring_submit(ring.ptr);
     if (r != 1) {
         fprintf(stderr, "sqe submit failed: %d\n", r);
         r = -EFAULT;
-        goto close_iour;
+        break@close_iour;
     }
 
-    r = io_uring_wait_cqe(&ring, &cqe);
+    r = io_uring_wait_cqe(ring.ptr, cqe.ptr);
     if (r < 0) {
         fprintf(stderr, "wait completion %d\n", r);
         r = -EFAULT;
-        goto close_iour;
+        break@close_iour;
     }
-    if (cqe->user_data != 255) {
+    if (cqe.pointed.user_data != 255) {
         fprintf(stderr, "user data %d\n", r);
         r = -EFAULT;
-        goto close_iour;
+        break@close_iour;
     }
-    if (cqe->res != -ENOENT) {
+    if (cqe.pointed.res != -ENOENT) {
         r = 3;
         fprintf(stderr,
                 "error: cqe %i: res=%i, but expected -ENOENT\n",
-                (int) cqe->user_data, (int) cqe->res);
+                (int) cqe.pointed.user_data, (int) cqe.pointed.res);
     }
-    io_uring_cqe_seen(&ring, cqe);
+    io_uring_cqe_seen(ring.ptr, cqe);
 
     close_iour:
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     close(snd_sock);
     return r;
 }
 
-int main(int argc, char *argv[]) {
-    int r;
-    char tmpdir[] = "/tmp/tmp.XXXXXX";
-    int rcv_sock;
-    struct sockaddr_un addr = {};
-    pid_t c;
-    int wstatus;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    r:Int;
+    char:CPointer<ByteVar>tmpdir= "/tmp/tmp.XXXXXX";
+    rcv_sock:Int;
+    addr:sockaddr_un = {};
+    c:pid_t;
+    wstatus:Int;
 
     if (!mkdtemp(tmpdir)) {
         perror("mkdtemp()");
@@ -133,19 +137,19 @@ int main(int argc, char *argv[]) {
     if (rcv_sock < 0) {
         perror("socket(AF_UNIX)");
         r = 1;
-        goto rmtmpdir;
+        break@rmtmpdir;
     }
 
     addr.sun_family = AF_UNIX;
     snprintf(addr.sun_path, sizeof(addr.sun_path), "%s/sock", tmpdir);
 
-    r = bind(rcv_sock, (struct sockaddr *) &addr,
+    r = bind(rcv_sock, (struct sockaddr *) addr.ptr,
              sizeof(addr));
     if (r < 0) {
         perror("bind()");
         close(rcv_sock);
         r = 1;
-        goto rmtmpdir;
+        break@rmtmpdir;
     }
 
     c = fork();
@@ -174,15 +178,15 @@ int main(int argc, char *argv[]) {
         return r;
     }
 
-    if (waitpid(c, &wstatus, 0) == (pid_t) -1) {
+    if (waitpid(c, wstatus.ptr, 0) == (pid_t) -1) {
         perror("waitpid()");
         r = 1;
-        goto rmsock;
+        break@rmsock;
     }
     if (!WIFEXITED(wstatus)) {
         fprintf(stderr, "child got terminated\n");
         r = 1;
-        goto rmsock;
+        break@rmsock;
     }
     r = WEXITSTATUS(wstatus);
     if (r)

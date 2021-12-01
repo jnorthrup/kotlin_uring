@@ -1,51 +1,55 @@
 /* SPDX-License-Identifier: MIT */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <sys/uio.h>
-#include <stdbool.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <fcntl.h>
+//include <sys/uio.h>
+//include <stdbool.h>
 
-#include "helpers.h"
-#include "liburing.h"
+//include "helpers.h"
+//include "liburing.h"
 
 #define RING_SIZE 128
 
 struct test_context {
-    struct io_uring *ring;
-    struct io_uring_sqe **sqes;
-    struct io_uring_cqe *cqes;
-    int nr;
+    ring:CPointer<io_uring>;
+    sqes:CPointerVarOf<CPointer<io_uring_sqe>>;
+    cqes:CPointer<io_uring_cqe>;
+    nr:Int;
 };
 
-static void free_context(struct test_context *ctx) {
-    free(ctx->sqes);
-    free(ctx->cqes);
+fun free_context(ctx:CPointer<test_context>):Unit{
+	val __FUNCTION__="free_context"
+
+    free(ctx.pointed.sqes);
+    free(ctx.pointed.cqes);
     memset(ctx, 0, sizeof(*ctx));
 }
 
-static int init_context(struct test_context *ctx, struct io_uring *ring, int nr) {
-    struct io_uring_sqe *sqe;
-    int i;
+fun init_context(ctx:CPointer<test_context>, struct io_uring *ring, nr:Int):Int{
+	val __FUNCTION__="init_context"
+
+    sqe:CPointer<io_uring_sqe>;
+    i:Int;
 
     memset(ctx, 0, sizeof(*ctx));
-    ctx->nr = nr;
-    ctx->ring = ring;
-    ctx->sqes = t_malloc(nr * sizeof(*ctx->sqes));
-    ctx->cqes = t_malloc(nr * sizeof(*ctx->cqes));
+    ctx.pointed.nr = nr;
+    ctx.pointed.ring = ring;
+    ctx.pointed.sqes = t_malloc(sizeof:CPointer<nr>(*ctx.pointed.sqes));
+    ctx.pointed.cqes = t_malloc(sizeof:CPointer<nr>(*ctx.pointed.cqes));
 
-    if (!ctx->sqes || !ctx->cqes)
-        goto err;
+    if (!ctx.pointed.sqes || !ctx.pointed.cqes)
+        break@err;
 
-    for (i = 0; i < nr; i++) {
+    for (i in 0 until  nr) {
         sqe = io_uring_get_sqe(ring);
         if (!sqe)
-            goto err;
+            break@err;
         io_uring_prep_nop(sqe);
-        sqe->user_data = i;
-        ctx->sqes[i] = sqe;
+        sqe.pointed.user_data = i;
+        ctx.pointed.sqes[i] = sqe;
     }
 
     return 0;
@@ -55,78 +59,84 @@ static int init_context(struct test_context *ctx, struct io_uring *ring, int nr)
     return 1;
 }
 
-static int wait_cqes(struct test_context *ctx) {
-    int ret, i;
-    struct io_uring_cqe *cqe;
+fun wait_cqes(ctx:CPointer<test_context>):Int{
+	val __FUNCTION__="wait_cqes"
 
-    for (i = 0; i < ctx->nr; i++) {
-        ret = io_uring_wait_cqe(ctx->ring, &cqe);
+    ret:Int, i;
+    cqe:CPointer<io_uring_cqe>;
+
+    for (i in 0 until  ctx.pointed.nr) {
+        ret = io_uring_wait_cqe(ctx.pointed.ring, cqe.ptr);
 
         if (ret < 0) {
             printf("wait_cqes: wait completion %d\n", ret);
             return 1;
         }
-        memcpy(&ctx->cqes[i], cqe, sizeof(*cqe));
-        io_uring_cqe_seen(ctx->ring, cqe);
+        memcpy(ctx.pointed.cqes.ptr[i], cqe, sizeof(*cqe));
+        io_uring_cqe_seen(ctx.pointed.ring, cqe);
     }
 
     return 0;
 }
 
-static int test_cancelled_userdata(struct io_uring *ring) {
-    struct test_context ctx;
-    int ret, i, nr = 100;
+fun test_cancelled_userdata(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="test_cancelled_userdata"
 
-    if (init_context(&ctx, ring, nr))
+    ctx:test_context;
+    ret:Int, i, nr = 100;
+
+    if (init_context(ctx.ptr, ring, nr))
         return 1;
 
-    for (i = 0; i < nr; i++)
+    for (i in 0 until  nr)
         ctx.sqes[i]->flags |= IOSQE_IO_LINK;
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
         printf("sqe submit failed: %d\n", ret);
-        goto err;
+        break@err;
     }
 
-    if (wait_cqes(&ctx))
-        goto err;
+    if (wait_cqes(ctx.ptr))
+        break@err;
 
-    for (i = 0; i < nr; i++) {
+    for (i in 0 until  nr) {
         if (i != ctx.cqes[i].user_data) {
             printf("invalid user data\n");
-            goto err;
+            break@err;
         }
     }
 
-    free_context(&ctx);
+    free_context(ctx.ptr);
     return 0;
     err:
-    free_context(&ctx);
+    free_context(ctx.ptr);
     return 1;
 }
 
-static int test_thread_link_cancel(struct io_uring *ring) {
-    struct test_context ctx;
-    int ret, i, nr = 100;
+fun test_thread_link_cancel(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="test_thread_link_cancel"
 
-    if (init_context(&ctx, ring, nr))
+    ctx:test_context;
+    ret:Int, i, nr = 100;
+
+    if (init_context(ctx.ptr, ring, nr))
         return 1;
 
-    for (i = 0; i < nr; i++)
+    for (i in 0 until  nr)
         ctx.sqes[i]->flags |= IOSQE_IO_LINK;
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
         printf("sqe submit failed: %d\n", ret);
-        goto err;
+        break@err;
     }
 
-    if (wait_cqes(&ctx))
-        goto err;
+    if (wait_cqes(ctx.ptr))
+        break@err;
 
-    for (i = 0; i < nr; i++) {
-        bool fail = false;
+    for (i in 0 until  nr) {
+        fail:Boolean = false;
 
         if (i == 0)
             fail = (ctx.cqes[i].res != -EINVAL);
@@ -135,79 +145,85 @@ static int test_thread_link_cancel(struct io_uring *ring) {
 
         if (fail) {
             printf("invalid status\n");
-            goto err;
+            break@err;
         }
     }
 
-    free_context(&ctx);
+    free_context(ctx.ptr);
     return 0;
     err:
-    free_context(&ctx);
+    free_context(ctx.ptr);
     return 1;
 }
 
-static int test_drain_with_linked_timeout(struct io_uring *ring) {
-    const int nr = 3;
-    struct __kernel_timespec ts = {.tv_sec = 1, .tv_nsec = 0,};
-    struct test_context ctx;
-    int ret, i;
+fun test_drain_with_linked_timeout(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="test_drain_with_linked_timeout"
 
-    if (init_context(&ctx, ring, nr * 2))
+    const nr:Int = 3;
+    ts:__kernel_timespec = {.tv_sec = 1, .tv_nsec = 0,};
+    ctx:test_context;
+    ret:Int, i;
+
+    if (init_context(ctx.ptr, ring, nr * 2))
         return 1;
 
-    for (i = 0; i < nr; i++) {
-        io_uring_prep_timeout(ctx.sqes[2 * i], &ts, 0, 0);
-        ctx.sqes[2 * i]->flags |= IOSQE_IO_LINK | IOSQE_IO_DRAIN;
-        io_uring_prep_link_timeout(ctx.sqes[2 * i + 1], &ts, 0);
+    for (i in 0 until  nr) {
+        io_uring_prep_timeout(ctx.sqes[i:CPointer<2>], ts.ptr, 0, 0);
+        ctx.sqes[i:CPointer<2>]->flags |=  IOSQE_IO_LINK or IOSQE_IO_DRAIN ;
+        io_uring_prep_link_timeout(ctx.sqes[i:CPointer<2> + 1], ts.ptr, 0);
     }
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
         printf("sqe submit failed: %d\n", ret);
-        goto err;
+        break@err;
     }
 
-    if (wait_cqes(&ctx))
-        goto err;
+    if (wait_cqes(ctx.ptr))
+        break@err;
 
-    free_context(&ctx);
+    free_context(ctx.ptr);
     return 0;
     err:
-    free_context(&ctx);
+    free_context(ctx.ptr);
     return 1;
 }
 
-static int run_drained(struct io_uring *ring, int nr) {
-    struct test_context ctx;
-    int ret, i;
+fun run_drained(ring:CPointer<io_uring>, nr:Int):Int{
+	val __FUNCTION__="run_drained"
 
-    if (init_context(&ctx, ring, nr))
+    ctx:test_context;
+    ret:Int, i;
+
+    if (init_context(ctx.ptr, ring, nr))
         return 1;
 
-    for (i = 0; i < nr; i++)
+    for (i in 0 until  nr)
         ctx.sqes[i]->flags |= IOSQE_IO_DRAIN;
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
         printf("sqe submit failed: %d\n", ret);
-        goto err;
+        break@err;
     }
 
-    if (wait_cqes(&ctx))
-        goto err;
+    if (wait_cqes(ctx.ptr))
+        break@err;
 
-    free_context(&ctx);
+    free_context(ctx.ptr);
     return 0;
     err:
-    free_context(&ctx);
+    free_context(ctx.ptr);
     return 1;
 }
 
-static int test_overflow_hung(struct io_uring *ring) {
-    struct io_uring_sqe *sqe;
-    int ret, nr = 10;
+fun test_overflow_hung(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="test_overflow_hung"
 
-    while (*ring->cq.koverflow != 1000) {
+    sqe:CPointer<io_uring_sqe>;
+    ret:Int, nr = 10;
+
+    while (*ring.pointed.cq.koverflow != 1000) {
         sqe = io_uring_get_sqe(ring);
         if (!sqe) {
             printf("get sqe failed\n");
@@ -225,69 +241,73 @@ static int test_overflow_hung(struct io_uring *ring) {
     return run_drained(ring, nr);
 }
 
-static int test_dropped_hung(struct io_uring *ring) {
-    int nr = 10;
+fun test_dropped_hung(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="test_dropped_hung"
 
-    *ring->sq.kdropped = 1000;
+    nr:Int = 10;
+
+    *ring.pointed.sq.kdropped = 1000;
     return run_drained(ring, nr);
 }
 
-int main(int argc, char *argv[]) {
-    struct io_uring ring, poll_ring, sqthread_ring;
-    struct io_uring_params p;
-    int ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    ring:io_uring, poll_ring, sqthread_ring;
+    p:io_uring_params;
+    ret:Int;
 
     if (argc > 1)
         return 0;
 
-    memset(&p, 0, sizeof(p));
-    ret = io_uring_queue_init_params(RING_SIZE, &ring, &p);
+    memset(p.ptr, 0, sizeof(p));
+    ret = io_uring_queue_init_params(RING_SIZE, ring.ptr, p.ptr);
     if (ret) {
         printf("ring setup failed %i\n", ret);
         return 1;
     }
 
-    ret = io_uring_queue_init(RING_SIZE, &poll_ring, IORING_SETUP_IOPOLL);
+    ret = io_uring_queue_init(RING_SIZE, poll_ring.ptr, IORING_SETUP_IOPOLL);
     if (ret) {
         printf("poll_ring setup failed\n");
         return 1;
     }
 
 
-    ret = test_cancelled_userdata(&poll_ring);
+    ret = test_cancelled_userdata(poll_ring.ptr);
     if (ret) {
         printf("test_cancelled_userdata failed\n");
         return ret;
     }
 
-    if (!(p.features & IORING_FEAT_NODROP)) {
-        ret = test_overflow_hung(&ring);
+    if (!(p. features and IORING_FEAT_NODROP )) {
+        ret = test_overflow_hung(ring.ptr);
         if (ret) {
             printf("test_overflow_hung failed\n");
             return ret;
         }
     }
 
-    ret = test_dropped_hung(&ring);
+    ret = test_dropped_hung(ring.ptr);
     if (ret) {
         printf("test_dropped_hung failed\n");
         return ret;
     }
 
-    ret = test_drain_with_linked_timeout(&ring);
+    ret = test_drain_with_linked_timeout(ring.ptr);
     if (ret) {
         printf("test_drain_with_linked_timeout failed\n");
         return ret;
     }
 
-    ret = t_create_ring(RING_SIZE, &sqthread_ring,
-                        IORING_SETUP_SQPOLL | IORING_SETUP_IOPOLL);
+    ret = t_create_ring(RING_SIZE, sqthread_ring.ptr,
+                         IORING_SETUP_SQPOLL or IORING_SETUP_IOPOLL );
     if (ret == T_SETUP_SKIP)
         return 0;
     else if (ret < 0)
         return 1;
 
-    ret = test_thread_link_cancel(&sqthread_ring);
+    ret = test_thread_link_cancel(sqthread_ring.ptr);
     if (ret) {
         printf("test_thread_link_cancel failed\n");
         return ret;

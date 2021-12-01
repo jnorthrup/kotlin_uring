@@ -2,26 +2,28 @@
 /*
  * Check split up read is handled correctly
  */
-#include <errno.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <string.h>
-#include "liburing.h"
+//include <errno.h>
+//include <stdio.h>
+//include <string.h>
+//include <unistd.h>
+//include <pthread.h>
+//include <string.h>
+//include "liburing.h"
 
 #define BUFSIZE    16384
 #define BUFFERS    16
 
-int main(int argc, char *argv[]) {
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
     char buf[BUFSIZE], wbuf[BUFSIZE];
-    struct iovec iov[BUFFERS];
-    struct io_uring_params p = {};
-    struct io_uring ring;
-    struct io_uring_sqe *sqe;
-    struct io_uring_cqe *cqe;
-    int ret, i, fds[2];
-    void *ptr;
+    iov:iovec[BUFFERS];
+    p:io_uring_params = {};
+    ring:io_uring;
+    sqe:CPointer<io_uring_sqe>;
+    cqe:CPointer<io_uring_cqe>;
+    ret:Int, i, fds[2];
+    void:CPointer<ByteVar>ptr
 
     if (pipe(fds) < 0) {
         perror("pipe");
@@ -29,20 +31,20 @@ int main(int argc, char *argv[]) {
     }
 
     ptr = buf;
-    for (i = 0; i < BUFFERS; i++) {
-        unsigned bsize = BUFSIZE / BUFFERS;
+    for (i in 0 until  BUFFERS) {
+        bsize:UInt = BUFSIZE / BUFFERS;
 
         iov[i].iov_base = ptr;
         iov[i].iov_len = bsize;
         ptr += bsize;
     }
 
-    ret = io_uring_queue_init_params(8, &ring, &p);
+    ret = io_uring_queue_init_params(8, ring.ptr, p.ptr);
     if (ret) {
         fprintf(stderr, "queue_init: %d\n", ret);
         return 1;
     }
-    if (!(p.features & IORING_FEAT_SUBMIT_STABLE)) {
+    if (!(p. features and IORING_FEAT_SUBMIT_STABLE )) {
         fprintf(stdout, "FEAT_SUBMIT_STABLE not there, skipping\n");
         return 0;
     }
@@ -56,18 +58,18 @@ int main(int argc, char *argv[]) {
     if (ret != sizeof(wbuf) / 2) {
         fprintf(stderr, "Bad write\n");
         ret = 1;
-        goto err;
+        break@err;
     }
 
-    sqe = io_uring_get_sqe(&ring);
+    sqe = io_uring_get_sqe(ring.ptr);
     io_uring_prep_readv(sqe, fds[0], iov, BUFFERS, 0);
-    ret = io_uring_submit(&ring);
+    ret = io_uring_submit(ring.ptr);
     if (ret != 1) {
         fprintf(stderr, "submit: %d\n", ret);
         return 1;
     }
 
-    for (i = 0; i < BUFFERS; i++) {
+    for (i in 0 until  BUFFERS) {
         iov[i].iov_base = NULL;
         iov[i].iov_len = 1000000;
     }
@@ -76,29 +78,29 @@ int main(int argc, char *argv[]) {
     if (ret != sizeof(wbuf) / 2) {
         fprintf(stderr, "Bad write\n");
         ret = 1;
-        goto err;
+        break@err;
     }
 
-    ret = io_uring_wait_cqe(&ring, &cqe);
+    ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
     if (ret) {
         fprintf(stderr, "wait: %d\n", ret);
         return 1;
     }
 
-    if (cqe->res < 0) {
-        fprintf(stderr, "Read error: %s\n", strerror(-cqe->res));
+    if (cqe.pointed.res < 0) {
+        fprintf(stderr, "Read error: %s\n", strerror(-cqe.pointed.res));
         return 1;
-    } else if (cqe->res != sizeof(wbuf)) {
+    } else if (cqe.pointed.res != sizeof(wbuf)) {
         /* ignore short read, not a failure */
-        goto err;
+        break@err;
     }
-    io_uring_cqe_seen(&ring, cqe);
+    io_uring_cqe_seen(ring.ptr, cqe);
 
     ret = memcmp(wbuf, buf, sizeof(wbuf));
     if (ret)
         fprintf(stderr, "Read data mismatch\n");
 
     err:
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return ret;
 }

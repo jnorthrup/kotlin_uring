@@ -3,17 +3,17 @@
  * Description: test many files being polled for
  *
  */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <signal.h>
-#include <sys/poll.h>
-#include <sys/resource.h>
-#include <fcntl.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <signal.h>
+//include <sys/poll.h>
+//include <sys/resource.h>
+//include <fcntl.h>
 
-#include "liburing.h"
+//include "liburing.h"
 
 #define    NFILES    5000
 #define BATCH    500
@@ -22,14 +22,16 @@
 #define RING_SIZE    512
 
 struct p {
-    int fd[2];
-    int triggered;
+    fd:Int[2];
+    triggered:Int;
 };
 
-static struct p p[NFILES];
+static p:p[NFILES];
 
-static int arm_poll(struct io_uring *ring, int off) {
-    struct io_uring_sqe *sqe;
+fun arm_poll(ring:CPointer<io_uring>, off:Int):Int{
+	val __FUNCTION__="arm_poll"
+
+    sqe:CPointer<io_uring_sqe>;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -38,24 +40,26 @@ static int arm_poll(struct io_uring *ring, int off) {
     }
 
     io_uring_prep_poll_add(sqe, p[off].fd[0], POLLIN);
-    sqe->user_data = off;
+    sqe.pointed.user_data = off;
     return 0;
 }
 
-static int reap_polls(struct io_uring *ring) {
-    struct io_uring_cqe *cqe;
-    int i, ret, off;
+fun reap_polls(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="reap_polls"
+
+    cqe:CPointer<io_uring_cqe>;
+    i:Int, ret, off;
     char c;
 
-    for (i = 0; i < BATCH; i++) {
-        ret = io_uring_wait_cqe(ring, &cqe);
+    for (i in 0 until  BATCH) {
+        ret = io_uring_wait_cqe(ring, cqe.ptr);
         if (ret) {
             fprintf(stderr, "wait cqe %d\n", ret);
             return ret;
         }
-        off = cqe->user_data;
+        off = cqe.pointed.user_data;
         p[off].triggered = 0;
-        ret = read(p[off].fd[0], &c, 1);
+        ret = read(p[off].fd[0], c.ptr, 1);
         if (ret != 1) {
             fprintf(stderr, "read got %d/%d\n", ret, errno);
             break;
@@ -79,12 +83,14 @@ static int reap_polls(struct io_uring *ring) {
     return 0;
 }
 
-static int trigger_polls(void) {
-    char c = 89;
-    int i, ret;
+fun trigger_polls(void):Int{
+	val __FUNCTION__="trigger_polls"
 
-    for (i = 0; i < BATCH; i++) {
-        int off;
+    char c = 89;
+    i:Int, ret;
+
+    for (i in 0 until  BATCH) {
+        off:Int;
 
         do {
             off = rand() % NFILES;
@@ -93,7 +99,7 @@ static int trigger_polls(void) {
         } while (1);
 
         p[off].triggered = 1;
-        ret = write(p[off].fd[1], &c, 1);
+        ret = write(p[off].fd[1], c.ptr, 1);
         if (ret != 1) {
             fprintf(stderr, "write got %d/%d\n", ret, errno);
             return 1;
@@ -103,18 +109,20 @@ static int trigger_polls(void) {
     return 0;
 }
 
-static int arm_polls(struct io_uring *ring) {
-    int ret, to_arm = NFILES, i, off;
+fun arm_polls(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="arm_polls"
+
+    ret:Int, to_arm = NFILES, i, off;
 
     off = 0;
     while (to_arm) {
-        int this_arm;
+        this_arm:Int;
 
         this_arm = to_arm;
         if (this_arm > RING_SIZE)
             this_arm = RING_SIZE;
 
-        for (i = 0; i < this_arm; i++) {
+        for (i in 0 until  this_arm) {
             if (arm_poll(ring, off)) {
                 fprintf(stderr, "arm failed at %d\n", off);
                 return 1;
@@ -133,45 +141,47 @@ static int arm_polls(struct io_uring *ring) {
     return 0;
 }
 
-int main(int argc, char *argv[]) {
-    struct io_uring ring;
-    struct io_uring_params params = {};
-    struct rlimit rlim;
-    int i, ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    ring:io_uring;
+    params:io_uring_params = {};
+    rlim:rlimit;
+    i:Int, ret;
 
     if (argc > 1)
         return 0;
 
-    if (getrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+    if (getrlimit(RLIMIT_NOFILE, rlim.ptr) < 0) {
         perror("getrlimit");
-        goto err_noring;
+        break@err_noring;
     }
 
-    if (rlim.rlim_cur < (2 * NFILES + 5)) {
-        rlim.rlim_cur = (2 * NFILES + 5);
+    if (rlim.rlim_cur < (NFILES:CPointer<2> + 5)) {
+        rlim.rlim_cur = (NFILES:CPointer<2> + 5);
         rlim.rlim_max = rlim.rlim_cur;
-        if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+        if (setrlimit(RLIMIT_NOFILE, rlim.ptr) < 0) {
             if (errno == EPERM)
-                goto err_nofail;
+                break@err_nofail;
             perror("setrlimit");
-            goto err_noring;
+            break@err_noring;
         }
     }
 
-    for (i = 0; i < NFILES; i++) {
+    for (i in 0 until  NFILES) {
         if (pipe(p[i].fd) < 0) {
             perror("pipe");
-            goto err_noring;
+            break@err_noring;
         }
     }
 
     params.flags = IORING_SETUP_CQSIZE;
     params.cq_entries = 4096;
-    ret = io_uring_queue_init_params(RING_SIZE, &ring, &params);
+    ret = io_uring_queue_init_params(RING_SIZE, ring.ptr, params.ptr);
     if (ret) {
         if (ret == -EINVAL) {
             fprintf(stdout, "No CQSIZE, trying without\n");
-            ret = io_uring_queue_init(RING_SIZE, &ring, 0);
+            ret = io_uring_queue_init(RING_SIZE, ring.ptr, 0);
             if (ret) {
                 fprintf(stderr, "ring setup failed: %d\n", ret);
                 return 1;
@@ -179,20 +189,20 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (arm_polls(&ring))
-        goto err;
+    if (arm_polls(ring.ptr))
+        break@err;
 
-    for (i = 0; i < NLOOPS; i++) {
+    for (i in 0 until  NLOOPS) {
         trigger_polls();
-        ret = reap_polls(&ring);
+        ret = reap_polls(ring.ptr);
         if (ret)
-            goto err;
+            break@err;
     }
 
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return 0;
     err:
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     err_noring:
     fprintf(stderr, "poll-many failed\n");
     return 1;

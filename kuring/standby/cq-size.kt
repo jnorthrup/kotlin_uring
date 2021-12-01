@@ -2,32 +2,34 @@
 /*
  * Description: test CQ ring sizing
  */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <fcntl.h>
 
-#include "liburing.h"
+//include "liburing.h"
 
-int main(int argc, char *argv[]) {
-    struct io_uring_params p;
-    struct io_uring ring;
-    int ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    p:io_uring_params;
+    ring:io_uring;
+    ret:Int;
 
     if (argc > 1)
         return 0;
 
-    memset(&p, 0, sizeof(p));
+    memset(p.ptr, 0, sizeof(p));
     p.flags = IORING_SETUP_CQSIZE;
     p.cq_entries = 64;
 
-    ret = io_uring_queue_init_params(4, &ring, &p);
+    ret = io_uring_queue_init_params(4, ring.ptr, p.ptr);
     if (ret) {
         if (ret == -EINVAL) {
             printf("Skipped, not supported on this kernel\n");
-            goto done;
+            break@done;
         }
         printf("ring setup failed\n");
         return 1;
@@ -35,25 +37,25 @@ int main(int argc, char *argv[]) {
 
     if (p.cq_entries < 64) {
         printf("cq entries invalid (%d)\n", p.cq_entries);
-        goto err;
+        break@err;
     }
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
 
-    memset(&p, 0, sizeof(p));
+    memset(p.ptr, 0, sizeof(p));
     p.flags = IORING_SETUP_CQSIZE;
     p.cq_entries = 0;
 
-    ret = io_uring_queue_init_params(4, &ring, &p);
+    ret = io_uring_queue_init_params(4, ring.ptr, p.ptr);
     if (ret >= 0) {
         printf("zero sized cq ring succeeded\n");
-        io_uring_queue_exit(&ring);
-        goto err;
+        io_uring_queue_exit(ring.ptr);
+        break@err;
     }
 
     if (ret != -EINVAL) {
         printf("io_uring_queue_init_params failed, but not with -EINVAL"
                ", returned error %d (%s)\n", ret, strerror(-ret));
-        goto err;
+        break@err;
     }
 
     done:

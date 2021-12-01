@@ -3,84 +3,90 @@
  * Description: run various statx(2) tests
  *
  */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/syscall.h>
-#include <linux/stat.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <fcntl.h>
+//include <sys/types.h>
+//include <sys/syscall.h>
+//include <linux/stat.h>
 
-#include "helpers.h"
-#include "liburing.h"
+//include "helpers.h"
+//include "liburing.h"
 
 #ifdef __NR_statx
 
-static int do_statx(int dfd, const char *path, int flags, unsigned mask,
-        struct statx *statxbuf) {
+static do_statx:Int(int dfd, path:String, flags:Int, mask:UInt,
+        statxbuf:CPointer<statx>) {
     return syscall(__NR_statx, dfd, path, flags, mask, statxbuf);
 }
 
 #else
-static int do_statx(int dfd, const char *path, int flags, unsigned mask,
-            struct statx *statxbuf)
+static do_statx:Int(int dfd, path:String, flags:Int, mask:UInt,
+            statxbuf:CPointer<statx>)
 {
     errno = ENOSYS;
     return -1;
 }
 #endif
 
-static int statx_syscall_supported(void) {
+fun statx_syscall_supported(void):Int{
+	val __FUNCTION__="statx_syscall_supported"
+
     return errno == ENOSYS ? 0 : -1;
 }
 
-static int test_statx(struct io_uring *ring, const char *path) {
-    struct io_uring_cqe *cqe;
-    struct io_uring_sqe *sqe;
-    struct statx x1, x2;
-    int ret;
+fun test_statx(ring:CPointer<io_uring>, path:String):Int{
+	val __FUNCTION__="test_statx"
+
+    cqe:CPointer<io_uring_cqe>;
+    sqe:CPointer<io_uring_sqe>;
+    x1:statx, x2;
+    ret:Int;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
         fprintf(stderr, "get sqe failed\n");
-        goto err;
+        break@err;
     }
-    io_uring_prep_statx(sqe, -1, path, 0, STATX_ALL, &x1);
+    io_uring_prep_statx(sqe, -1, path, 0, STATX_ALL, x1.ptr);
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
         fprintf(stderr, "sqe submit failed: %d\n", ret);
-        goto err;
+        break@err;
     }
 
-    ret = io_uring_wait_cqe(ring, &cqe);
+    ret = io_uring_wait_cqe(ring, cqe.ptr);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
-        goto err;
+        break@err;
     }
-    ret = cqe->res;
+    ret = cqe.pointed.res;
     io_uring_cqe_seen(ring, cqe);
     if (ret)
         return ret;
-    ret = do_statx(-1, path, 0, STATX_ALL, &x2);
+    ret = do_statx(-1, path, 0, STATX_ALL, x2.ptr);
     if (ret < 0)
         return statx_syscall_supported();
-    if (memcmp(&x1, &x2, sizeof(x1))) {
+    if (memcmp(x1.ptr, x2.ptr, sizeof(x1))) {
         fprintf(stderr, "Miscompare between io_uring and statx\n");
-        goto err;
+        break@err;
     }
     return 0;
     err:
     return -1;
 }
 
-static int test_statx_fd(struct io_uring *ring, const char *path) {
-    struct io_uring_cqe *cqe;
-    struct io_uring_sqe *sqe;
-    struct statx x1, x2;
-    int ret, fd;
+fun test_statx_fd(ring:CPointer<io_uring>, path:String):Int{
+	val __FUNCTION__="test_statx_fd"
+
+    cqe:CPointer<io_uring_cqe>;
+    sqe:CPointer<io_uring_sqe>;
+    x1:statx, x2;
+    ret:Int, fd;
 
     fd = open(path, O_RDONLY);
     if (fd < 0) {
@@ -88,49 +94,51 @@ static int test_statx_fd(struct io_uring *ring, const char *path) {
         return 1;
     }
 
-    memset(&x1, 0, sizeof(x1));
+    memset(x1.ptr, 0, sizeof(x1));
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
         fprintf(stderr, "get sqe failed\n");
-        goto err;
+        break@err;
     }
-    io_uring_prep_statx(sqe, fd, "", AT_EMPTY_PATH, STATX_ALL, &x1);
+    io_uring_prep_statx(sqe, fd, "", AT_EMPTY_PATH, STATX_ALL, x1.ptr);
 
     ret = io_uring_submit(ring);
     if (ret <= 0) {
         fprintf(stderr, "sqe submit failed: %d\n", ret);
-        goto err;
+        break@err;
     }
 
-    ret = io_uring_wait_cqe(ring, &cqe);
+    ret = io_uring_wait_cqe(ring, cqe.ptr);
     if (ret < 0) {
         fprintf(stderr, "wait completion %d\n", ret);
-        goto err;
+        break@err;
     }
-    ret = cqe->res;
+    ret = cqe.pointed.res;
     io_uring_cqe_seen(ring, cqe);
     if (ret)
         return ret;
-    memset(&x2, 0, sizeof(x2));
-    ret = do_statx(fd, "", AT_EMPTY_PATH, STATX_ALL, &x2);
+    memset(x2.ptr, 0, sizeof(x2));
+    ret = do_statx(fd, "", AT_EMPTY_PATH, STATX_ALL, x2.ptr);
     if (ret < 0)
         return statx_syscall_supported();
-    if (memcmp(&x1, &x2, sizeof(x1))) {
+    if (memcmp(x1.ptr, x2.ptr, sizeof(x1))) {
         fprintf(stderr, "Miscompare between io_uring and statx\n");
-        goto err;
+        break@err;
     }
     return 0;
     err:
     return -1;
 }
 
-int main(int argc, char *argv[]) {
-    struct io_uring ring;
-    const char *fname;
-    int ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
 
-    ret = io_uring_queue_init(8, &ring, 0);
+    ring:io_uring;
+    fname:String;
+    ret:Int;
+
+    ret = io_uring_queue_init(8, ring.ptr, 0);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
@@ -143,20 +151,20 @@ int main(int argc, char *argv[]) {
         t_create_file(fname, 4096);
     }
 
-    ret = test_statx(&ring, fname);
+    ret = test_statx(ring.ptr, fname);
     if (ret) {
         if (ret == -EINVAL) {
             fprintf(stdout, "statx not supported, skipping\n");
-            goto done;
+            break@done;
         }
         fprintf(stderr, "test_statx failed: %d\n", ret);
-        goto err;
+        break@err;
     }
 
-    ret = test_statx_fd(&ring, fname);
+    ret = test_statx_fd(ring.ptr, fname);
     if (ret) {
         fprintf(stderr, "test_statx_fd failed: %d\n", ret);
-        goto err;
+        break@err;
     }
     done:
     if (fname != argv[1])

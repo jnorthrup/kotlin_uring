@@ -1,39 +1,41 @@
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <sys/mman.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <fcntl.h>
+//include <sys/mman.h>
 
-#include "helpers.h"
-#include "liburing.h"
+//include "helpers.h"
+//include "liburing.h"
 
 #define BUF_SIZE (16 * 4096)
 
 struct test_ctx {
-    int real_pipe1[2];
-    int real_pipe2[2];
-    int real_fd_in;
-    int real_fd_out;
+    real_pipe1:Int[2];
+    real_pipe2:Int[2];
+    real_fd_in:Int;
+    real_fd_out:Int;
 
     /* fds or for registered files */
-    int pipe1[2];
-    int pipe2[2];
-    int fd_in;
-    int fd_out;
+    pipe1:Int[2];
+    pipe2:Int[2];
+    fd_in:Int;
+    fd_out:Int;
 
-    void *buf_in;
-    void *buf_out;
+    void:CPointer<ByteVar>buf_in
+    void:CPointer<ByteVar>buf_out
 };
 
-static unsigned int splice_flags = 0;
-static unsigned int sqe_flags = 0;
-static int has_splice = 0;
-static int has_tee = 0;
+static splice_flags:UInt = 0;
+static sqe_flags:UInt = 0;
+static has_splice:Int = 0;
+static has_tee:Int = 0;
 
-static int read_buf(int fd, void *buf, int len) {
-    int ret;
+fun read_buf(fd:Int, void:CPointer<ByteVar>buf len:Int):Int{
+	val __FUNCTION__="read_buf"
+
+    ret:Int;
 
     while (len) {
         ret = read(fd, buf, len);
@@ -45,8 +47,10 @@ static int read_buf(int fd, void *buf, int len) {
     return 0;
 }
 
-static int write_buf(int fd, const void *buf, int len) {
-    int ret;
+fun write_buf(fd:Int, const void:CPointer<ByteVar>buf len:Int):Int{
+	val __FUNCTION__="write_buf"
+
+    ret:Int;
 
     while (len) {
         ret = write(fd, buf, len);
@@ -58,8 +62,10 @@ static int write_buf(int fd, const void *buf, int len) {
     return 0;
 }
 
-static int check_content(int fd, void *buf, int len, const void *src) {
-    int ret;
+fun check_content(fd:Int, void:CPointer<ByteVar>buf len:Int, const src:CPointer<void>):Int{
+	val __FUNCTION__="check_content"
+
+    ret:Int;
 
     ret = read_buf(fd, buf, len);
     if (ret)
@@ -69,30 +75,34 @@ static int check_content(int fd, void *buf, int len, const void *src) {
     return (ret != 0) ? -1 : 0;
 }
 
-static int create_file(const char *filename) {
-    int fd, save_errno;
+fun create_file(filename:String):Int{
+	val __FUNCTION__="create_file"
 
-    fd = open(filename, O_RDWR | O_CREAT, 0644);
+    fd:Int, save_errno;
+
+    fd = open(filename,  O_RDWR or O_CREAT , 0644);
     save_errno = errno;
     unlink(filename);
     errno = save_errno;
     return fd;
 }
 
-static int init_splice_ctx(struct test_ctx *ctx) {
-    int ret, rnd_fd;
+fun init_splice_ctx(ctx:CPointer<test_ctx>):Int{
+	val __FUNCTION__="init_splice_ctx"
 
-    ctx->buf_in = t_calloc(BUF_SIZE, 1);
-    ctx->buf_out = t_calloc(BUF_SIZE, 1);
+    ret:Int, rnd_fd;
 
-    ctx->fd_in = create_file(".splice-test-in");
-    if (ctx->fd_in < 0) {
+    ctx.pointed.buf_in = t_calloc(BUF_SIZE, 1);
+    ctx.pointed.buf_out = t_calloc(BUF_SIZE, 1);
+
+    ctx.pointed.fd_in = create_file(".splice-test-in");
+    if (ctx.pointed.fd_in < 0) {
         perror("file open");
         return 1;
     }
 
-    ctx->fd_out = create_file(".splice-test-out");
-    if (ctx->fd_out < 0) {
+    ctx.pointed.fd_out = create_file(".splice-test-out");
+    if (ctx.pointed.fd_out < 0) {
         perror("file open");
         return 1;
     }
@@ -102,38 +112,38 @@ static int init_splice_ctx(struct test_ctx *ctx) {
     if (rnd_fd < 0)
         return 1;
 
-    ret = read_buf(rnd_fd, ctx->buf_in, BUF_SIZE);
+    ret = read_buf(rnd_fd, ctx.pointed.buf_in, BUF_SIZE);
     if (ret != 0)
         return 1;
     close(rnd_fd);
 
     /* populate file */
-    ret = write_buf(ctx->fd_in, ctx->buf_in, BUF_SIZE);
+    ret = write_buf(ctx.pointed.fd_in, ctx.pointed.buf_in, BUF_SIZE);
     if (ret)
         return ret;
 
-    if (pipe(ctx->pipe1) < 0)
+    if (pipe(ctx.pointed.pipe1) < 0)
         return 1;
-    if (pipe(ctx->pipe2) < 0)
+    if (pipe(ctx.pointed.pipe2) < 0)
         return 1;
 
-    ctx->real_pipe1[0] = ctx->pipe1[0];
-    ctx->real_pipe1[1] = ctx->pipe1[1];
-    ctx->real_pipe2[0] = ctx->pipe2[0];
-    ctx->real_pipe2[1] = ctx->pipe2[1];
-    ctx->real_fd_in = ctx->fd_in;
-    ctx->real_fd_out = ctx->fd_out;
+    ctx.pointed.real_pipe1[0] = ctx.pointed.pipe1[0];
+    ctx.pointed.real_pipe1[1] = ctx.pointed.pipe1[1];
+    ctx.pointed.real_pipe2[0] = ctx.pointed.pipe2[0];
+    ctx.pointed.real_pipe2[1] = ctx.pointed.pipe2[1];
+    ctx.pointed.real_fd_in = ctx.pointed.fd_in;
+    ctx.pointed.real_fd_out = ctx.pointed.fd_out;
     return 0;
 }
 
-static int do_splice_op(struct io_uring *ring,
-        int fd_in, loff_t off_in,
-        int fd_out, loff_t off_out,
-        unsigned int len,
+static do_splice_op:Int(ring:CPointer<io_uring>,
+        fd_in:Int, off_in:loff_t,
+        fd_out:Int, off_out:loff_t,
+        len:UInt,
         __u8 opcode) {
-    struct io_uring_cqe *cqe;
-    struct io_uring_sqe *sqe;
-    int ret = -1;
+    cqe:CPointer<io_uring_cqe>;
+    sqe:CPointer<io_uring_sqe>;
+    ret:Int = -1;
 
     do {
         sqe = io_uring_get_sqe(ring);
@@ -143,9 +153,9 @@ static int do_splice_op(struct io_uring *ring,
         }
         io_uring_prep_splice(sqe, fd_in, off_in, fd_out, off_out,
                              len, splice_flags);
-        sqe->flags |= sqe_flags;
-        sqe->user_data = 42;
-        sqe->opcode = opcode;
+        sqe.pointed.flags |= sqe_flags;
+        sqe.pointed.user_data = 42;
+        sqe.pointed.opcode = opcode;
 
         ret = io_uring_submit(ring);
         if (ret != 1) {
@@ -153,162 +163,180 @@ static int do_splice_op(struct io_uring *ring,
             return ret;
         }
 
-        ret = io_uring_wait_cqe(ring, &cqe);
+        ret = io_uring_wait_cqe(ring, cqe.ptr);
         if (ret < 0) {
-            fprintf(stderr, "wait completion %d\n", cqe->res);
+            fprintf(stderr, "wait completion %d\n", cqe.pointed.res);
             return ret;
         }
 
-        if (cqe->res <= 0) {
+        if (cqe.pointed.res <= 0) {
             io_uring_cqe_seen(ring, cqe);
-            return cqe->res;
+            return cqe.pointed.res;
         }
 
-        len -= cqe->res;
+        len -= cqe.pointed.res;
         if (off_in != -1)
-            off_in += cqe->res;
+            off_in += cqe.pointed.res;
         if (off_out != -1)
-            off_out += cqe->res;
+            off_out += cqe.pointed.res;
         io_uring_cqe_seen(ring, cqe);
     } while (len);
 
     return 0;
 }
 
-static int do_splice(struct io_uring *ring,
-        int fd_in, loff_t off_in,
-        int fd_out, loff_t off_out,
-        unsigned int len) {
+static do_splice:Int(ring:CPointer<io_uring>,
+        fd_in:Int, off_in:loff_t,
+        fd_out:Int, off_out:loff_t,
+        len:UInt) {
     return do_splice_op(ring, fd_in, off_in, fd_out, off_out, len,
                         IORING_OP_SPLICE);
 }
 
-static int do_tee(struct io_uring *ring, int fd_in, int fd_out,
-        unsigned int len) {
+static do_tee:Int(ring:CPointer<io_uring>, fd_in:Int, fd_out:Int,
+        len:UInt) {
     return do_splice_op(ring, fd_in, 0, fd_out, 0, len, IORING_OP_TEE);
 }
 
-static void check_splice_support(struct io_uring *ring, struct test_ctx *ctx) {
-    int ret;
+fun check_splice_support(ring:CPointer<io_uring>, struct test_ctx *ctx):Unit{
+	val __FUNCTION__="check_splice_support"
+
+    ret:Int;
 
     ret = do_splice(ring, -1, 0, -1, 0, BUF_SIZE);
     has_splice = (ret == -EBADF);
 }
 
-static void check_tee_support(struct io_uring *ring, struct test_ctx *ctx) {
-    int ret;
+fun check_tee_support(ring:CPointer<io_uring>, struct test_ctx *ctx):Unit{
+	val __FUNCTION__="check_tee_support"
+
+    ret:Int;
 
     ret = do_tee(ring, -1, -1, BUF_SIZE);
     has_tee = (ret == -EBADF);
 }
 
-static int check_zero_splice(struct io_uring *ring, struct test_ctx *ctx) {
-    int ret;
+fun check_zero_splice(ring:CPointer<io_uring>, struct test_ctx *ctx):Int{
+	val __FUNCTION__="check_zero_splice"
 
-    ret = do_splice(ring, ctx->fd_in, -1, ctx->pipe1[1], -1, 0);
+    ret:Int;
+
+    ret = do_splice(ring, ctx.pointed.fd_in, -1, ctx.pointed.pipe1[1], -1, 0);
     if (ret)
         return ret;
 
-    ret = do_splice(ring, ctx->pipe2[0], -1, ctx->pipe1[1], -1, 0);
+    ret = do_splice(ring, ctx.pointed.pipe2[0], -1, ctx.pointed.pipe1[1], -1, 0);
     if (ret)
         return ret;
 
     return 0;
 }
 
-static int splice_to_pipe(struct io_uring *ring, struct test_ctx *ctx) {
-    int ret;
+fun splice_to_pipe(ring:CPointer<io_uring>, struct test_ctx *ctx):Int{
+	val __FUNCTION__="splice_to_pipe"
 
-    ret = lseek(ctx->real_fd_in, 0, SEEK_SET);
+    ret:Int;
+
+    ret = lseek(ctx.pointed.real_fd_in, 0, SEEK_SET);
     if (ret)
         return ret;
 
     /* implicit file offset */
-    ret = do_splice(ring, ctx->fd_in, -1, ctx->pipe1[1], -1, BUF_SIZE);
+    ret = do_splice(ring, ctx.pointed.fd_in, -1, ctx.pointed.pipe1[1], -1, BUF_SIZE);
     if (ret)
         return ret;
 
-    ret = check_content(ctx->real_pipe1[0], ctx->buf_out, BUF_SIZE,
-                        ctx->buf_in);
+    ret = check_content(ctx.pointed.real_pipe1[0], ctx.pointed.buf_out, BUF_SIZE,
+                        ctx.pointed.buf_in);
     if (ret)
         return ret;
 
     /* explicit file offset */
-    ret = do_splice(ring, ctx->fd_in, 0, ctx->pipe1[1], -1, BUF_SIZE);
+    ret = do_splice(ring, ctx.pointed.fd_in, 0, ctx.pointed.pipe1[1], -1, BUF_SIZE);
     if (ret)
         return ret;
 
-    return check_content(ctx->real_pipe1[0], ctx->buf_out, BUF_SIZE,
-                         ctx->buf_in);
+    return check_content(ctx.pointed.real_pipe1[0], ctx.pointed.buf_out, BUF_SIZE,
+                         ctx.pointed.buf_in);
 }
 
-static int splice_from_pipe(struct io_uring *ring, struct test_ctx *ctx) {
-    int ret;
+fun splice_from_pipe(ring:CPointer<io_uring>, struct test_ctx *ctx):Int{
+	val __FUNCTION__="splice_from_pipe"
 
-    ret = write_buf(ctx->real_pipe1[1], ctx->buf_in, BUF_SIZE);
+    ret:Int;
+
+    ret = write_buf(ctx.pointed.real_pipe1[1], ctx.pointed.buf_in, BUF_SIZE);
     if (ret)
         return ret;
-    ret = do_splice(ring, ctx->pipe1[0], -1, ctx->fd_out, 0, BUF_SIZE);
+    ret = do_splice(ring, ctx.pointed.pipe1[0], -1, ctx.pointed.fd_out, 0, BUF_SIZE);
     if (ret)
         return ret;
-    ret = check_content(ctx->real_fd_out, ctx->buf_out, BUF_SIZE,
-                        ctx->buf_in);
+    ret = check_content(ctx.pointed.real_fd_out, ctx.pointed.buf_out, BUF_SIZE,
+                        ctx.pointed.buf_in);
     if (ret)
         return ret;
 
-    ret = ftruncate(ctx->real_fd_out, 0);
+    ret = ftruncate(ctx.pointed.real_fd_out, 0);
     if (ret)
         return ret;
-    return lseek(ctx->real_fd_out, 0, SEEK_SET);
+    return lseek(ctx.pointed.real_fd_out, 0, SEEK_SET);
 }
 
-static int splice_pipe_to_pipe(struct io_uring *ring, struct test_ctx *ctx) {
-    int ret;
+fun splice_pipe_to_pipe(ring:CPointer<io_uring>, struct test_ctx *ctx):Int{
+	val __FUNCTION__="splice_pipe_to_pipe"
 
-    ret = do_splice(ring, ctx->fd_in, 0, ctx->pipe1[1], -1, BUF_SIZE);
+    ret:Int;
+
+    ret = do_splice(ring, ctx.pointed.fd_in, 0, ctx.pointed.pipe1[1], -1, BUF_SIZE);
     if (ret)
         return ret;
-    ret = do_splice(ring, ctx->pipe1[0], -1, ctx->pipe2[1], -1, BUF_SIZE);
+    ret = do_splice(ring, ctx.pointed.pipe1[0], -1, ctx.pointed.pipe2[1], -1, BUF_SIZE);
     if (ret)
         return ret;
 
-    return check_content(ctx->real_pipe2[0], ctx->buf_out, BUF_SIZE,
-                         ctx->buf_in);
+    return check_content(ctx.pointed.real_pipe2[0], ctx.pointed.buf_out, BUF_SIZE,
+                         ctx.pointed.buf_in);
 }
 
-static int fail_splice_pipe_offset(struct io_uring *ring, struct test_ctx *ctx) {
-    int ret;
+fun fail_splice_pipe_offset(ring:CPointer<io_uring>, struct test_ctx *ctx):Int{
+	val __FUNCTION__="fail_splice_pipe_offset"
 
-    ret = do_splice(ring, ctx->fd_in, 0, ctx->pipe1[1], 0, BUF_SIZE);
+    ret:Int;
+
+    ret = do_splice(ring, ctx.pointed.fd_in, 0, ctx.pointed.pipe1[1], 0, BUF_SIZE);
     if (ret != -ESPIPE && ret != -EINVAL)
         return ret;
 
-    ret = do_splice(ring, ctx->pipe1[0], 0, ctx->fd_out, 0, BUF_SIZE);
-    if (ret != -ESPIPE && ret != -EINVAL)
-        return ret;
-
-    return 0;
-}
-
-static int fail_tee_nonpipe(struct io_uring *ring, struct test_ctx *ctx) {
-    int ret;
-
-    ret = do_tee(ring, ctx->fd_in, ctx->pipe1[1], BUF_SIZE);
+    ret = do_splice(ring, ctx.pointed.pipe1[0], 0, ctx.pointed.fd_out, 0, BUF_SIZE);
     if (ret != -ESPIPE && ret != -EINVAL)
         return ret;
 
     return 0;
 }
 
-static int fail_tee_offset(struct io_uring *ring, struct test_ctx *ctx) {
-    int ret;
+fun fail_tee_nonpipe(ring:CPointer<io_uring>, struct test_ctx *ctx):Int{
+	val __FUNCTION__="fail_tee_nonpipe"
 
-    ret = do_splice_op(ring, ctx->pipe2[0], -1, ctx->pipe1[1], 0,
+    ret:Int;
+
+    ret = do_tee(ring, ctx.pointed.fd_in, ctx.pointed.pipe1[1], BUF_SIZE);
+    if (ret != -ESPIPE && ret != -EINVAL)
+        return ret;
+
+    return 0;
+}
+
+fun fail_tee_offset(ring:CPointer<io_uring>, struct test_ctx *ctx):Int{
+	val __FUNCTION__="fail_tee_offset"
+
+    ret:Int;
+
+    ret = do_splice_op(ring, ctx.pointed.pipe2[0], -1, ctx.pointed.pipe1[1], 0,
                        BUF_SIZE, IORING_OP_TEE);
     if (ret != -ESPIPE && ret != -EINVAL)
         return ret;
 
-    ret = do_splice_op(ring, ctx->pipe2[0], 0, ctx->pipe1[1], -1,
+    ret = do_splice_op(ring, ctx.pointed.pipe2[0], 0, ctx.pointed.pipe1[1], -1,
                        BUF_SIZE, IORING_OP_TEE);
     if (ret != -ESPIPE && ret != -EINVAL)
         return ret;
@@ -316,25 +344,27 @@ static int fail_tee_offset(struct io_uring *ring, struct test_ctx *ctx) {
     return 0;
 }
 
-static int check_tee(struct io_uring *ring, struct test_ctx *ctx) {
-    int ret;
+fun check_tee(ring:CPointer<io_uring>, struct test_ctx *ctx):Int{
+	val __FUNCTION__="check_tee"
 
-    ret = write_buf(ctx->real_pipe1[1], ctx->buf_in, BUF_SIZE);
+    ret:Int;
+
+    ret = write_buf(ctx.pointed.real_pipe1[1], ctx.pointed.buf_in, BUF_SIZE);
     if (ret)
         return ret;
-    ret = do_tee(ring, ctx->pipe1[0], ctx->pipe2[1], BUF_SIZE);
+    ret = do_tee(ring, ctx.pointed.pipe1[0], ctx.pointed.pipe2[1], BUF_SIZE);
     if (ret)
         return ret;
 
-    ret = check_content(ctx->real_pipe1[0], ctx->buf_out, BUF_SIZE,
-                        ctx->buf_in);
+    ret = check_content(ctx.pointed.real_pipe1[0], ctx.pointed.buf_out, BUF_SIZE,
+                        ctx.pointed.buf_in);
     if (ret) {
         fprintf(stderr, "tee(), invalid src data\n");
         return ret;
     }
 
-    ret = check_content(ctx->real_pipe2[0], ctx->buf_out, BUF_SIZE,
-                        ctx->buf_in);
+    ret = check_content(ctx.pointed.real_pipe2[0], ctx.pointed.buf_out, BUF_SIZE,
+                        ctx.pointed.buf_in);
     if (ret) {
         fprintf(stderr, "tee(), invalid dst data\n");
         return ret;
@@ -343,12 +373,16 @@ static int check_tee(struct io_uring *ring, struct test_ctx *ctx) {
     return 0;
 }
 
-static int check_zero_tee(struct io_uring *ring, struct test_ctx *ctx) {
-    return do_tee(ring, ctx->pipe2[0], ctx->pipe1[1], 0);
+fun check_zero_tee(ring:CPointer<io_uring>, struct test_ctx *ctx):Int{
+	val __FUNCTION__="check_zero_tee"
+
+    return do_tee(ring, ctx.pointed.pipe2[0], ctx.pointed.pipe1[1], 0);
 }
 
-static int test_splice(struct io_uring *ring, struct test_ctx *ctx) {
-    int ret;
+fun test_splice(ring:CPointer<io_uring>, struct test_ctx *ctx):Int{
+	val __FUNCTION__="test_splice"
+
+    ret:Int;
 
     if (has_splice) {
         ret = check_zero_splice(ring, ctx);
@@ -420,40 +454,42 @@ static int test_splice(struct io_uring *ring, struct test_ctx *ctx) {
     return 0;
 }
 
-int main(int argc, char *argv[]) {
-    struct io_uring ring;
-    struct io_uring_params p = {};
-    struct test_ctx ctx;
-    int ret;
-    int reg_fds[6];
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    ring:io_uring;
+    p:io_uring_params = {};
+    ctx:test_ctx;
+    ret:Int;
+    reg_fds:Int[6];
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init_params(8, &ring, &p);
+    ret = io_uring_queue_init_params(8, ring.ptr, p.ptr);
     if (ret) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
     }
-    if (!(p.features & IORING_FEAT_FAST_POLL)) {
+    if (!(p. features and IORING_FEAT_FAST_POLL )) {
         fprintf(stdout, "No splice support, skipping\n");
         return 0;
     }
 
-    ret = init_splice_ctx(&ctx);
+    ret = init_splice_ctx(ctx.ptr);
     if (ret) {
         fprintf(stderr, "init failed %i %i\n", ret, errno);
         return 1;
     }
 
-    check_splice_support(&ring, &ctx);
+    check_splice_support(ring.ptr, ctx.ptr);
     if (!has_splice)
         fprintf(stdout, "skip, doesn't support splice()\n");
-    check_tee_support(&ring, &ctx);
+    check_tee_support(ring.ptr, ctx.ptr);
     if (!has_tee)
         fprintf(stdout, "skip, doesn't support tee()\n");
 
-    ret = test_splice(&ring, &ctx);
+    ret = test_splice(ring.ptr, ctx.ptr);
     if (ret) {
         fprintf(stderr, "basic splice tests failed\n");
         return ret;
@@ -465,7 +501,7 @@ int main(int argc, char *argv[]) {
     reg_fds[3] = ctx.real_pipe2[1];
     reg_fds[4] = ctx.real_fd_in;
     reg_fds[5] = ctx.real_fd_out;
-    ret = io_uring_register_files(&ring, reg_fds, 6);
+    ret = io_uring_register_files(ring.ptr, reg_fds, 6);
     if (ret) {
         fprintf(stderr, "%s: register ret=%d\n", __FUNCTION__, ret);
         return 1;
@@ -481,7 +517,7 @@ int main(int argc, char *argv[]) {
 
     splice_flags = SPLICE_F_FD_IN_FIXED;
     sqe_flags = IOSQE_FIXED_FILE;
-    ret = test_splice(&ring, &ctx);
+    ret = test_splice(ring.ptr, ctx.ptr);
     if (ret) {
         fprintf(stderr, "registered fds splice tests failed\n");
         return ret;

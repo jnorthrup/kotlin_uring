@@ -3,20 +3,22 @@
  * Description: exercise full filling of SQ and CQ ring
  *
  */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <fcntl.h>
 
-#include "liburing.h"
+//include "liburing.h"
 
 #define MAX_ENTRIES    32768
 
-static int fill_nops(struct io_uring *ring) {
-    struct io_uring_sqe *sqe;
-    int filled = 0;
+fun fill_nops(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="fill_nops"
+
+    sqe:CPointer<io_uring_sqe>;
+    filled:Int = 0;
 
     do {
         sqe = io_uring_get_sqe(ring);
@@ -30,16 +32,18 @@ static int fill_nops(struct io_uring *ring) {
     return filled;
 }
 
-static int test_nops(struct io_uring *ring) {
-    struct io_uring_cqe *cqe;
-    int ret, nr, total = 0, i;
+fun test_nops(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="test_nops"
+
+    cqe:CPointer<io_uring_cqe>;
+    ret:Int, nr, total = 0, i;
 
     nr = fill_nops(ring);
 
     ret = io_uring_submit(ring);
     if (ret != nr) {
         fprintf(stderr, "submit %d, wanted %d\n", ret, nr);
-        goto err;
+        break@err;
     }
     total += ret;
 
@@ -48,15 +52,15 @@ static int test_nops(struct io_uring *ring) {
     ret = io_uring_submit(ring);
     if (ret != nr) {
         fprintf(stderr, "submit %d, wanted %d\n", ret, nr);
-        goto err;
+        break@err;
     }
     total += ret;
 
-    for (i = 0; i < total; i++) {
-        ret = io_uring_wait_cqe(ring, &cqe);
+    for (i in 0 until  total) {
+        ret = io_uring_wait_cqe(ring, cqe.ptr);
         if (ret < 0) {
             fprintf(stderr, "wait completion %d\n", ret);
-            goto err;
+            break@err;
         }
 
         io_uring_cqe_seen(ring, cqe);
@@ -66,16 +70,18 @@ static int test_nops(struct io_uring *ring) {
     return 1;
 }
 
-int main(int argc, char *argv[]) {
-    struct io_uring ring;
-    int ret, depth;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    ring:io_uring;
+    ret:Int, depth;
 
     if (argc > 1)
         return 0;
 
     depth = 1;
     while (depth <= MAX_ENTRIES) {
-        ret = io_uring_queue_init(depth, &ring, 0);
+        ret = io_uring_queue_init(depth, ring.ptr, 0);
         if (ret) {
             if (ret == -ENOMEM)
                 break;
@@ -83,13 +89,13 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
-        ret = test_nops(&ring);
+        ret = test_nops(ring.ptr);
         if (ret) {
             fprintf(stderr, "test_single_nop failed\n");
             return ret;
         }
         depth <<= 1;
-        io_uring_queue_exit(&ring);
+        io_uring_queue_exit(ring.ptr);
     }
 
     return 0;

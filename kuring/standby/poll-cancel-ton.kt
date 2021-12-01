@@ -3,31 +3,33 @@
  * Description: test massive amounts of poll with cancel
  *
  */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <inttypes.h>
-#include <sys/poll.h>
-#include <sys/wait.h>
-#include <sys/signal.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <inttypes.h>
+//include <sys/poll.h>
+//include <sys/wait.h>
+//include <sys/signal.h>
 
-#include "liburing.h"
+//include "liburing.h"
 
 #define POLL_COUNT    30000
 
-static void *sqe_index[POLL_COUNT];
+static void:CPointer<ByteVar>sqe_indexPOLL_COUNT];
 
-static int reap_events(struct io_uring *ring, unsigned nr_events, int nowait) {
-    struct io_uring_cqe *cqe;
-    int i, ret = 0;
+fun reap_events(ring:CPointer<io_uring>, nr_events:UInt, nowait:Int):Int{
+	val __FUNCTION__="reap_events"
 
-    for (i = 0; i < nr_events; i++) {
+    cqe:CPointer<io_uring_cqe>;
+    i:Int, ret = 0;
+
+    for (i in 0 until  nr_events) {
         if (!i && !nowait)
-            ret = io_uring_wait_cqe(ring, &cqe);
+            ret = io_uring_wait_cqe(ring, cqe.ptr);
         else
-            ret = io_uring_peek_cqe(ring, &cqe);
+            ret = io_uring_peek_cqe(ring, cqe.ptr);
         if (ret) {
             if (ret != -EAGAIN)
                 fprintf(stderr, "cqe peek failed: %d\n", ret);
@@ -39,17 +41,19 @@ static int reap_events(struct io_uring *ring, unsigned nr_events, int nowait) {
     return i ? i : ret;
 }
 
-static int del_polls(struct io_uring *ring, int fd, int nr) {
-    int batch, i, ret;
-    struct io_uring_sqe *sqe;
+fun del_polls(ring:CPointer<io_uring>, fd:Int, nr:Int):Int{
+	val __FUNCTION__="del_polls"
+
+    batch:Int, i, ret;
+    sqe:CPointer<io_uring_sqe>;
 
     while (nr) {
         batch = 1024;
         if (batch > nr)
             batch = nr;
 
-        for (i = 0; i < batch; i++) {
-            void *data;
+        for (i in 0 until  batch) {
+            void:CPointer<ByteVar>data
 
             sqe = io_uring_get_sqe(ring);
             data = sqe_index[lrand48() % nr];
@@ -62,14 +66,16 @@ static int del_polls(struct io_uring *ring, int fd, int nr) {
             return 1;
         }
         nr -= batch;
-        ret = reap_events(ring, 2 * batch, 0);
+        ret = reap_events(ring, batch:CPointer<2>, 0);
     }
     return 0;
 }
 
-static int add_polls(struct io_uring *ring, int fd, int nr) {
-    int batch, i, count, ret;
-    struct io_uring_sqe *sqe;
+fun add_polls(ring:CPointer<io_uring>, fd:Int, nr:Int):Int{
+	val __FUNCTION__="add_polls"
+
+    batch:Int, i, count, ret;
+    sqe:CPointer<io_uring_sqe>;
 
     count = 0;
     while (nr) {
@@ -77,11 +83,11 @@ static int add_polls(struct io_uring *ring, int fd, int nr) {
         if (batch > nr)
             batch = nr;
 
-        for (i = 0; i < batch; i++) {
+        for (i in 0 until  batch) {
             sqe = io_uring_get_sqe(ring);
             io_uring_prep_poll_add(sqe, fd, POLLIN);
             sqe_index[count++] = sqe;
-            sqe->user_data = (unsigned long) sqe;
+            sqe.pointed.user_data = (long:UInt) sqe;
         }
 
         ret = io_uring_submit(ring);
@@ -95,11 +101,13 @@ static int add_polls(struct io_uring *ring, int fd, int nr) {
     return 0;
 }
 
-int main(int argc, char *argv[]) {
-    struct io_uring ring;
-    struct io_uring_params p = {};
-    int pipe1[2];
-    int ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    ring:io_uring;
+    p:io_uring_params = {};
+    pipe1:Int[2];
+    ret:Int;
 
     if (argc > 1)
         return 0;
@@ -111,11 +119,11 @@ int main(int argc, char *argv[]) {
 
     p.flags = IORING_SETUP_CQSIZE;
     p.cq_entries = 16384;
-    ret = io_uring_queue_init_params(1024, &ring, &p);
+    ret = io_uring_queue_init_params(1024, ring.ptr, p.ptr);
     if (ret) {
         if (ret == -EINVAL) {
             fprintf(stdout, "No CQSIZE, trying without\n");
-            ret = io_uring_queue_init(1024, &ring, 0);
+            ret = io_uring_queue_init(1024, ring.ptr, 0);
             if (ret) {
                 fprintf(stderr, "ring setup failed: %d\n", ret);
                 return 1;
@@ -123,12 +131,12 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    add_polls(&ring, pipe1[0], 30000);
+    add_polls(ring.ptr, pipe1[0], 30000);
 #if 0
     usleep(1000);
 #endif
-    del_polls(&ring, pipe1[0], 30000);
+    del_polls(ring.ptr, pipe1[0], 30000);
 
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return 0;
 }

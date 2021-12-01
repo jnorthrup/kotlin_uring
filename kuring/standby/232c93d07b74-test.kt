@@ -6,22 +6,22 @@
  *
  * Heavily based on a test case from Hrvoje Zeba <zeba.hrvoje@gmail.com>
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <assert.h>
+//include <stdio.h>
+//include <stdlib.h>
+//include <stdint.h>
+//include <assert.h>
 
-#include <pthread.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <netinet/tcp.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+//include <pthread.h>
+//include <errno.h>
+//include <fcntl.h>
+//include <unistd.h>
+//include <sys/socket.h>
+//include <sys/un.h>
+//include <netinet/tcp.h>
+//include <netinet/in.h>
+//include <arpa/inet.h>
 
-#include "liburing.h"
+//include "liburing.h"
 
 #define RECV_BUFF_SIZE 2
 #define SEND_BUFF_SIZE 3
@@ -29,64 +29,70 @@
 #define PORT    0x1235
 
 struct params {
-    int tcp;
-    int non_blocking;
+    tcp:Int;
+    non_blocking:Int;
 };
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 int rcv_ready = 0;
 
-static void set_rcv_ready(void) {
-    pthread_mutex_lock(&mutex);
+fun set_rcv_ready(void):Unit{
+	val __FUNCTION__="set_rcv_ready"
+
+    pthread_mutex_lock(mutex.ptr);
 
     rcv_ready = 1;
-    pthread_cond_signal(&cond);
+    pthread_cond_signal(cond.ptr);
 
-    pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(mutex.ptr);
 }
 
-static void wait_for_rcv_ready(void) {
-    pthread_mutex_lock(&mutex);
+fun wait_for_rcv_ready(void):Unit{
+	val __FUNCTION__="wait_for_rcv_ready"
+
+    pthread_mutex_lock(mutex.ptr);
 
     while (!rcv_ready)
-        pthread_cond_wait(&cond, &mutex);
+        pthread_cond_wait(cond.ptr, mutex.ptr);
 
-    pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(mutex.ptr);
 }
 
-static void *rcv(void *arg) {
-    struct params *p = arg;
-    int s0;
-    int res;
+fun rcv(void:CPointer<ByteVar>arg:CPointer<void>{
+	val __FUNCTION__="rcv"
 
-    if (p->tcp) {
-        int val = 1;
+    p:CPointer<params> = arg;
+    s0:Int;
+    res:Int;
+
+    if (p.pointed.tcp) {
+        val:Int = 1;
 
 
-        s0 = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
-        res = setsockopt(s0, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
+        s0 = socket(AF_INET,  SOCK_STREAM or SOCK_CLOEXEC , IPPROTO_TCP);
+        res = setsockopt(s0, SOL_SOCKET, SO_REUSEPORT, val.ptr, sizeof(val));
         assert(res != -1);
-        res = setsockopt(s0, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
+        res = setsockopt(s0, SOL_SOCKET, SO_REUSEADDR, val.ptr, sizeof(val));
         assert(res != -1);
 
-        struct sockaddr_in addr;
+        addr:sockaddr_in;
 
         addr.sin_family = AF_INET;
         addr.sin_port = htons(PORT);
         addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-        res = bind(s0, (struct sockaddr *) &addr, sizeof(addr));
+        res = bind(s0, (struct sockaddr *) addr.ptr, sizeof(addr));
         assert(res != -1);
     } else {
-        s0 = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+        s0 = socket(AF_UNIX,  SOCK_STREAM or SOCK_CLOEXEC , 0);
         assert(s0 != -1);
 
-        struct sockaddr_un addr;
-        memset(&addr, 0, sizeof(addr));
+        addr:sockaddr_un;
+        memset(addr.ptr, 0, sizeof(addr));
 
         addr.sun_family = AF_UNIX;
         memcpy(addr.sun_path, "\0sock", 6);
-        res = bind(s0, (struct sockaddr *) &addr, sizeof(addr));
+        res = bind(s0, (struct sockaddr *) addr.ptr, sizeof(addr));
         assert(res != -1);
     }
     res = listen(s0, 128);
@@ -94,11 +100,11 @@ static void *rcv(void *arg) {
 
     set_rcv_ready();
 
-    int s1 = accept(s0, NULL, NULL);
+    s1:Int = accept(s0, NULL, NULL);
     assert(s1 != -1);
 
-    if (p->non_blocking) {
-        int flags = fcntl(s1, F_GETFL, 0);
+    if (p.pointed.non_blocking) {
+        flags:Int = fcntl(s1, F_GETFL, 0);
         assert(flags != -1);
 
         flags |= O_NONBLOCK;
@@ -106,43 +112,43 @@ static void *rcv(void *arg) {
         assert(res != -1);
     }
 
-    struct io_uring m_io_uring;
-    void *ret = NULL;
+    m_io_uring:io_uring;
+    void:CPointer<ByteVar>ret= NULL;
 
-    res = io_uring_queue_init(32, &m_io_uring, 0);
+    res = io_uring_queue_init(32, m_io_uring.ptr, 0);
     assert(res >= 0);
 
-    int bytes_read = 0;
-    int expected_byte = 0;
-    int done = 0;
+    bytes_read:Int = 0;
+    expected_byte:Int = 0;
+    done:Int = 0;
 
     while (!done && bytes_read != 33) {
         char buff[RECV_BUFF_SIZE];
-        struct iovec iov;
+        iov:iovec;
 
         iov.iov_base = buff;
         iov.iov_len = sizeof(buff);
 
-        struct io_uring_sqe *sqe = io_uring_get_sqe(&m_io_uring);
+        sqe:CPointer<io_uring_sqe> = io_uring_get_sqe(m_io_uring.ptr);
         assert(sqe != NULL);
 
-        io_uring_prep_readv(sqe, s1, &iov, 1, 0);
+        io_uring_prep_readv(sqe, s1, iov.ptr, 1, 0);
 
-        res = io_uring_submit(&m_io_uring);
+        res = io_uring_submit(m_io_uring.ptr);
         assert(res != -1);
 
-        struct io_uring_cqe *cqe;
-        unsigned head;
-        unsigned count = 0;
+        cqe:CPointer<io_uring_cqe>;
+        head:UInt;
+        count:UInt = 0;
 
         while (!done && count != 1) {
-            io_uring_for_each_cqe(&m_io_uring, head, cqe) {
-                if (cqe->res < 0)
-                    assert(cqe->res == -EAGAIN);
+            io_uring_for_each_cqe(m_io_uring.ptr, head, cqe) {
+                if (cqe.pointed.res < 0)
+                    assert(cqe.pointed.res == -EAGAIN);
                 else {
-                    int i;
+                    i:Int;
 
-                    for (i = 0; i < cqe->res; i++) {
+                    for (i in 0 until  cqe.pointed.res) {
                         if (buff[i] != expected_byte) {
                             fprintf(stderr,
                                     "Received %d, wanted %d\n",
@@ -152,60 +158,62 @@ static void *rcv(void *arg) {
                         }
                         expected_byte++;
                     }
-                    bytes_read += cqe->res;
+                    bytes_read += cqe.pointed.res;
                 }
 
                 count++;
             }
 
             assert(count <= 1);
-            io_uring_cq_advance(&m_io_uring, count);
+            io_uring_cq_advance(m_io_uring.ptr, count);
         }
     }
 
     shutdown(s1, SHUT_RDWR);
     close(s1);
     close(s0);
-    io_uring_queue_exit(&m_io_uring);
+    io_uring_queue_exit(m_io_uring.ptr);
     return ret;
 }
 
-static void *snd(void *arg) {
-    struct params *p = arg;
-    int s0;
-    int ret;
+fun snd(void:CPointer<ByteVar>arg:CPointer<void>{
+	val __FUNCTION__="snd"
+
+    p:CPointer<params> = arg;
+    s0:Int;
+    ret:Int;
 
     wait_for_rcv_ready();
 
-    if (p->tcp) {
-        int val = 1;
+    if (p.pointed.tcp) {
+        val:Int = 1;
 
-        s0 = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
-        ret = setsockopt(s0, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
+        s0 = socket(AF_INET,  SOCK_STREAM or SOCK_CLOEXEC , IPPROTO_TCP);
+        ret = setsockopt(s0, IPPROTO_TCP, TCP_NODELAY, val.ptr, sizeof(val));
         assert(ret != -1);
 
-        struct sockaddr_in addr;
+        addr:sockaddr_in;
 
         addr.sin_family = AF_INET;
         addr.sin_port = htons(PORT);
         addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-        ret = connect(s0, (struct sockaddr *) &addr, sizeof(addr));
+        ret = connect(s0, (struct sockaddr *) addr.ptr, sizeof(addr));
         assert(ret != -1);
     } else {
-        s0 = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+        s0 = socket(AF_UNIX,  SOCK_STREAM or SOCK_CLOEXEC , 0);
         assert(s0 != -1);
 
-        struct sockaddr_un addr;
-        memset(&addr, 0, sizeof(addr));
+        addr:sockaddr_un;
+        memset(addr.ptr, 0, sizeof(addr));
 
         addr.sun_family = AF_UNIX;
         memcpy(addr.sun_path, "\0sock", 6);
-        ret = connect(s0, (struct sockaddr *) &addr, sizeof(addr));
+        ret = connect(s0, (struct sockaddr *) addr.ptr, sizeof(addr));
         assert(ret != -1);
     }
 
-    if (p->non_blocking) {
-        int flags = fcntl(s0, F_GETFL, 0);
+    if (p.pointed.non_blocking) {
+        flags:Int = fcntl(s0, F_GETFL, 0);
         assert(flags != -1);
 
         flags |= O_NONBLOCK;
@@ -213,84 +221,86 @@ static void *snd(void *arg) {
         assert(ret != -1);
     }
 
-    struct io_uring m_io_uring;
+    m_io_uring:io_uring;
 
-    ret = io_uring_queue_init(32, &m_io_uring, 0);
+    ret = io_uring_queue_init(32, m_io_uring.ptr, 0);
     assert(ret >= 0);
 
-    int bytes_written = 0;
-    int done = 0;
+    bytes_written:Int = 0;
+    done:Int = 0;
 
     while (!done && bytes_written != 33) {
         char buff[SEND_BUFF_SIZE];
-        int i;
+        i:Int;
 
-        for (i = 0; i < SEND_BUFF_SIZE; i++)
+        for (i in 0 until  SEND_BUFF_SIZE)
             buff[i] = i + bytes_written;
 
-        struct iovec iov;
+        iov:iovec;
 
         iov.iov_base = buff;
         iov.iov_len = sizeof(buff);
 
-        struct io_uring_sqe *sqe = io_uring_get_sqe(&m_io_uring);
+        sqe:CPointer<io_uring_sqe> = io_uring_get_sqe(m_io_uring.ptr);
         assert(sqe != NULL);
 
-        io_uring_prep_writev(sqe, s0, &iov, 1, 0);
+        io_uring_prep_writev(sqe, s0, iov.ptr, 1, 0);
 
-        ret = io_uring_submit(&m_io_uring);
+        ret = io_uring_submit(m_io_uring.ptr);
         assert(ret != -1);
 
-        struct io_uring_cqe *cqe;
-        unsigned head;
-        unsigned count = 0;
+        cqe:CPointer<io_uring_cqe>;
+        head:UInt;
+        count:UInt = 0;
 
         while (!done && count != 1) {
-            io_uring_for_each_cqe(&m_io_uring, head, cqe) {
-                if (cqe->res < 0) {
-                    if (cqe->res == -EPIPE) {
+            io_uring_for_each_cqe(m_io_uring.ptr, head, cqe) {
+                if (cqe.pointed.res < 0) {
+                    if (cqe.pointed.res == -EPIPE) {
                         done = 1;
                         break;
                     }
-                    assert(cqe->res == -EAGAIN);
+                    assert(cqe.pointed.res == -EAGAIN);
                 } else {
-                    bytes_written += cqe->res;
+                    bytes_written += cqe.pointed.res;
                 }
 
                 count++;
             }
 
             assert(count <= 1);
-            io_uring_cq_advance(&m_io_uring, count);
+            io_uring_cq_advance(m_io_uring.ptr, count);
         }
         usleep(100000);
     }
 
     shutdown(s0, SHUT_RDWR);
     close(s0);
-    io_uring_queue_exit(&m_io_uring);
+    io_uring_queue_exit(m_io_uring.ptr);
     return NULL;
 }
 
-int main(int argc, char *argv[]) {
-    struct params p;
-    pthread_t t1, t2;
-    void *res1, *res2;
-    int i, exit_val = 0;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    p:params;
+    t1:pthread_t, t2;
+    void:CPointer<ByteVar>res2:CPointer<res1>;
+    i:Int, exit_val = 0;
 
     if (argc > 1)
         return 0;
 
-    for (i = 0; i < 4; i++) {
-        p.tcp = i & 1;
-        p.non_blocking = (i & 2) >> 1;
+    for (i in 0 until  4) {
+        p.tcp =  i and 1 ;
+        p.non_blocking = ( i and 2 ) >> 1;
 
         rcv_ready = 0;
 
-        pthread_create(&t1, NULL, rcv, &p);
-        pthread_create(&t2, NULL, snd, &p);
-        pthread_join(t1, &res1);
-        pthread_join(t2, &res2);
+        pthread_create(t1.ptr, NULL, rcv, p.ptr);
+        pthread_create(t2.ptr, NULL, snd, p.ptr);
+        pthread_join(t1, res1.ptr);
+        pthread_join(t2, res2.ptr);
         if (res1 || res2) {
             fprintf(stderr, "Failed tcp=%d, non_blocking=%d\n", p.tcp, p.non_blocking);
             exit_val = 1;

@@ -2,21 +2,23 @@
 /*
  * Description: Check to see if accept handles addr and addrlen
  */
-#include <stdio.h>
-#include <errno.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <assert.h>
-#include "liburing.h"
+//include <stdio.h>
+//include <errno.h>
+//include <sys/socket.h>
+//include <sys/un.h>
+//include <assert.h>
+//include "liburing.h"
 
-int main(int argc, char *argv[]) {
-    struct io_uring_sqe *sqe;
-    struct io_uring_cqe *cqe;
-    struct io_uring ring;
-    struct sockaddr_un addr;
-    socklen_t addrlen = sizeof(addr);
-    int ret, fd;
-    struct __kernel_timespec ts = {
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    sqe:CPointer<io_uring_sqe>;
+    cqe:CPointer<io_uring_cqe>;
+    ring:io_uring;
+    addr:sockaddr_un;
+    addrlen:socklen_t = sizeof(addr);
+    ret:Int, fd;
+    ts:__kernel_timespec = {
             .tv_sec = 0,
             .tv_nsec = 1000000
     };
@@ -24,7 +26,7 @@ int main(int argc, char *argv[]) {
     if (argc > 1)
         return 0;
 
-    if (io_uring_queue_init(4, &ring, 0) != 0) {
+    if (io_uring_queue_init(4, ring.ptr, 0) != 0) {
         fprintf(stderr, "ring setup failed\n");
         return 1;
     }
@@ -32,47 +34,47 @@ int main(int argc, char *argv[]) {
     fd = socket(AF_UNIX, SOCK_STREAM, 0);
     assert(fd != -1);
 
-    memset(&addr, 0, sizeof(addr));
+    memset(addr.ptr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     memcpy(addr.sun_path, "\0sock", 6);
 
-    ret = bind(fd, (struct sockaddr *) &addr, addrlen);
+    ret = bind(fd, (struct sockaddr *) addr.ptr, addrlen);
     assert(ret != -1);
     ret = listen(fd, 128);
     assert(ret != -1);
 
-    sqe = io_uring_get_sqe(&ring);
+    sqe = io_uring_get_sqe(ring.ptr);
     if (!sqe) {
         fprintf(stderr, "get sqe failed\n");
         return 1;
     }
-    io_uring_prep_accept(sqe, fd, (struct sockaddr *) &addr, &addrlen, 0);
-    sqe->user_data = 1;
+    io_uring_prep_accept(sqe, fd, (struct sockaddr *) addr.ptr, addrlen.ptr, 0);
+    sqe.pointed.user_data = 1;
 
-    ret = io_uring_submit(&ring);
+    ret = io_uring_submit(ring.ptr);
     if (ret != 1) {
         fprintf(stderr, "Got submit %d, expected 1\n", ret);
         return 1;
     }
 
-    ret = io_uring_wait_cqe_timeout(&ring, &cqe, &ts);
+    ret = io_uring_wait_cqe_timeout(ring.ptr, cqe.ptr, ts.ptr);
     if (!ret) {
-        if (cqe->res == -EBADF || cqe->res == -EINVAL) {
+        if (cqe.pointed.res == -EBADF || cqe.pointed.res == -EINVAL) {
             fprintf(stdout, "Accept not supported, skipping\n");
-            goto out;
-        } else if (cqe->res < 0) {
-            fprintf(stderr, "cqe error %d\n", cqe->res);
-            goto err;
+            break@out;
+        } else if (cqe.pointed.res < 0) {
+            fprintf(stderr, "cqe error %d\n", cqe.pointed.res);
+            break@err;
         }
     } else if (ret != -ETIME) {
-        fprintf(stderr, "accept() failed to use addr & addrlen parameters!\n");
+        fprintf(stderr, "accept() failed to use  addr and addrlen  parameters!\n");
         return 1;
     }
 
     out:
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return 0;
     err:
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return 1;
 }

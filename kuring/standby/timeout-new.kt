@@ -3,11 +3,11 @@
  * Description: tests for getevents timeout
  *
  */
-#include <stdio.h>
-#include <sys/time.h>
-#include <unistd.h>
-#include <pthread.h>
-#include "liburing.h"
+//include <stdio.h>
+//include <sys/time.h>
+//include <unistd.h>
+//include <pthread.h>
+//include "liburing.h"
 
 #define TIMEOUT_MSEC    200
 #define TIMEOUT_SEC    10
@@ -16,17 +16,19 @@ int thread_ret0, thread_ret1;
 int cnt = 0;
 pthread_mutex_t mutex;
 
-static void msec_to_ts(struct __kernel_timespec *ts, unsigned int msec) {
-    ts->tv_sec = msec / 1000;
-    ts->tv_nsec = (msec % 1000) * 1000000;
+fun msec_to_ts(ts:CPointer<__kernel_timespec>, msec:UInt):Unit{
+	val __FUNCTION__="msec_to_ts"
+
+    ts.pointed.tv_sec = msec / 1000;
+    ts.pointed.tv_nsec = (msec % 1000) * 1000000;
 }
 
-static unsigned long long mtime_since(const struct timeval *s,
-        const struct timeval *e) {
-    long long sec, usec;
+static mtime_since:ULong (const s:CPointer<timeval>,
+        const e:CPointer<timeval>) {
+    sec:Long, usec;
 
-    sec = e->tv_sec - s->tv_sec;
-    usec = (e->tv_usec - s->tv_usec);
+    sec = e.pointed.tv_sec - s.pointed.tv_sec;
+    usec = (e.pointed.tv_usec - s.pointed.tv_usec);
     if (sec > 0 && usec < 0) {
         sec--;
         usec += 1000000;
@@ -37,22 +39,24 @@ static unsigned long long mtime_since(const struct timeval *s,
     return sec + usec;
 }
 
-static unsigned long long mtime_since_now(struct timeval *tv) {
-    struct timeval end;
+unsigned mtime_since_now:Long(tv:CPointer<timeval>) {
+    end:timeval;
 
-    gettimeofday(&end, NULL);
-    return mtime_since(tv, &end);
+    gettimeofday(end.ptr, NULL);
+    return mtime_since(tv, end.ptr);
 }
 
 
-static int test_return_before_timeout(struct io_uring *ring) {
-    struct io_uring_cqe *cqe;
-    struct io_uring_sqe *sqe;
-    int ret;
-    bool retried = false;
-    struct __kernel_timespec ts;
+fun test_return_before_timeout(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="test_return_before_timeout"
 
-    msec_to_ts(&ts, TIMEOUT_MSEC);
+    cqe:CPointer<io_uring_cqe>;
+    sqe:CPointer<io_uring_sqe>;
+    ret:Int;
+    retried:Boolean = false;
+    ts:__kernel_timespec;
+
+    msec_to_ts(ts.ptr, TIMEOUT_MSEC);
 
     sqe = io_uring_get_sqe(ring);
     io_uring_prep_nop(sqe);
@@ -64,8 +68,8 @@ static int test_return_before_timeout(struct io_uring *ring) {
     }
 
     again:
-    ret = io_uring_wait_cqe_timeout(ring, &cqe, &ts);
-    if (ret == -ETIME && (ring->flags & IORING_SETUP_SQPOLL) && !retried) {
+    ret = io_uring_wait_cqe_timeout(ring, cqe.ptr, ts.ptr);
+    if (ret == -ETIME && (ring.pointed. flags and IORING_SETUP_SQPOLL ) && !retried) {
         /*
          * there is a small chance SQPOLL hasn't been waked up yet,
          * give it one more try.
@@ -73,7 +77,7 @@ static int test_return_before_timeout(struct io_uring *ring) {
         printf("warning: funky SQPOLL timing\n");
         sleep(1);
         retried = true;
-        goto again;
+        break@again;
     } else if (ret < 0) {
         fprintf(stderr, "%s: timeout error: %d\n", __FUNCTION__, ret);
         return 1;
@@ -82,17 +86,19 @@ static int test_return_before_timeout(struct io_uring *ring) {
     return 0;
 }
 
-static int test_return_after_timeout(struct io_uring *ring) {
-    struct io_uring_cqe *cqe;
-    int ret;
-    struct __kernel_timespec ts;
-    struct timeval tv;
-    unsigned long long exp;
+fun test_return_after_timeout(ring:CPointer<io_uring>):Int{
+	val __FUNCTION__="test_return_after_timeout"
 
-    msec_to_ts(&ts, TIMEOUT_MSEC);
-    gettimeofday(&tv, NULL);
-    ret = io_uring_wait_cqe_timeout(ring, &cqe, &ts);
-    exp = mtime_since_now(&tv);
+    cqe:CPointer<io_uring_cqe>;
+    ret:Int;
+    ts:__kernel_timespec;
+    tv:timeval;
+    exp:ULong ;
+
+    msec_to_ts(ts.ptr, TIMEOUT_MSEC);
+    gettimeofday(tv.ptr, NULL);
+    ret = io_uring_wait_cqe_timeout(ring, cqe.ptr, ts.ptr);
+    exp = mtime_since_now(tv.ptr);
     if (ret != -ETIME) {
         fprintf(stderr, "%s: timeout error: %d\n", __FUNCTION__, ret);
         return 1;
@@ -106,24 +112,30 @@ static int test_return_after_timeout(struct io_uring *ring) {
     return 0;
 }
 
-int __reap_thread_fn(void *data) {
-    struct io_uring *ring = (struct io_uring *) data;
-    struct io_uring_cqe *cqe;
-    struct __kernel_timespec ts;
+fun __reap_thread_fn(void:CPointer<ByteVar>data:Int{
+	val __FUNCTION__="__reap_thread_fn"
 
-    msec_to_ts(&ts, TIMEOUT_SEC);
-    pthread_mutex_lock(&mutex);
+    ring:CPointer<io_uring> = (struct io_uring *) data;
+    cqe:CPointer<io_uring_cqe>;
+    ts:__kernel_timespec;
+
+    msec_to_ts(ts.ptr, TIMEOUT_SEC);
+    pthread_mutex_lock(mutex.ptr);
     cnt++;
-    pthread_mutex_unlock(&mutex);
-    return io_uring_wait_cqe_timeout(ring, &cqe, &ts);
+    pthread_mutex_unlock(mutex.ptr);
+    return io_uring_wait_cqe_timeout(ring, cqe.ptr, ts.ptr);
 }
 
-void *reap_thread_fn0(void *data) {
+fun reap_thread_fn0(void:CPointer<ByteVar>data:CPointer<void>{
+	val __FUNCTION__="reap_thread_fn0"
+
     thread_ret0 = __reap_thread_fn(data);
     return NULL;
 }
 
-void *reap_thread_fn1(void *data) {
+fun reap_thread_fn1(void:CPointer<ByteVar>data:CPointer<void>{
+	val __FUNCTION__="reap_thread_fn1"
+
     thread_ret1 = __reap_thread_fn(data);
     return NULL;
 }
@@ -132,47 +144,49 @@ void *reap_thread_fn1(void *data) {
  * This is to test issuing a sqe in main thread and reaping it in two child-thread
  * at the same time. To see if timeout feature works or not.
  */
-int test_multi_threads_timeout() {
-    struct io_uring ring;
-    int ret;
-    bool both_wait = false;
-    pthread_t reap_thread0, reap_thread1;
-    struct io_uring_sqe *sqe;
+fun test_multi_threads_timeout():Int{
+	val __FUNCTION__="test_multi_threads_timeout"
 
-    ret = io_uring_queue_init(8, &ring, 0);
+    ring:io_uring;
+    ret:Int;
+    both_wait:Boolean = false;
+    reap_thread0:pthread_t, reap_thread1;
+    sqe:CPointer<io_uring_sqe>;
+
+    ret = io_uring_queue_init(8, ring.ptr, 0);
     if (ret) {
         fprintf(stderr, "%s: ring setup failed: %d\n", __FUNCTION__, ret);
         return 1;
     }
 
-    pthread_create(&reap_thread0, NULL, reap_thread_fn0, &ring);
-    pthread_create(&reap_thread1, NULL, reap_thread_fn1, &ring);
+    pthread_create(reap_thread0.ptr, NULL, reap_thread_fn0, ring.ptr);
+    pthread_create(reap_thread1.ptr, NULL, reap_thread_fn1, ring.ptr);
 
     /*
      * make two threads both enter io_uring_wait_cqe_timeout() before issuing the sqe
-     * as possible as we can. So that there are two threads in the ctx->wait queue.
+     * as possible as we can. So that there are two threads in the ctx.pointed.wait queue.
      * In this way, we can test if a cqe wakes up two threads at the same time.
      */
     while (!both_wait) {
-        pthread_mutex_lock(&mutex);
+        pthread_mutex_lock(mutex.ptr);
         if (cnt == 2)
             both_wait = true;
-        pthread_mutex_unlock(&mutex);
+        pthread_mutex_unlock(mutex.ptr);
         sleep(1);
     }
 
-    sqe = io_uring_get_sqe(&ring);
+    sqe = io_uring_get_sqe(ring.ptr);
     if (!sqe) {
         fprintf(stderr, "%s: get sqe failed\n", __FUNCTION__);
-        goto err;
+        break@err;
     }
 
     io_uring_prep_nop(sqe);
 
-    ret = io_uring_submit(&ring);
+    ret = io_uring_submit(ring.ptr);
     if (ret <= 0) {
         fprintf(stderr, "%s: sqe submit failed: %d\n", __FUNCTION__, ret);
-        goto err;
+        break@err;
     }
 
     pthread_join(reap_thread0, NULL);
@@ -181,7 +195,7 @@ int test_multi_threads_timeout() {
     if ((thread_ret0 && thread_ret0 != -ETIME) || (thread_ret1 && thread_ret1 != -ETIME)) {
         fprintf(stderr, "%s: thread wait cqe timeout failed: %d %d\n",
                 __FUNCTION__, thread_ret0, thread_ret1);
-        goto err;
+        break@err;
     }
 
     return 0;
@@ -189,48 +203,50 @@ int test_multi_threads_timeout() {
     return 1;
 }
 
-int main(int argc, char *argv[]) {
-    struct io_uring ring_normal, ring_sq;
-    int ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    ring_normal:io_uring, ring_sq;
+    ret:Int;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(8, &ring_normal, 0);
+    ret = io_uring_queue_init(8, ring_normal.ptr, 0);
     if (ret) {
         fprintf(stderr, "ring_normal setup failed: %d\n", ret);
         return 1;
     }
-    if (!(ring_normal.features & IORING_FEAT_EXT_ARG)) {
+    if (!(ring_normal. features and IORING_FEAT_EXT_ARG )) {
         fprintf(stderr, "feature IORING_FEAT_EXT_ARG not supported, skipping.\n");
         return 0;
     }
 
-    ret = test_return_before_timeout(&ring_normal);
+    ret = test_return_before_timeout(ring_normal.ptr);
     if (ret) {
         fprintf(stderr, "ring_normal: test_return_before_timeout failed\n");
         return ret;
     }
 
-    ret = test_return_after_timeout(&ring_normal);
+    ret = test_return_after_timeout(ring_normal.ptr);
     if (ret) {
         fprintf(stderr, "ring_normal: test_return_after_timeout failed\n");
         return ret;
     }
 
-    ret = io_uring_queue_init(8, &ring_sq, IORING_SETUP_SQPOLL);
+    ret = io_uring_queue_init(8, ring_sq.ptr, IORING_SETUP_SQPOLL);
     if (ret) {
         fprintf(stderr, "ring_sq setup failed: %d\n", ret);
         return 1;
     }
 
-    ret = test_return_before_timeout(&ring_sq);
+    ret = test_return_before_timeout(ring_sq.ptr);
     if (ret) {
         fprintf(stderr, "ring_sq: test_return_before_timeout failed\n");
         return ret;
     }
 
-    ret = test_return_after_timeout(&ring_sq);
+    ret = test_return_after_timeout(ring_sq.ptr);
     if (ret) {
         fprintf(stderr, "ring_sq: test_return_after_timeout failed\n");
         return ret;

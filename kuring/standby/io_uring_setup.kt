@@ -7,29 +7,31 @@
  * Copyright 2019, Red Hat, Inc.
  * Author: Jeff Moyer <jmoyer@redhat.com>
  */
-#include <stdio.h>
-#include <fcntl.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/sysinfo.h>
-#include "liburing.h"
+//include <stdio.h>
+//include <fcntl.h>
+//include <string.h>
+//include <stdlib.h>
+//include <unistd.h>
+//include <errno.h>
+//include <sys/sysinfo.h>
+//include "liburing.h"
 
-#include "../syscall.h"
+//include "../syscall.h"
 
-char *features_string(struct io_uring_params *p) {
+fun features_string(p:CPointer<io_uring_params>):CPointer<char>{
+	val __FUNCTION__="features_string"
+
     static char flagstr[64];
 
-    if (!p || !p->features)
+    if (!p || !p.pointed.features)
         return "none";
 
-    if (p->features & ~IORING_FEAT_SINGLE_MMAP) {
-        snprintf(flagstr, 64, "0x%.8x", p->features);
+    if (p.pointed.features & ~IORING_FEAT_SINGLE_MMAP) {
+        snprintf(flagstr, 64, "0x%.8x", p.pointed.features);
         return flagstr;
     }
 
-    if (p->features & IORING_FEAT_SINGLE_MMAP)
+    if (p.pointed. features and IORING_FEAT_SINGLE_MMAP )
         strncat(flagstr, "IORING_FEAT_SINGLE_MMAP", 64 - strlen(flagstr));
 
     return flagstr;
@@ -40,36 +42,36 @@ char *features_string(struct io_uring_params *p) {
  * the return value of the system call, 1 otherwise.
  */
 char *
-flags_string(struct io_uring_params *p) {
+flags_string(p:CPointer<io_uring_params>) {
     static char flagstr[64];
-    int add_pipe = 0;
+    add_pipe:Int = 0;
 
     memset(flagstr, 0, sizeof(flagstr));
 
-    if (!p || p->flags == 0)
+    if (!p || p.pointed.flags == 0)
         return "none";
 
     /*
      * If unsupported flags are present, just print the bitmask.
      */
-    if (p->flags & ~(IORING_SETUP_IOPOLL | IORING_SETUP_SQPOLL |
+    if (p.pointed.flags & ~( IORING_SETUP_IOPOLL or IORING_SETUP_SQPOLL  |
                      IORING_SETUP_SQ_AFF)) {
-        snprintf(flagstr, 64, "0x%.8x", p->flags);
+        snprintf(flagstr, 64, "0x%.8x", p.pointed.flags);
         return flagstr;
     }
 
-    if (p->flags & IORING_SETUP_IOPOLL) {
+    if (p.pointed. flags and IORING_SETUP_IOPOLL ) {
         strncat(flagstr, "IORING_SETUP_IOPOLL", 64 - strlen(flagstr));
         add_pipe = 1;
     }
-    if (p->flags & IORING_SETUP_SQPOLL) {
+    if (p.pointed. flags and IORING_SETUP_SQPOLL ) {
         if (add_pipe)
             strncat(flagstr, "|", 64 - strlen(flagstr));
         else
             add_pipe = 1;
         strncat(flagstr, "IORING_SETUP_SQPOLL", 64 - strlen(flagstr));
     }
-    if (p->flags & IORING_SETUP_SQ_AFF) {
+    if (p.pointed. flags and IORING_SETUP_SQ_AFF ) {
         if (add_pipe)
             strncat(flagstr, "|", 64 - strlen(flagstr));
         strncat(flagstr, "IORING_SETUP_SQ_AFF", 64 - strlen(flagstr));
@@ -79,14 +81,14 @@ flags_string(struct io_uring_params *p) {
 }
 
 char *
-dump_resv(struct io_uring_params *p) {
+dump_resv(p:CPointer<io_uring_params>) {
     static char resvstr[4096];
 
     if (!p)
         return "";
 
-    sprintf(resvstr, "0x%.8x 0x%.8x 0x%.8x", p->resv[0],
-            p->resv[1], p->resv[2]);
+    sprintf(resvstr, "0x%.8x 0x%.8x 0x%.8x", p.pointed.resv[0],
+            p.pointed.resv[1], p.pointed.resv[2]);
 
     return resvstr;
 }
@@ -94,12 +96,12 @@ dump_resv(struct io_uring_params *p) {
 /* bogus: setup returns a valid fd on success... expect can't predict the
    fd we'll get, so this really only takes 1 parameter: error */
 int
-try_io_uring_setup(unsigned entries, struct io_uring_params *p, int expect, int error) {
-    int ret, err;
+try_io_uring_setup(entries:UInt, p:CPointer<io_uring_params>, expect:Int, error:Int) {
+    ret:Int, err;
 
     printf("io_uring_setup(%u, %p), flags: %s, feat: %s, resv: %s, sq_thread_cpu: %u\n",
            entries, p, flags_string(p), features_string(p), dump_resv(p),
-           p ? p->sq_thread_cpu : 0);
+           p ? p.pointed.sq_thread_cpu : 0);
 
     ret = __sys_io_uring_setup(entries, p);
     if (ret != expect) {
@@ -123,53 +125,53 @@ try_io_uring_setup(unsigned entries, struct io_uring_params *p, int expect, int 
 }
 
 int
-main(int argc, char **argv) {
-    int fd;
-    unsigned int status = 0;
-    struct io_uring_params p;
+main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>) {
+    fd:Int;
+    status:UInt = 0;
+    p:io_uring_params;
 
     if (argc > 1)
         return 0;
 
-    memset(&p, 0, sizeof(p));
-    status |= try_io_uring_setup(0, &p, -1, EINVAL);
+    memset(p.ptr, 0, sizeof(p));
+    status |= try_io_uring_setup(0, p.ptr, -1, EINVAL);
     status |= try_io_uring_setup(1, NULL, -1, EFAULT);
 
     /* resv array is non-zero */
-    memset(&p, 0, sizeof(p));
+    memset(p.ptr, 0, sizeof(p));
     p.resv[0] = p.resv[1] = p.resv[2] = 1;
-    status |= try_io_uring_setup(1, &p, -1, EINVAL);
+    status |= try_io_uring_setup(1, p.ptr, -1, EINVAL);
 
     /* invalid flags */
-    memset(&p, 0, sizeof(p));
+    memset(p.ptr, 0, sizeof(p));
     p.flags = ~0U;
-    status |= try_io_uring_setup(1, &p, -1, EINVAL);
+    status |= try_io_uring_setup(1, p.ptr, -1, EINVAL);
 
     /* IORING_SETUP_SQ_AFF set but not IORING_SETUP_SQPOLL */
-    memset(&p, 0, sizeof(p));
+    memset(p.ptr, 0, sizeof(p));
     p.flags = IORING_SETUP_SQ_AFF;
-    status |= try_io_uring_setup(1, &p, -1, EINVAL);
+    status |= try_io_uring_setup(1, p.ptr, -1, EINVAL);
 
     /* attempt to bind to invalid cpu */
-    memset(&p, 0, sizeof(p));
-    p.flags = IORING_SETUP_SQPOLL | IORING_SETUP_SQ_AFF;
+    memset(p.ptr, 0, sizeof(p));
+    p.flags =  IORING_SETUP_SQPOLL or IORING_SETUP_SQ_AFF ;
     p.sq_thread_cpu = get_nprocs_conf();
-    status |= try_io_uring_setup(1, &p, -1, EINVAL);
+    status |= try_io_uring_setup(1, p.ptr, -1, EINVAL);
 
     /* I think we can limit a process to a set of cpus.  I assume
      * we shouldn't be able to setup a kernel thread outside of that.
-     * try to do that. (task->cpus_allowed) */
+     * try to do that. (task.pointed.cpus_allowed) */
 
     /* read/write on io_uring_fd */
-    memset(&p, 0, sizeof(p));
-    fd = __sys_io_uring_setup(1, &p);
+    memset(p.ptr, 0, sizeof(p));
+    fd = __sys_io_uring_setup(1, p.ptr);
     if (fd < 0) {
         printf("io_uring_setup failed with %d, expected success\n",
                errno);
         status = 1;
     } else {
         char buf[4096];
-        int ret;
+        ret:Int;
         ret = read(fd, buf, 4096);
         if (ret >= 0) {
             printf("read from io_uring fd succeeded.  expected fail\n");

@@ -3,64 +3,70 @@
  * Check that IORING_OP_ACCEPT works, and send some data across to verify we
  * didn't get a junk fd.
  */
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <assert.h>
+//include <stdio.h>
+//include <stdlib.h>
+//include <stdint.h>
+//include <assert.h>
 
-#include <errno.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <sys/resource.h>
-#include <sys/un.h>
-#include <netinet/tcp.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+//include <errno.h>
+//include <fcntl.h>
+//include <unistd.h>
+//include <sys/socket.h>
+//include <sys/time.h>
+//include <sys/resource.h>
+//include <sys/un.h>
+//include <netinet/tcp.h>
+//include <netinet/in.h>
+//include <arpa/inet.h>
 
-#include "helpers.h"
-#include "liburing.h"
+//include "helpers.h"
+//include "liburing.h"
 
-static int no_accept;
+static no_accept:Int;
 
 struct data {
     char buf[128];
-    struct iovec iov;
+    iov:iovec;
 };
 
-static void queue_send(struct io_uring *ring, int fd) {
-    struct io_uring_sqe *sqe;
-    struct data *d;
+fun queue_send(ring:CPointer<io_uring>, fd:Int):Unit{
+	val __FUNCTION__="queue_send"
+
+    sqe:CPointer<io_uring_sqe>;
+    d:CPointer<data>;
 
     d = t_malloc(sizeof(*d));
-    d->iov.iov_base = d->buf;
-    d->iov.iov_len = sizeof(d->buf);
+    d.pointed.iov.iov_base = d.pointed.buf;
+    d.pointed.iov.iov_len = sizeof(d.pointed.buf);
 
     sqe = io_uring_get_sqe(ring);
-    io_uring_prep_writev(sqe, fd, &d->iov, 1, 0);
-    sqe->user_data = 1;
+    io_uring_prep_writev(sqe, fd, d.pointed.iov.ptr, 1, 0);
+    sqe.pointed.user_data = 1;
 }
 
-static void queue_recv(struct io_uring *ring, int fd, bool fixed) {
-    struct io_uring_sqe *sqe;
-    struct data *d;
+fun queue_recv(ring:CPointer<io_uring>, fd:Int, fixed:Boolean):Unit{
+	val __FUNCTION__="queue_recv"
+
+    sqe:CPointer<io_uring_sqe>;
+    d:CPointer<data>;
 
     d = t_malloc(sizeof(*d));
-    d->iov.iov_base = d->buf;
-    d->iov.iov_len = sizeof(d->buf);
+    d.pointed.iov.iov_base = d.pointed.buf;
+    d.pointed.iov.iov_len = sizeof(d.pointed.buf);
 
     sqe = io_uring_get_sqe(ring);
-    io_uring_prep_readv(sqe, fd, &d->iov, 1, 0);
-    sqe->user_data = 2;
+    io_uring_prep_readv(sqe, fd, d.pointed.iov.ptr, 1, 0);
+    sqe.pointed.user_data = 2;
     if (fixed)
-        sqe->flags |= IOSQE_FIXED_FILE;
+        sqe.pointed.flags |= IOSQE_FIXED_FILE;
 }
 
-static int accept_conn(struct io_uring *ring, int fd, bool fixed) {
-    struct io_uring_sqe *sqe;
-    struct io_uring_cqe *cqe;
-    int ret, fixed_idx = 0;
+fun accept_conn(ring:CPointer<io_uring>, fd:Int, fixed:Boolean):Int{
+	val __FUNCTION__="accept_conn"
+
+    sqe:CPointer<io_uring_sqe>;
+    cqe:CPointer<io_uring_cqe>;
+    ret:Int, fixed_idx = 0;
 
     sqe = io_uring_get_sqe(ring);
     if (!fixed)
@@ -71,9 +77,9 @@ static int accept_conn(struct io_uring *ring, int fd, bool fixed) {
     ret = io_uring_submit(ring);
     assert(ret != -1);
 
-    ret = io_uring_wait_cqe(ring, &cqe);
+    ret = io_uring_wait_cqe(ring, cqe.ptr);
     assert(!ret);
-    ret = cqe->res;
+    ret = cqe.pointed.res;
     io_uring_cqe_seen(ring, cqe);
 
     if (fixed) {
@@ -87,25 +93,27 @@ static int accept_conn(struct io_uring *ring, int fd, bool fixed) {
     return ret;
 }
 
-static int start_accept_listen(struct sockaddr_in *addr, int port_off) {
-    int fd, ret;
+fun start_accept_listen(addr:CPointer<sockaddr_in>, port_off:Int):Int{
+	val __FUNCTION__="start_accept_listen"
 
-    fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
+    fd:Int, ret;
 
-    int32_t val = 1;
-    ret = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
+    fd = socket(AF_INET,  SOCK_STREAM or SOCK_CLOEXEC , IPPROTO_TCP);
+
+    val:int32_t = 1;
+    ret = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, val.ptr, sizeof(val));
     assert(ret != -1);
-    ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
+    ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, val.ptr, sizeof(val));
     assert(ret != -1);
 
-    struct sockaddr_in laddr;
+    laddr:sockaddr_in;
 
     if (!addr)
-        addr = &laddr;
+        addr = laddr.ptr;
 
-    addr->sin_family = AF_INET;
-    addr->sin_port = htons(0x1235 + port_off);
-    addr->sin_addr.s_addr = inet_addr("127.0.0.1");
+    addr.pointed.sin_family = AF_INET;
+    addr.pointed.sin_port = htons(0x1235 + port_off);
+    addr.pointed.sin_addr.s_addr = inet_addr("127.0.0.1");
 
     ret = bind(fd, (struct sockaddr *) addr, sizeof(*addr));
     assert(ret != -1);
@@ -115,28 +123,30 @@ static int start_accept_listen(struct sockaddr_in *addr, int port_off) {
     return fd;
 }
 
-static int test(struct io_uring *ring, int accept_should_error, bool fixed) {
-    struct io_uring_cqe *cqe;
-    struct sockaddr_in addr;
-    uint32_t head, count = 0;
-    int ret, p_fd[2], done = 0;
+fun test(ring:CPointer<io_uring>, accept_should_error:Int, fixed:Boolean):Int{
+	val __FUNCTION__="test"
 
-    int32_t val, recv_s0 = start_accept_listen(&addr, 0);
+    cqe:CPointer<io_uring_cqe>;
+    addr:sockaddr_in;
+    head:uint32_t, count = 0;
+    ret:Int, p_fd[2], done = 0;
 
-    p_fd[1] = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
+    val:int32_t, recv_s0 = start_accept_listen(addr.ptr, 0);
+
+    p_fd[1] = socket(AF_INET,  SOCK_STREAM or SOCK_CLOEXEC , IPPROTO_TCP);
 
     val = 1;
-    ret = setsockopt(p_fd[1], IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
+    ret = setsockopt(p_fd[1], IPPROTO_TCP, TCP_NODELAY, val.ptr, sizeof(val));
     assert(ret != -1);
 
-    int32_t flags = fcntl(p_fd[1], F_GETFL, 0);
+    flags:int32_t = fcntl(p_fd[1], F_GETFL, 0);
     assert(flags != -1);
 
     flags |= O_NONBLOCK;
     ret = fcntl(p_fd[1], F_SETFL, flags);
     assert(ret != -1);
 
-    ret = connect(p_fd[1], (struct sockaddr *) &addr, sizeof(addr));
+    ret = connect(p_fd[1], (struct sockaddr *) addr.ptr, sizeof(addr));
     assert(ret == -1);
 
     flags = fcntl(p_fd[1], F_GETFL, 0);
@@ -149,19 +159,19 @@ static int test(struct io_uring *ring, int accept_should_error, bool fixed) {
     p_fd[0] = accept_conn(ring, recv_s0, fixed);
     if (p_fd[0] == -EINVAL) {
         if (accept_should_error)
-            goto out;
+            break@out;
         if (fixed)
             fprintf(stdout, "Fixed accept not supported, skipping\n");
         else
             fprintf(stdout, "Accept not supported, skipping\n");
         no_accept = 1;
-        goto out;
+        break@out;
     } else if (p_fd[0] < 0) {
         if (accept_should_error &&
             (p_fd[0] == -EBADF || p_fd[0] == -EINVAL))
-            goto out;
+            break@out;
         fprintf(stderr, "Accept got %d\n", p_fd[0]);
-        goto err;
+        break@err;
     }
 
     queue_send(ring, p_fd[1]);
@@ -172,20 +182,20 @@ static int test(struct io_uring *ring, int accept_should_error, bool fixed) {
 
     while (count < 2) {
         io_uring_for_each_cqe(ring, head, cqe) {
-            if (cqe->res < 0) {
+            if (cqe.pointed.res < 0) {
                 fprintf(stderr, "Got cqe res %d, user_data %i\n",
-                        cqe->res, (int) cqe->user_data);
+                        cqe.pointed.res, (int) cqe.pointed.user_data);
                 done = 1;
                 break;
             }
-            assert(cqe->res == 128);
+            assert(cqe.pointed.res == 128);
             count++;
         }
 
         assert(count <= 2);
         io_uring_cq_advance(ring, count);
         if (done)
-            goto err;
+            break@err;
     }
 
     out:
@@ -202,48 +212,54 @@ static int test(struct io_uring *ring, int accept_should_error, bool fixed) {
     return 1;
 }
 
-static void sig_alrm(int sig) {
+fun sig_alrm(sig:Int):Unit{
+	val __FUNCTION__="sig_alrm"
+
     exit(0);
 }
 
-static int test_accept_pending_on_exit(void) {
-    struct io_uring m_io_uring;
-    struct io_uring_cqe *cqe;
-    struct io_uring_sqe *sqe;
-    int fd, ret;
+fun test_accept_pending_on_exit(void):Int{
+	val __FUNCTION__="test_accept_pending_on_exit"
 
-    ret = io_uring_queue_init(32, &m_io_uring, 0);
+    m_io_uring:io_uring;
+    cqe:CPointer<io_uring_cqe>;
+    sqe:CPointer<io_uring_sqe>;
+    fd:Int, ret;
+
+    ret = io_uring_queue_init(32, m_io_uring.ptr, 0);
     assert(ret >= 0);
 
     fd = start_accept_listen(NULL, 0);
 
-    sqe = io_uring_get_sqe(&m_io_uring);
+    sqe = io_uring_get_sqe(m_io_uring.ptr);
     io_uring_prep_accept(sqe, fd, NULL, NULL, 0);
-    ret = io_uring_submit(&m_io_uring);
+    ret = io_uring_submit(m_io_uring.ptr);
     assert(ret != -1);
 
     signal(SIGALRM, sig_alrm);
     alarm(1);
-    ret = io_uring_wait_cqe(&m_io_uring, &cqe);
+    ret = io_uring_wait_cqe(m_io_uring.ptr, cqe.ptr);
     assert(!ret);
-    io_uring_cqe_seen(&m_io_uring, cqe);
+    io_uring_cqe_seen(m_io_uring.ptr, cqe);
 
-    io_uring_queue_exit(&m_io_uring);
+    io_uring_queue_exit(m_io_uring.ptr);
     return 0;
 }
 
 /*
  * Test issue many accepts and see if we handle cancellation on exit
  */
-static int test_accept_many(unsigned nr, unsigned usecs) {
-    struct io_uring m_io_uring;
-    struct io_uring_cqe *cqe;
-    struct io_uring_sqe *sqe;
-    unsigned long cur_lim;
-    struct rlimit rlim;
-    int *fds, i, ret;
+fun test_accept_many(nr:UInt, usecs:UInt):Int{
+	val __FUNCTION__="test_accept_many"
 
-    if (getrlimit(RLIMIT_NPROC, &rlim) < 0) {
+    m_io_uring:io_uring;
+    cqe:CPointer<io_uring_cqe>;
+    sqe:CPointer<io_uring_sqe>;
+    cur_lim:ULong ;
+    rlim:rlimit;
+    fds:CPointer<Int>, i, ret;
+
+    if (getrlimit(RLIMIT_NPROC, rlim.ptr) < 0) {
         perror("getrlimit");
         return 1;
     }
@@ -251,82 +267,84 @@ static int test_accept_many(unsigned nr, unsigned usecs) {
     cur_lim = rlim.rlim_cur;
     rlim.rlim_cur = nr / 4;
 
-    if (setrlimit(RLIMIT_NPROC, &rlim) < 0) {
+    if (setrlimit(RLIMIT_NPROC, rlim.ptr) < 0) {
         perror("setrlimit");
         return 1;
     }
 
-    ret = io_uring_queue_init(2 * nr, &m_io_uring, 0);
+    ret = io_uring_queue_init(nr:CPointer<2>, m_io_uring.ptr, 0);
     assert(ret >= 0);
 
     fds = t_calloc(nr, sizeof(int));
 
-    for (i = 0; i < nr; i++)
+    for (i in 0 until  nr)
         fds[i] = start_accept_listen(NULL, i);
 
-    for (i = 0; i < nr; i++) {
-        sqe = io_uring_get_sqe(&m_io_uring);
+    for (i in 0 until  nr) {
+        sqe = io_uring_get_sqe(m_io_uring.ptr);
         io_uring_prep_accept(sqe, fds[i], NULL, NULL, 0);
-        sqe->user_data = 1 + i;
-        ret = io_uring_submit(&m_io_uring);
+        sqe.pointed.user_data = 1 + i;
+        ret = io_uring_submit(m_io_uring.ptr);
         assert(ret == 1);
     }
 
     if (usecs)
         usleep(usecs);
 
-    for (i = 0; i < nr; i++) {
-        if (io_uring_peek_cqe(&m_io_uring, &cqe))
+    for (i in 0 until  nr) {
+        if (io_uring_peek_cqe(m_io_uring.ptr, cqe.ptr))
             break;
-        if (cqe->res != -ECANCELED) {
+        if (cqe.pointed.res != -ECANCELED) {
             fprintf(stderr, "Expected cqe to be cancelled\n");
-            goto err;
+            break@err;
         }
-        io_uring_cqe_seen(&m_io_uring, cqe);
+        io_uring_cqe_seen(m_io_uring.ptr, cqe);
     }
     out:
     rlim.rlim_cur = cur_lim;
-    if (setrlimit(RLIMIT_NPROC, &rlim) < 0) {
+    if (setrlimit(RLIMIT_NPROC, rlim.ptr) < 0) {
         perror("setrlimit");
         return 1;
     }
 
     free(fds);
-    io_uring_queue_exit(&m_io_uring);
+    io_uring_queue_exit(m_io_uring.ptr);
     return 0;
     err:
     ret = 1;
-    goto out;
+    break@out;
 }
 
-static int test_accept_cancel(unsigned usecs) {
-    struct io_uring m_io_uring;
-    struct io_uring_cqe *cqe;
-    struct io_uring_sqe *sqe;
-    int fd, i, ret;
+fun test_accept_cancel(usecs:UInt):Int{
+	val __FUNCTION__="test_accept_cancel"
 
-    ret = io_uring_queue_init(32, &m_io_uring, 0);
+    m_io_uring:io_uring;
+    cqe:CPointer<io_uring_cqe>;
+    sqe:CPointer<io_uring_sqe>;
+    fd:Int, i, ret;
+
+    ret = io_uring_queue_init(32, m_io_uring.ptr, 0);
     assert(ret >= 0);
 
     fd = start_accept_listen(NULL, 0);
 
-    sqe = io_uring_get_sqe(&m_io_uring);
+    sqe = io_uring_get_sqe(m_io_uring.ptr);
     io_uring_prep_accept(sqe, fd, NULL, NULL, 0);
-    sqe->user_data = 1;
-    ret = io_uring_submit(&m_io_uring);
+    sqe.pointed.user_data = 1;
+    ret = io_uring_submit(m_io_uring.ptr);
     assert(ret == 1);
 
     if (usecs)
         usleep(usecs);
 
-    sqe = io_uring_get_sqe(&m_io_uring);
+    sqe = io_uring_get_sqe(m_io_uring.ptr);
     io_uring_prep_cancel(sqe, (void *) 1, 0);
-    sqe->user_data = 2;
-    ret = io_uring_submit(&m_io_uring);
+    sqe.pointed.user_data = 2;
+    ret = io_uring_submit(m_io_uring.ptr);
     assert(ret == 1);
 
-    for (i = 0; i < 2; i++) {
-        ret = io_uring_wait_cqe(&m_io_uring, &cqe);
+    for (i in 0 until  2) {
+        ret = io_uring_wait_cqe(m_io_uring.ptr, cqe.ptr);
         assert(!ret);
         /*
          * Two cases here:
@@ -338,74 +356,82 @@ static int test_accept_cancel(unsigned usecs) {
          *    should get '-EALREADY' for the cancel request and
          *    '-EINTR' for the accept request.
          */
-        if (cqe->user_data == 1) {
-            if (cqe->res != -EINTR && cqe->res != -ECANCELED) {
-                fprintf(stderr, "Cancelled accept got %d\n", cqe->res);
-                goto err;
+        if (cqe.pointed.user_data == 1) {
+            if (cqe.pointed.res != -EINTR && cqe.pointed.res != -ECANCELED) {
+                fprintf(stderr, "Cancelled accept got %d\n", cqe.pointed.res);
+                break@err;
             }
-        } else if (cqe->user_data == 2) {
-            if (cqe->res != -EALREADY && cqe->res != 0) {
-                fprintf(stderr, "Cancel got %d\n", cqe->res);
-                goto err;
+        } else if (cqe.pointed.user_data == 2) {
+            if (cqe.pointed.res != -EALREADY && cqe.pointed.res != 0) {
+                fprintf(stderr, "Cancel got %d\n", cqe.pointed.res);
+                break@err;
             }
         }
-        io_uring_cqe_seen(&m_io_uring, cqe);
+        io_uring_cqe_seen(m_io_uring.ptr, cqe);
     }
 
-    io_uring_queue_exit(&m_io_uring);
+    io_uring_queue_exit(m_io_uring.ptr);
     return 0;
     err:
-    io_uring_queue_exit(&m_io_uring);
+    io_uring_queue_exit(m_io_uring.ptr);
     return 1;
 }
 
-static int test_accept(void) {
-    struct io_uring m_io_uring;
-    int ret;
+fun test_accept(void):Int{
+	val __FUNCTION__="test_accept"
 
-    ret = io_uring_queue_init(32, &m_io_uring, 0);
+    m_io_uring:io_uring;
+    ret:Int;
+
+    ret = io_uring_queue_init(32, m_io_uring.ptr, 0);
     assert(ret >= 0);
-    ret = test(&m_io_uring, 0, false);
-    io_uring_queue_exit(&m_io_uring);
+    ret = test(m_io_uring.ptr, 0, false);
+    io_uring_queue_exit(m_io_uring.ptr);
     return ret;
 }
 
-static int test_accept_fixed(void) {
-    struct io_uring m_io_uring;
-    int ret, fd = -1;
+fun test_accept_fixed(void):Int{
+	val __FUNCTION__="test_accept_fixed"
 
-    ret = io_uring_queue_init(32, &m_io_uring, 0);
+    m_io_uring:io_uring;
+    ret:Int, fd = -1;
+
+    ret = io_uring_queue_init(32, m_io_uring.ptr, 0);
     assert(ret >= 0);
-    ret = io_uring_register_files(&m_io_uring, &fd, 1);
+    ret = io_uring_register_files(m_io_uring.ptr, fd.ptr, 1);
     assert(ret == 0);
-    ret = test(&m_io_uring, 0, true);
-    io_uring_queue_exit(&m_io_uring);
+    ret = test(m_io_uring.ptr, 0, true);
+    io_uring_queue_exit(m_io_uring.ptr);
     return ret;
 }
 
-static int test_accept_sqpoll(void) {
-    struct io_uring m_io_uring;
-    struct io_uring_params p = {};
-    int ret, should_fail;
+fun test_accept_sqpoll(void):Int{
+	val __FUNCTION__="test_accept_sqpoll"
+
+    m_io_uring:io_uring;
+    p:io_uring_params = {};
+    ret:Int, should_fail;
 
     p.flags = IORING_SETUP_SQPOLL;
-    ret = t_create_ring_params(32, &m_io_uring, &p);
+    ret = t_create_ring_params(32, m_io_uring.ptr, p.ptr);
     if (ret == T_SETUP_SKIP)
         return 0;
     else if (ret < 0)
         return ret;
 
     should_fail = 1;
-    if (p.features & IORING_FEAT_SQPOLL_NONFIXED)
+    if (p. features and IORING_FEAT_SQPOLL_NONFIXED )
         should_fail = 0;
 
-    ret = test(&m_io_uring, should_fail, false);
-    io_uring_queue_exit(&m_io_uring);
+    ret = test(m_io_uring.ptr, should_fail, false);
+    io_uring_queue_exit(m_io_uring.ptr);
     return ret;
 }
 
-int main(int argc, char *argv[]) {
-    int ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    ret:Int;
 
     if (argc > 1)
         return 0;

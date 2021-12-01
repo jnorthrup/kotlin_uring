@@ -3,63 +3,65 @@
  * Description: run various CQ ring overflow tests
  *
  */
-#include <errno.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
+//include <errno.h>
+//include <stdio.h>
+//include <unistd.h>
+//include <stdlib.h>
+//include <string.h>
+//include <fcntl.h>
 
-#include "helpers.h"
-#include "liburing.h"
+//include "helpers.h"
+//include "liburing.h"
 
 #define FILE_SIZE    (256 * 1024)
 #define BS        4096
 #define BUFFERS        (FILE_SIZE / BS)
 
-static struct iovec *vecs;
+static vecs:CPointer<iovec>;
 
 #define ENTRIES    8
 
-static int test_io(const char *file, unsigned long usecs, unsigned *drops, int fault) {
-    struct io_uring_sqe *sqe;
-    struct io_uring_cqe *cqe;
-    struct io_uring_params p;
-    unsigned reaped, total;
-    struct io_uring ring;
-    int nodrop, i, fd, ret;
+fun test_io(file:String, usecs:ULong , drops:CPointer<unsigned>, fault:Int):Int{
+	val __FUNCTION__="test_io"
 
-    fd = open(file, O_RDONLY | O_DIRECT);
+    sqe:CPointer<io_uring_sqe>;
+    cqe:CPointer<io_uring_cqe>;
+    p:io_uring_params;
+    reaped:UInt, total;
+    ring:io_uring;
+    nodrop:Int, i, fd, ret;
+
+    fd = open(file,  O_RDONLY or O_DIRECT );
     if (fd < 0) {
         perror("file open");
-        goto err;
+        break@err;
     }
 
-    memset(&p, 0, sizeof(p));
-    ret = io_uring_queue_init_params(ENTRIES, &ring, &p);
+    memset(p.ptr, 0, sizeof(p));
+    ret = io_uring_queue_init_params(ENTRIES, ring.ptr, p.ptr);
     if (ret) {
         fprintf(stderr, "ring create failed: %d\n", ret);
-        goto err;
+        break@err;
     }
     nodrop = 0;
-    if (p.features & IORING_FEAT_NODROP)
+    if (p. features and IORING_FEAT_NODROP )
         nodrop = 1;
 
     total = 0;
-    for (i = 0; i < BUFFERS / 2; i++) {
-        off_t offset;
+    for (i in 0 until  BUFFERS / 2) {
+        offset:off_t;
 
-        sqe = io_uring_get_sqe(&ring);
+        sqe = io_uring_get_sqe(ring.ptr);
         if (!sqe) {
             fprintf(stderr, "sqe get failed\n");
-            goto err;
+            break@err;
         }
         offset = BS * (rand() % BUFFERS);
         if (fault && i == ENTRIES + 4)
             vecs[i].iov_base = NULL;
-        io_uring_prep_readv(sqe, fd, &vecs[i], 1, offset);
+        io_uring_prep_readv(sqe, fd, vecs.ptr[i], 1, offset);
 
-        ret = io_uring_submit(&ring);
+        ret = io_uring_submit(ring.ptr);
         if (nodrop && ret == -EBUSY) {
             *drops = 1;
             total = i;
@@ -73,22 +75,22 @@ static int test_io(const char *file, unsigned long usecs, unsigned *drops, int f
     }
 
     if (*drops)
-        goto reap_it;
+        break@reap_it;
 
     usleep(usecs);
 
-    for (i = total; i < BUFFERS; i++) {
-        off_t offset;
+    for (i in total until  BUFFERS) {
+        offset:off_t;
 
-        sqe = io_uring_get_sqe(&ring);
+        sqe = io_uring_get_sqe(ring.ptr);
         if (!sqe) {
             fprintf(stderr, "sqe get failed\n");
-            goto err;
+            break@err;
         }
         offset = BS * (rand() % BUFFERS);
-        io_uring_prep_readv(sqe, fd, &vecs[i], 1, offset);
+        io_uring_prep_readv(sqe, fd, vecs.ptr[i], 1, offset);
 
-        ret = io_uring_submit(&ring);
+        ret = io_uring_submit(ring.ptr);
         if (nodrop && ret == -EBUSY) {
             *drops = 1;
             break;
@@ -110,61 +112,63 @@ static int test_io(const char *file, unsigned long usecs, unsigned *drops, int f
             if (reaped + *ring.cq.koverflow == total)
                 break;
         }
-        ret = io_uring_wait_cqe(&ring, &cqe);
+        ret = io_uring_wait_cqe(ring.ptr, cqe.ptr);
         if (ret) {
             fprintf(stderr, "wait_cqe=%d\n", ret);
-            goto err;
+            break@err;
         }
-        if (cqe->res != BS) {
-            if (!(fault && cqe->res == -EFAULT)) {
+        if (cqe.pointed.res != BS) {
+            if (!(fault && cqe.pointed.res == -EFAULT)) {
                 fprintf(stderr, "cqe res %d, wanted %d\n",
-                        cqe->res, BS);
-                goto err;
+                        cqe.pointed.res, BS);
+                break@err;
             }
         }
-        io_uring_cqe_seen(&ring, cqe);
+        io_uring_cqe_seen(ring.ptr, cqe);
         reaped++;
     } while (1);
 
-    if (!io_uring_peek_cqe(&ring, &cqe)) {
+    if (!io_uring_peek_cqe(ring.ptr, cqe.ptr)) {
         fprintf(stderr, "found unexpected completion\n");
-        goto err;
+        break@err;
     }
 
     if (!nodrop) {
         *drops = *ring.cq.koverflow;
     } else if (*ring.cq.koverflow) {
         fprintf(stderr, "Found %u overflows\n", *ring.cq.koverflow);
-        goto err;
+        break@err;
     }
 
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     close(fd);
     return 0;
     err:
     if (fd != -1)
         close(fd);
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return 1;
 }
 
-static int reap_events(struct io_uring *ring, unsigned nr_events, int do_wait) {
-    struct io_uring_cqe *cqe;
-    int i, ret = 0, seq = 0;
+fun reap_events(ring:CPointer<io_uring>, nr_events:UInt, do_wait:Int):Int{
+	val __FUNCTION__="reap_events"
 
-    for (i = 0; i < nr_events; i++) {
+    cqe:CPointer<io_uring_cqe>;
+    i:Int, ret = 0, seq = 0;
+
+    for (i in 0 until  nr_events) {
         if (do_wait)
-            ret = io_uring_wait_cqe(ring, &cqe);
+            ret = io_uring_wait_cqe(ring, cqe.ptr);
         else
-            ret = io_uring_peek_cqe(ring, &cqe);
+            ret = io_uring_peek_cqe(ring, cqe.ptr);
         if (ret) {
             if (ret != -EAGAIN)
                 fprintf(stderr, "cqe peek failed: %d\n", ret);
             break;
         }
-        if (cqe->user_data != seq) {
+        if (cqe.pointed.user_data != seq) {
             fprintf(stderr, "cqe sequence out-of-order\n");
-            fprintf(stderr, "got %d, wanted %d\n", (int) cqe->user_data,
+            fprintf(stderr, "got %d, wanted %d\n", (int) cqe.pointed.user_data,
                     seq);
             return -EINVAL;
         }
@@ -178,15 +182,17 @@ static int reap_events(struct io_uring *ring, unsigned nr_events, int do_wait) {
 /*
  * Submit some NOPs and watch if the overflow is correct
  */
-static int test_overflow(void) {
-    struct io_uring ring;
-    struct io_uring_params p;
-    struct io_uring_sqe *sqe;
-    unsigned pending;
-    int ret, i, j;
+fun test_overflow(void):Int{
+	val __FUNCTION__="test_overflow"
 
-    memset(&p, 0, sizeof(p));
-    ret = io_uring_queue_init_params(4, &ring, &p);
+    ring:io_uring;
+    p:io_uring_params;
+    sqe:CPointer<io_uring_sqe>;
+    pending:UInt;
+    ret:Int, i, j;
+
+    memset(p.ptr, 0, sizeof(p));
+    ret = io_uring_queue_init_params(4, ring.ptr, p.ptr);
     if (ret) {
         fprintf(stderr, "io_uring_queue_init failed %d\n", ret);
         return 1;
@@ -194,55 +200,57 @@ static int test_overflow(void) {
 
     /* submit 4x4 SQEs, should overflow the ring by 8 */
     pending = 0;
-    for (i = 0; i < 4; i++) {
-        for (j = 0; j < 4; j++) {
-            sqe = io_uring_get_sqe(&ring);
+    for (i in 0 until  4) {
+        for (j in 0 until  4) {
+            sqe = io_uring_get_sqe(ring.ptr);
             if (!sqe) {
                 fprintf(stderr, "get sqe failed\n");
-                goto err;
+                break@err;
             }
 
             io_uring_prep_nop(sqe);
-            sqe->user_data = (i * 4) + j;
+            sqe.pointed.user_data = (i * 4) + j;
         }
 
-        ret = io_uring_submit(&ring);
+        ret = io_uring_submit(ring.ptr);
         if (ret == 4) {
             pending += 4;
             continue;
         }
-        if (p.features & IORING_FEAT_NODROP) {
+        if (p. features and IORING_FEAT_NODROP ) {
             if (ret == -EBUSY)
                 break;
         }
         fprintf(stderr, "sqe submit failed: %d\n", ret);
-        goto err;
+        break@err;
     }
 
     /* we should now have 8 completions ready */
-    ret = reap_events(&ring, pending, 0);
+    ret = reap_events(ring.ptr, pending, 0);
     if (ret < 0)
-        goto err;
+        break@err;
 
-    if (!(p.features & IORING_FEAT_NODROP)) {
+    if (!(p. features and IORING_FEAT_NODROP )) {
         if (*ring.cq.koverflow != 8) {
             fprintf(stderr, "cq ring overflow %d, expected 8\n",
                     *ring.cq.koverflow);
-            goto err;
+            break@err;
         }
     }
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return 0;
     err:
-    io_uring_queue_exit(&ring);
+    io_uring_queue_exit(ring.ptr);
     return 1;
 }
 
-int main(int argc, char *argv[]) {
-    const char *fname = ".cq-overflow";
-    unsigned iters, drops;
-    unsigned long usecs;
-    int ret;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    fname:String = ".cq-overflow";
+    iters:UInt, drops;
+    usecs:ULong ;
+    ret:Int;
 
     if (argc > 1)
         return 0;
@@ -262,9 +270,9 @@ int main(int argc, char *argv[]) {
     do {
         drops = 0;
 
-        if (test_io(fname, usecs, &drops, 0)) {
+        if (test_io(fname, usecs, drops.ptr, 0)) {
             fprintf(stderr, "test_io nofault failed\n");
-            goto err;
+            break@err;
         }
         if (drops)
             break;
@@ -272,14 +280,14 @@ int main(int argc, char *argv[]) {
         iters++;
     } while (iters < 40);
 
-    if (test_io(fname, usecs, &drops, 0)) {
+    if (test_io(fname, usecs, drops.ptr, 0)) {
         fprintf(stderr, "test_io nofault failed\n");
-        goto err;
+        break@err;
     }
 
-    if (test_io(fname, usecs, &drops, 1)) {
+    if (test_io(fname, usecs, drops.ptr, 1)) {
         fprintf(stderr, "test_io fault failed\n");
-        goto err;
+        break@err;
     }
 
     unlink(fname);

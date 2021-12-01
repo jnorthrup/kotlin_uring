@@ -2,34 +2,36 @@
 /*
  * Description: test sharing a ring across a fork
  */
-#include <fcntl.h>
-#include <pthread.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
+//include <fcntl.h>
+//include <pthread.h>
+//include <signal.h>
+//include <stdio.h>
+//include <stdlib.h>
+//include <string.h>
+//include <sys/mman.h>
+//include <sys/stat.h>
+//include <sys/types.h>
+//include <sys/wait.h>
+//include <unistd.h>
 
-#include "liburing.h"
+//include "liburing.h"
 
 
 struct forktestmem {
-    struct io_uring ring;
-    pthread_barrier_t barrier;
-    pthread_barrierattr_t barrierattr;
+    ring:io_uring;
+    barrier:pthread_barrier_t;
+    barrierattr:pthread_barrierattr_t;
 };
 
-static int open_tempfile(const char *dir, const char *fname) {
-    int fd;
+fun open_tempfile(dir:String, fname:String):Int{
+	val __FUNCTION__="open_tempfile"
+
+    fd:Int;
     char buf[32];
 
     snprintf(buf, sizeof(buf), "%s/%s",
              dir, fname);
-    fd = open(buf, O_RDWR | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+    fd = open(buf,  O_RDWR or O_CREAT  | O_APPEND,  S_IRUSR or S_IWUSR );
     if (fd < 0) {
         perror("open");
         exit(1);
@@ -38,11 +40,11 @@ static int open_tempfile(const char *dir, const char *fname) {
     return fd;
 }
 
-static int submit_write(struct io_uring *ring, int fd, const char *str,
-        int wait) {
-    struct io_uring_sqe *sqe;
-    struct iovec iovec;
-    int ret;
+static submit_write:Int(ring:CPointer<io_uring>, fd:Int, str:String,
+        wait:Int) {
+    sqe:CPointer<io_uring_sqe>;
+    iovec:iovec;
+    ret:Int;
 
     sqe = io_uring_get_sqe(ring);
     if (!sqe) {
@@ -52,7 +54,7 @@ static int submit_write(struct io_uring *ring, int fd, const char *str,
 
     iovec.iov_base = (char *) str;
     iovec.iov_len = strlen(str);
-    io_uring_prep_writev(sqe, fd, &iovec, 1, 0);
+    io_uring_prep_writev(sqe, fd, iovec.ptr, 1, 0);
     ret = io_uring_submit_and_wait(ring, wait);
     if (ret < 0) {
         fprintf(stderr, "submit failed: %s\n", strerror(-ret));
@@ -62,17 +64,19 @@ static int submit_write(struct io_uring *ring, int fd, const char *str,
     return 0;
 }
 
-static int wait_cqe(struct io_uring *ring, const char *stage) {
-    struct io_uring_cqe *cqe;
-    int ret;
+fun wait_cqe(ring:CPointer<io_uring>, stage:String):Int{
+	val __FUNCTION__="wait_cqe"
 
-    ret = io_uring_wait_cqe(ring, &cqe);
+    cqe:CPointer<io_uring_cqe>;
+    ret:Int;
+
+    ret = io_uring_wait_cqe(ring, cqe.ptr);
     if (ret) {
         fprintf(stderr, "%s wait_cqe failed %d\n", stage, ret);
         return 1;
     }
-    if (cqe->res < 0) {
-        fprintf(stderr, "%s cqe failed %d\n", stage, cqe->res);
+    if (cqe.pointed.res < 0) {
+        fprintf(stderr, "%s cqe failed %d\n", stage, cqe.pointed.res);
         return 1;
     }
 
@@ -80,10 +84,12 @@ static int wait_cqe(struct io_uring *ring, const char *stage) {
     return 0;
 }
 
-static int verify_file(const char *tmpdir, const char *fname, const char *expect) {
-    int fd;
+fun verify_file(tmpdir:String, fname:String, expect:String):Int{
+	val __FUNCTION__="verify_file"
+
+    fd:Int;
     char buf[512];
-    int err = 0;
+    err:Int = 0;
 
     memset(buf, 0, sizeof(buf));
 
@@ -106,7 +112,9 @@ static int verify_file(const char *tmpdir, const char *fname, const char *expect
     return err;
 }
 
-static void cleanup(const char *tmpdir) {
+fun cleanup(tmpdir:String):Unit{
+	val __FUNCTION__="cleanup"
+
     char buf[32];
 
     /* don't check errors, called during partial runs */
@@ -126,28 +134,30 @@ static void cleanup(const char *tmpdir) {
     rmdir(tmpdir);
 }
 
-int main(int argc, char *argv[]) {
-    struct forktestmem *shmem;
-    char tmpdir[] = "forktmpXXXXXX";
-    int shared_fd;
-    int ret;
-    pid_t p;
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
+	val __FUNCTION__="main"
+
+    shmem:CPointer<forktestmem>;
+    char:CPointer<ByteVar>tmpdir= "forktmpXXXXXX";
+    shared_fd:Int;
+    ret:Int;
+    p:pid_t;
 
     if (argc > 1)
         return 0;
 
-    shmem = mmap(0, sizeof(struct forktestmem), PROT_READ | PROT_WRITE,
-                 MAP_SHARED | MAP_ANONYMOUS, 0, 0);
+    shmem = mmap(0, sizeof(struct forktestmem),  PROT_READ or PROT_WRITE ,
+                  MAP_SHARED or MAP_ANONYMOUS , 0, 0);
     if (!shmem) {
         fprintf(stderr, "mmap failed\n");
         exit(1);
     }
 
-    pthread_barrierattr_init(&shmem->barrierattr);
-    pthread_barrierattr_setpshared(&shmem->barrierattr, 1);
-    pthread_barrier_init(&shmem->barrier, &shmem->barrierattr, 2);
+    pthread_barrierattr_init(shmem.pointed.barrierattr.ptr);
+    pthread_barrierattr_setpshared(shmem.pointed.barrierattr.ptr, 1);
+    pthread_barrier_init(shmem.pointed.barrier.ptr, shmem.pointed.barrierattr.ptr, 2);
 
-    ret = io_uring_queue_init(10, &shmem->ring, 0);
+    ret = io_uring_queue_init(10, shmem.pointed.ring.ptr, 0);
     if (ret < 0) {
         fprintf(stderr, "queue init failed\n");
         exit(1);
@@ -164,93 +174,93 @@ int main(int argc, char *argv[]) {
      * First do a write before the fork, to test whether child can
      * reap that
      */
-    if (submit_write(&shmem->ring, shared_fd, "before fork: write shared fd\n", 0))
-        goto errcleanup;
+    if (submit_write(shmem.pointed.ring.ptr, shared_fd, "before fork: write shared fd\n", 0))
+        break@errcleanup;
 
     p = fork();
-    switch (p) {
-        case -1:
+    when  (p)  {
+        -1 -> 
             fprintf(stderr, "fork failed\n");
-            goto errcleanup;
+            break@errcleanup;
 
         default: {
             /* parent */
-            int parent_fd1;
-            int parent_fd2;
-            int wstatus;
+            parent_fd1:Int;
+            parent_fd2:Int;
+            wstatus:Int;
 
             /* wait till fork is started up */
-            pthread_barrier_wait(&shmem->barrier);
+            pthread_barrier_wait(shmem.pointed.barrier.ptr);
 
             parent_fd1 = open_tempfile(tmpdir, "parent1");
             parent_fd2 = open_tempfile(tmpdir, "parent2");
 
             /* do a parent write to the shared fd */
-            if (submit_write(&shmem->ring, shared_fd, "parent: write shared fd\n", 0))
-                goto errcleanup;
+            if (submit_write(shmem.pointed.ring.ptr, shared_fd, "parent: write shared fd\n", 0))
+                break@errcleanup;
 
             /* do a parent write to an fd where same numbered fd exists in child */
-            if (submit_write(&shmem->ring, parent_fd1, "parent: write parent fd 1\n", 0))
-                goto errcleanup;
+            if (submit_write(shmem.pointed.ring.ptr, parent_fd1, "parent: write parent fd 1\n", 0))
+                break@errcleanup;
 
             /* do a parent write to an fd where no same numbered fd exists in child */
-            if (submit_write(&shmem->ring, parent_fd2, "parent: write parent fd 2\n", 0))
-                goto errcleanup;
+            if (submit_write(shmem.pointed.ring.ptr, parent_fd2, "parent: write parent fd 2\n", 0))
+                break@errcleanup;
 
             /* wait to switch read/writ roles with child */
-            pthread_barrier_wait(&shmem->barrier);
+            pthread_barrier_wait(shmem.pointed.barrier.ptr);
 
             /* now wait for child to exit, to ensure we still can read completion */
-            waitpid(p, &wstatus, 0);
+            waitpid(p, wstatus.ptr, 0);
             if (WEXITSTATUS(wstatus) != 0) {
                 fprintf(stderr, "child failed\n");
-                goto errcleanup;
+                break@errcleanup;
             }
 
-            if (wait_cqe(&shmem->ring, "p cqe 1"))
-                goto errcleanup;
+            if (wait_cqe(shmem.pointed.ring.ptr, "p cqe 1"))
+                break@errcleanup;
 
-            if (wait_cqe(&shmem->ring, "p cqe 2"))
-                goto errcleanup;
+            if (wait_cqe(shmem.pointed.ring.ptr, "p cqe 2"))
+                break@errcleanup;
 
             /* check that IO can still be submitted after child exited */
-            if (submit_write(&shmem->ring, shared_fd, "parent: write shared fd after child exit\n", 0))
-                goto errcleanup;
+            if (submit_write(shmem.pointed.ring.ptr, shared_fd, "parent: write shared fd after child exit\n", 0))
+                break@errcleanup;
 
-            if (wait_cqe(&shmem->ring, "p cqe 3"))
-                goto errcleanup;
+            if (wait_cqe(shmem.pointed.ring.ptr, "p cqe 3"))
+                break@errcleanup;
 
             break;
         }
-        case 0: {
+        0 ->  {
             /* child */
-            int child_fd;
+            child_fd:Int;
 
             /* wait till fork is started up */
-            pthread_barrier_wait(&shmem->barrier);
+            pthread_barrier_wait(shmem.pointed.barrier.ptr);
 
             child_fd = open_tempfile(tmpdir, "child");
 
-            if (wait_cqe(&shmem->ring, "c cqe shared"))
+            if (wait_cqe(shmem.pointed.ring.ptr, "c cqe shared"))
                 exit(1);
 
-            if (wait_cqe(&shmem->ring, "c cqe parent 1"))
+            if (wait_cqe(shmem.pointed.ring.ptr, "c cqe parent 1"))
                 exit(1);
 
-            if (wait_cqe(&shmem->ring, "c cqe parent 2"))
+            if (wait_cqe(shmem.pointed.ring.ptr, "c cqe parent 2"))
                 exit(1);
 
-            if (wait_cqe(&shmem->ring, "c cqe parent 3"))
+            if (wait_cqe(shmem.pointed.ring.ptr, "c cqe parent 3"))
                 exit(1);
 
             /* wait to switch read/writ roles with parent */
-            pthread_barrier_wait(&shmem->barrier);
+            pthread_barrier_wait(shmem.pointed.barrier.ptr);
 
-            if (submit_write(&shmem->ring, child_fd, "child: write child fd\n", 0))
+            if (submit_write(shmem.pointed.ring.ptr, child_fd, "child: write child fd\n", 0))
                 exit(1);
 
             /* ensure both writes have finished before child exits */
-            if (submit_write(&shmem->ring, shared_fd, "child: write shared fd\n", 2))
+            if (submit_write(shmem.pointed.ring.ptr, shared_fd, "child: write shared fd\n", 2))
                 exit(1);
 
             exit(0);
@@ -265,7 +275,7 @@ int main(int argc, char *argv[]) {
         verify_file(tmpdir, "parent1", "parent: write parent fd 1\n") ||
         verify_file(tmpdir, "parent2", "parent: write parent fd 2\n") ||
         verify_file(tmpdir, "child", "child: write child fd\n"))
-        goto errcleanup;
+        break@errcleanup;
 
     cleanup(tmpdir);
     exit(0);

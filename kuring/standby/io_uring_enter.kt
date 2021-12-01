@@ -7,34 +7,34 @@
  * Copyright 2019, Red Hat, Inc.
  * Author: Jeff Moyer <jmoyer@redhat.com>
  */
-#include <stdio.h>
-#include <fcntl.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/sysinfo.h>
-#include <poll.h>
-#include <assert.h>
-#include <sys/uio.h>
-#include <sys/mman.h>
-#include <linux/mman.h>
-#include <sys/time.h>
-#include <sys/resource.h>
-#include <limits.h>
-#include <sys/time.h>
+//include <stdio.h>
+//include <fcntl.h>
+//include <string.h>
+//include <stdlib.h>
+//include <unistd.h>
+//include <errno.h>
+//include <sys/sysinfo.h>
+//include <poll.h>
+//include <assert.h>
+//include <sys/uio.h>
+//include <sys/mman.h>
+//include <linux/mman.h>
+//include <sys/time.h>
+//include <sys/resource.h>
+//include <limits.h>
+//include <sys/time.h>
 
-#include "helpers.h"
-#include "liburing.h"
-#include "liburing/barrier.h"
-#include "../src/syscall.h"
+//include "helpers.h"
+//include "liburing.h"
+//include "liburing/barrier.h"
+//include "../src/syscall.h"
 
 #define IORING_MAX_ENTRIES 4096
 #define IORING_MAX_ENTRIES_FALLBACK 128
 
 int
-expect_failed_submit(struct io_uring *ring, int error) {
-    int ret;
+expect_failed_submit(ring:CPointer<io_uring>, error:Int) {
+    ret:Int;
 
     ret = io_uring_submit(ring);
     if (ret == 1) {
@@ -51,9 +51,9 @@ expect_failed_submit(struct io_uring *ring, int error) {
 }
 
 int
-expect_fail(int fd, unsigned int to_submit, unsigned int min_complete,
-        unsigned int flags, sigset_t *sig, int error) {
-    int ret;
+expect_fail(fd:Int, to_submit:UInt, min_complete:UInt,
+        flags:UInt, sig:CPointer<sigset_t>, error:Int) {
+    ret:Int;
 
     ret = __sys_io_uring_enter(fd, to_submit, min_complete, flags, sig);
     if (ret != -1) {
@@ -70,9 +70,9 @@ expect_fail(int fd, unsigned int to_submit, unsigned int min_complete,
 }
 
 int
-try_io_uring_enter(int fd, unsigned int to_submit, unsigned int min_complete,
-        unsigned int flags, sigset_t *sig, int expect, int error) {
-    int ret;
+try_io_uring_enter(fd:Int, to_submit:UInt, min_complete:UInt,
+        flags:UInt, sig:CPointer<sigset_t>, expect:Int, error:Int) {
+    ret:Int;
 
     printf("io_uring_enter(%d, %u, %u, %u, %p)\n", fd, to_submit,
            min_complete, flags, sig);
@@ -94,8 +94,8 @@ try_io_uring_enter(int fd, unsigned int to_submit, unsigned int min_complete,
  * prep a read I/O.  index is treated like a block number.
  */
 int
-setup_file(char *template, off_t len) {
-    int fd, ret;
+setup_file(char:CPointer<ByteVar>template len:off_t) {
+    fd:Int, ret;
     char buf[4096];
 
     fd = mkstemp(template);
@@ -119,47 +119,47 @@ setup_file(char *template, off_t len) {
 }
 
 void
-io_prep_read(struct io_uring_sqe *sqe, int fd, off_t offset, size_t len) {
-    struct iovec *iov;
+io_prep_read(sqe:CPointer<io_uring_sqe>, fd:Int, offset:off_t, len:size_t) {
+    iov:CPointer<iovec>;
 
     iov = t_malloc(sizeof(*iov));
     assert(iov);
 
-    iov->iov_base = t_malloc(len);
-    assert(iov->iov_base);
-    iov->iov_len = len;
+    iov.pointed.iov_base = t_malloc(len);
+    assert(iov.pointed.iov_base);
+    iov.pointed.iov_len = len;
 
     io_uring_prep_readv(sqe, fd, iov, 1, offset);
     io_uring_sqe_set_data(sqe, iov); // free on completion
 }
 
 void
-reap_events(struct io_uring *ring, unsigned nr) {
-    int ret;
-    unsigned left = nr;
-    struct io_uring_cqe *cqe;
-    struct iovec *iov;
-    struct timeval start, now, elapsed;
+reap_events(ring:CPointer<io_uring>, nr:UInt) {
+    ret:Int;
+    left:UInt = nr;
+    cqe:CPointer<io_uring_cqe>;
+    iov:CPointer<iovec>;
+    start:timeval, now, elapsed;
 
     printf("Reaping %u I/Os\n", nr);
-    gettimeofday(&start, NULL);
+    gettimeofday(start.ptr, NULL);
     while (left) {
-        ret = io_uring_wait_cqe(ring, &cqe);
+        ret = io_uring_wait_cqe(ring, cqe.ptr);
         if (ret < 0) {
             printf("io_uring_wait_cqe returned %d\n", ret);
             printf("expected success\n");
             exit(1);
         }
-        if (cqe->res != 4096)
-            printf("cqe->res: %d, expected 4096\n", cqe->res);
+        if (cqe.pointed.res != 4096)
+            printf("cqe.pointed.res: %d, expected 4096\n", cqe.pointed.res);
         iov = io_uring_cqe_get_data(cqe);
-        free(iov->iov_base);
+        free(iov.pointed.iov_base);
         free(iov);
         left--;
         io_uring_cqe_seen(ring, cqe);
 
-        gettimeofday(&now, NULL);
-        timersub(&now, &start, &elapsed);
+        gettimeofday(now.ptr, NULL);
+        timersub(now.ptr, start.ptr, elapsed.ptr);
         if (elapsed.tv_sec > 10) {
             printf("Timed out waiting for I/Os to complete.\n");
             printf("%u expected, %u completed\n", nr, left);
@@ -169,17 +169,17 @@ reap_events(struct io_uring *ring, unsigned nr) {
 }
 
 void
-submit_io(struct io_uring *ring, unsigned nr) {
-    int fd, ret;
-    off_t file_len;
-    unsigned i;
+submit_io(ring:CPointer<io_uring>, nr:UInt) {
+    fd:Int, ret;
+    file_len:off_t;
+    i:UInt;
     static char template[32] = "/tmp/io_uring_enter-test.XXXXXX";
-    struct io_uring_sqe *sqe;
+    sqe:CPointer<io_uring_sqe>;
 
     printf("Allocating %u sqes\n", nr);
     file_len = nr * 4096;
     fd = setup_file(template, file_len);
-    for (i = 0; i < nr; i++) {
+    for (i in 0 until  nr) {
         /* allocate an sqe */
         sqe = io_uring_get_sqe(ring);
         /* fill it in */
@@ -198,26 +198,26 @@ submit_io(struct io_uring *ring, unsigned nr) {
 }
 
 int
-main(int argc, char **argv) {
-    int ret;
-    unsigned int status = 0;
-    struct io_uring ring;
-    struct io_uring_sq *sq = &ring.sq;
-    unsigned ktail, mask, index;
-    unsigned sq_entries;
-    unsigned completed, dropped;
+main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>) {
+    ret:Int;
+    status:UInt = 0;
+    ring:io_uring;
+    sq:CPointer<io_uring_sq> = ring.sq.ptr;
+    ktail:UInt, mask, index;
+    sq_entries:UInt;
+    completed:UInt, dropped;
 
     if (argc > 1)
         return 0;
 
-    ret = io_uring_queue_init(IORING_MAX_ENTRIES, &ring, 0);
+    ret = io_uring_queue_init(IORING_MAX_ENTRIES, ring.ptr, 0);
     if (ret == -ENOMEM)
-        ret = io_uring_queue_init(IORING_MAX_ENTRIES_FALLBACK, &ring, 0);
+        ret = io_uring_queue_init(IORING_MAX_ENTRIES_FALLBACK, ring.ptr, 0);
     if (ret < 0) {
         perror("io_uring_queue_init");
         exit(1);
     }
-    mask = *sq->kring_mask;
+    mask = *sq.pointed.kring_mask;
 
     /* invalid flags */
     status |= try_io_uring_enter(ring.ring_fd, 1, 0, ~0U, NULL, -1, EINVAL);
@@ -233,7 +233,7 @@ main(int argc, char **argv) {
 
     /* fill the sq ring */
     sq_entries = *ring.sq.kring_entries;
-    submit_io(&ring, sq_entries);
+    submit_io(ring.ptr, sq_entries);
     printf("Waiting for %u events\n", sq_entries);
     ret = __sys_io_uring_enter(ring.ring_fd, 0, sq_entries,
                                IORING_ENTER_GETEVENTS, NULL);
@@ -252,7 +252,7 @@ main(int argc, char **argv) {
                    sq_entries, completed);
             status = 1;
         }
-        reap_events(&ring, sq_entries);
+        reap_events(ring.ptr, sq_entries);
     }
 
     /*
@@ -260,20 +260,20 @@ main(int argc, char **argv) {
      * result in the dropped counter increasing.
      */
     printf("Submitting invalid sqe index.\n");
-    index = *sq->kring_entries + 1; // invalid index
-    dropped = *sq->kdropped;
-    ktail = *sq->ktail;
-    sq->array[ktail & mask] = index;
+    index = *sq.pointed.kring_entries + 1; // invalid index
+    dropped = *sq.pointed.kdropped;
+    ktail = *sq.pointed.ktail;
+    sq.pointed.array[ ktail and mask ] = index;
     ++ktail;
     /*
      * Ensure that the kernel sees the SQE update before it sees the tail
      * update.
      */
-    io_uring_smp_store_release(sq->ktail, ktail);
+    io_uring_smp_store_release(sq.pointed.ktail, ktail);
 
     ret = __sys_io_uring_enter(ring.ring_fd, 1, 0, 0, NULL);
     /* now check to see if our sqe was dropped */
-    if (*sq->kdropped == dropped) {
+    if (*sq.pointed.kdropped == dropped) {
         printf("dropped counter did not increase\n");
         status = 1;
     }
