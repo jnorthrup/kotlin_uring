@@ -8,13 +8,13 @@ val statelyVersion = "1.2.0"
 
 plugins {
     kotlin("multiplatform") version "1.6.0"
-    id("org.jetbrains.dokka") version "0.10.0"
-    id("maven-publish")
-    id("signing")
+       id("org.jetbrains.dokka") version "1.6.0"
+//    id("maven-publish")
+//    id("signing")
 }
 
 repositories {
-   maven {
+    maven {
         url = uri("https://maven.pkg.jetbrains.space/public/p/kotlinx-coroutines/maven")
     }
     mavenCentral()
@@ -48,8 +48,8 @@ kotlin {
             kotlinOptions.freeCompilerArgs += listOf("-Xopt-in=kotlin.RequiresOptIn")
         }
         binaries.all {
-                binaryOptions["memoryModel"] = "experimental"
-    freeCompilerArgs += "-Xruntime-logs=gc=info"
+            binaryOptions["memoryModel"] = "experimental"
+            freeCompilerArgs += "-Xruntime-logs=gc=info"
             binaryOptions["freezing"] = "disabled"
         }
     }
@@ -77,9 +77,10 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {//1.5.2-native-mt
+                implementation(kotlin("stdlib-common"))
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutinesVersion")
-//                implementation("org.jetbrains.kotlinx:atomicfu:$atomicfuVersion")
 //                implementation("co.touchlab:stately-common:$statelyVersion")  }
+//                implementation("org.jetbrains.kotlinx:atomicfu:$atomicfuVersion")
             }
             val commonTest by getting {
                 dependencies {
@@ -118,7 +119,7 @@ kotlin {
                     dependsOn(appleMain)
                 }
             }*/
-
+//enableFeaturePreview("GRADLE_METADATA")
             (/*appleTargets +*/ listOf(/*"mingwX64", */"linuxX64")).forEach {
                 getByName("${it}Main") {
                     dependsOn(nativeMain)
@@ -166,5 +167,5 @@ kotlin {
         dependsOn(ktlint)
     }
 
-    apply("publish.gradle")
+//    apply("publish.gradle")
 }

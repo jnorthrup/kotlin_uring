@@ -1,7 +1,7 @@
 
 //    it.group = "com.vsiwest"
 //    it.version = "1.0.2-SNAPSHOT"
-
+ /*enableFeaturePreview("GRADLE_METADATA")*/
 rootProject.name = rootDir.name
 pluginManagement {
     repositories {
@@ -22,6 +22,6 @@ dependencyResolutionManagement {
 
 
 include(*(rootDir.listFiles()
-.filter(File::isDirectory)
 .filter { !it.isHidden }
+.filter(File::isDirectory)
 .map(File::getName)-"buildSrc"-"gradle"-"build").toTypedArray())
