@@ -65,3 +65,25 @@ static inline void io_uring_prep_writevFail(struct io_uring_sqe *sqe, int fd,
 {
 	io_uring_prep_rw(IORING_OP_WRITEV, sqe, fd, NULL, nr_vecs, offset);
 }
+
+
+typedef struct cqe_parms{
+    struct io_uring *ring;
+    unsigned int head;
+    struct io_uring_cqe *cqe;
+    int64_t result;
+} ;
+static inline void io_uring_do_for_each_cqe(struct cqe_parms * cqep,          vfunc(struct   cqe_parms*))  {
+    struct io_uring *ring = cqep->ring;
+    struct io_uring_cqe *cqe = cqep->cqe;
+    unsigned int head = cqep->head;
+    io_uring_for_each_cqe(ring, head, cqe) { \
+    struct  cqe_parms a={};\
+       a.ring=ring;\
+       a.head=head;\
+       a.cqe=cqe;\
+       int x=  vfunc(&a);
+       if(x) break;
+     }
+};
+

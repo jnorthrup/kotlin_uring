@@ -27,7 +27,7 @@ import linux_uring.*
  *  The flags, sq_thread_cpu, and sq_thread_idle fields are used to configure the io_uring instance. flags is a bit
  *  mask of 0 or more of the following values ORed together:
  */
-enum class UringSetupFlags(flag_const: UInt) {
+enum class UringSetupFlags(val src: UInt) {
 
     /**    Perform busy-waiting for an I/O completion, as opposed to getting notifications via an asynchronous `IRQ`
      *  (Interrupt Request). The file system (if any) and block device must support polling in order for this to work.
@@ -96,5 +96,9 @@ enum class UringSetupFlags(flag_const: UInt) {
      *  be registered, but submissions are not allowed. See io_uring_register(2) for details on how to enable the
      *  ring. Available since 5.10.
      */
-    uringSetupR_disabled(IORING_SETUP_R_DISABLED),
+    uringSetupR_disabled(IORING_SETUP_R_DISABLED),;
+
+    val i get()=src.toInt()
+    val l get()=src.toLong()
+    val ul get()=src.toULong()
 }

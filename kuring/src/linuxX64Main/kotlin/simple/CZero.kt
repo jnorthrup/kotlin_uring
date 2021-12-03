@@ -38,4 +38,5 @@ object CZero {
     val UInt.z get() = 0U == this
     /**zerotest*/
     val ULong.z get() = 0UL == this
+    val Boolean.CInt get()=if(this)1 else 0
 }
