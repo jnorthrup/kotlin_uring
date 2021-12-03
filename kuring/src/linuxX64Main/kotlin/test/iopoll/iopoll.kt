@@ -6,8 +6,11 @@ import linux_uring.include.t_create_buffers
 import linux_uring.include.t_create_file
 import linux_uring.include.t_create_ring
 import linux_uring.include.t_register_buffers
+import simple.CZero.CInt
 
 import simple.CZero.nz
+import simple.d
+import simple.m
 import test.cat.io_uring_enter
 
 /* SPDX-License-Identifier: MIT */
@@ -221,18 +224,24 @@ class IoPoll : NativeFreeablePlacement by nativeHeap {
      * kernel to fetch events
      */
     fun test_io_uring_submit_enters(file: String): Int = memScoped {
-
+        val __FILENAME__ = "test_io_uring_submit_enters"
         val out = Any()
         val err = Any()
         var goto: Any? = null
 
         val vp = vecs.getPointer(this)
         val ring: io_uring = alloc()
-        if (no_iopoll.nz)
-            return 0
+        m d "ring @ $__FILENAME__"/* runs after test_io so should not have happened */// io_uring_for_each_cqe translated
 
+        /* io_uring_for_each_cqe(ring.ptr, head, cqe)*/
+        /* submit manually to avoid adding IORING_ENTER_GETEVENTS */
+        if (no_iopoll.nz) {
+            return 0
+        }
         val ring_flags = IORING_SETUP_IOPOLL
-        var ret = io_uring_queue_init(64, ring.ptr, ring_flags)
+
+        val thRing = ring.ptr
+        var ret = io_uring_queue_init(64, thRing, ring_flags)
         if (ret.nz) {
             fprintf(stderr, "ring create failed: %d\n", ret)
             return 1
@@ -241,92 +250,75 @@ class IoPoll : NativeFreeablePlacement by nativeHeap {
         val open_flags = O_WRONLY or __O_DIRECT
 
         val fd = open(file, open_flags)
-        do {
-            if (fd < 0) {
-                perror("file open")
-                goto = err; break
-            }
-
-            for (i in 0 until BUFFERS) {
-                if (goto != null) break
-
-                val offset: off_t = (BS * (rand() % BUFFERS)).toLong()
-                val sqe: CPointer<io_uring_sqe> = io_uring_get_sqe(ring.ptr)!!
-                io_uring_prep_writev(sqe, fd, vp[i].ptr, 1, offset.toULong())
-                sqe.pointed.user_data = 1UL
-            }
-
-            /* submit manually to avoid adding IORING_ENTER_GETEVENTS */
-            val ioUringFlushSq = __io_uring_flush_sq(ring.ptr)
-            ret = io_uring_enter(
-                ring.ring_fd, ioUringFlushSq.toUInt(), 0.toUInt(),
-                0.toUInt(), null
-            )
-            if (ret < 0) {
-                goto = err; break
-            }
-
-            for (i in 0 until 500) {
-                if (goto != null) break
-                ret = io_uring_submit(ring.ptr)
-                if (ret != 0) {
-                    fprintf(stderr, "still had %d sqes to submit, this is unexpected", ret)
-                    goto = err; break
+        out@
+        for (_a in 0..0) {
+            err@
+            for (_a in 0..0) {
+                if (fd < 0) {
+                    perror("file open")
+                    break@err
                 }
-                // io_uring_for_each_cqe translated
-                // io_uring_for_each_cqe translated
-                // io_uring_for_each_cqe translated
-                // io_uring_for_each_cqe translated
-                // io_uring_for_each_cqe translated
-                // io_uring_for_each_cqe translated
 
-                val cq: io_uring_cq = ring.cq
-                var head: UInt = cq.khead?.pointed?.value ?: 0U
+                for (i in 0 until BUFFERS) {
+                    val offset: off_t = (BS * (rand() % BUFFERS)).toLong()
+                    val sqe: CPointer<io_uring_sqe> = io_uring_get_sqe(thRing)!!
+                    io_uring_prep_writev(sqe, fd, vp[i].ptr, 1, offset.toULong())
+                    sqe.pointed.user_data = 1UL
+                }
 
-                /* io_uring_for_each_cqe(ring.ptr, head, cqe)*/
-                while (goto == null) {
-                    val maskir: UInt = (ring).cq.kring_mask!!.pointed.value
-                    val key: UInt = head and maskir
+                /* submit manually to avoid adding IORING_ENTER_GETEVENTS */
+                val ioUringFlushSq = __io_uring_flush_sq(thRing)
+                ret = io_uring_enter(
+                    ring.ring_fd, ioUringFlushSq.toUInt(), 0.toUInt(),
+                    0.toUInt(), null
+                )
+                if (ret < 0) {
+                    break@err
+                }
 
-                    read_barrier()
-                    val theTail = (ring).cq.ktail!!.pointed.value
-                    val cqe: CPointer<io_uring_cqe>? = if (head != theTail) {
-                        (ring).cq.cqes!![key.toInt()].ptr
-                    } else {
-                        null
+                for (i in 0 until 500) {
+                    if (goto != null) break
+                    ret = io_uring_submit(thRing)
+                    if (ret != 0) {
+                        fprintf(stderr, "still had %d sqes to submit, this is unexpected", ret)
+                        break@err
+                    }
+                    val cq: io_uring_cq = ring.cq
+                    val head: UIntVar = alloc { value = cq.khead?.pointed?.value ?: 0U }
+                    val cqe: CPointerVar<io_uring_cqe> = alloc()
+
+                    val cqep = alloc<cqe_parms> {
+                        this.ring = ring.ptr
+                        this.head = head.value
+                        this.cqe = cqe.value!!
                     }
 
-                    /* runs after test_io so should not have happened */
-                    goto = if (cqe?.pointed!!.res == -EOPNOTSUPP) {
-                        fprintf(stdout, "File/device/fs doesn't support polled IO\n")
-                        err
-                    } else
-                        out
-
-                    break
-                    head++
+                    io_uring_do_for_each_cqe(cqep.ptr, alloc {
+                    staticCFunction<cqe_parms, Int> {
+                            if (it.cqe!!.pointed.res == -EOPNOTSUPP) {
+                                fprintf(stdout, "File/device/fs doesn't support polled IO\n")
+                                -1
+                            } else 1
+                        }
+                    })
+                    if (cqep.result.toInt() == -1) break@err else break@out
                 }
-                usleep(10000)
             }
-        } while (false)
+            if (fd != -1)
+                close(fd)
+            return 1
 
-        return when (goto) {
-            err -> {
-
-                if (fd != -1)
-                    close(fd)
-                1
-            }
-            else -> {
-                io_uring_queue_exit(ring.ptr)
-                ret
-            }
         }
+
+        io_uring_queue_exit(thRing)
+        ret
+
     }
 
     fun test_io(file: String, write: Int, sqthread: Int, fixed: Int, buf_select: Int): Int {
-
+        val __FILENAME__ = "test_io"
         val ring: io_uring = alloc()
+        m d "ring @ $__FILENAME__"
 
         val ring_flags = IORING_SETUP_IOPOLL
 
@@ -347,11 +339,12 @@ class IoPoll : NativeFreeablePlacement by nativeHeap {
     }
 
     fun probe_buf_select(): Int {
-
+        val __FILENAME__ = "probe_buf_select"
         val __FUNCTION__ = "probe_buf_select"
 
         val p: CPointerVar<io_uring_probe> = alloc()
         val ring: io_uring = alloc()
+        m d "ring @ $__FILENAME__"
 
         val ret = io_uring_queue_init(1, ring.ptr, 0)
         if (ret.nz) {
@@ -379,8 +372,8 @@ class IoPoll : NativeFreeablePlacement by nativeHeap {
         if (probe_buf_select().nz)
             return 1
 
-        if (argv.size > 0) {
-            fname = argv[1]
+        if (argv.isNotEmpty()) {
+            fname = argv.first()
         } else {
             srand(time(null).toUInt())
             snprintf(buf.refTo(0), 256.toULong(), ".basic-rw-%u-%u",
@@ -397,10 +390,10 @@ class IoPoll : NativeFreeablePlacement by nativeHeap {
             if (no_buf_select.nz)
                 nr = 8
             for (i in 0 until nr) {
-                val write: Int = if ((i and 1) == 0) 1 else 0
-                val sqthread: Int = if ((i and 2) == 0) 1 else 0
-                val fixed: Int = if ((i and 4) == 0) 1 else 0
-                val buf_select: Int = if ((i and 8) == 0) 1 else 0
+                val write: Int = (i and 1).nz.CInt
+                val sqthread: Int = (i and 2).nz.CInt
+                val fixed: Int = (i and 4).nz.CInt
+                val buf_select: Int = (i and 8).nz.CInt
 
                 ret = test_io(fname, write, sqthread, fixed, buf_select)
                 if (ret.nz) {
@@ -436,23 +429,23 @@ class IoPoll : NativeFreeablePlacement by nativeHeap {
         fun __io_uring_flush_sq(ring: CPointer<io_uring>): UInt {
             val __FUNCTION__ = "__io_uring_flush_sq"
 
-            val sq: CPointer<io_uring_sq> = ring.pointed.sq.ptr;
-            val mask: UInt = sq.pointed.kring_mask!!.pointed.value;
-            var ktail: UInt = sq.pointed.ktail!!.pointed.value;
+            val sq: CPointer<io_uring_sq> = ring.pointed.sq.ptr
+            val mask: UInt = sq.pointed.kring_mask!!.pointed.value
+            var ktail: UInt = sq.pointed.ktail!!.pointed.value
             var to_submit: UInt = sq.pointed.sqe_tail - sq.pointed.sqe_head
 
             out@ for (__out in 0..0) {
                 if (!to_submit.nz)
-                    break@out;
+                    break@out
 
                 /*
                  * Fill in sqes that we have queued up, adding them to the kernel ring
                  */
                 do {
-                    sq.pointed.array!![(ktail and mask).toInt()] = sq.pointed.sqe_head and mask;
-                    ktail++;
-                    sq.pointed.sqe_head++;
-                } while ((--to_submit).nz);
+                    sq.pointed.array!![(ktail and mask).toInt()] = sq.pointed.sqe_head and mask
+                    ktail++
+                    sq.pointed.sqe_head++
+                } while ((--to_submit).nz)
 
 
                 write_barrier()
@@ -476,7 +469,7 @@ class IoPoll : NativeFreeablePlacement by nativeHeap {
              * we can submit. The point is, we need to be able to deal with this
              * situation regardless of any perceived atomicity.
              */
-            return (ktail - sq.pointed.khead!!.pointed.value);
+            return (ktail - sq.pointed.khead!!.pointed.value)
         }
 
         const val FILE_SIZE = (128 * 1024)
@@ -484,6 +477,7 @@ class IoPoll : NativeFreeablePlacement by nativeHeap {
         const val BUFFERS = (FILE_SIZE / BS)
     }
 }
+
 
 fun main(args: Array<String>) {
     val __FUNCTION__ = "main"
