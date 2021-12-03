@@ -31,7 +31,7 @@ import test.cat.io_uring_enter
 
 class IoPoll : NativeFreeablePlacement by nativeHeap {
 
-    var vecs: CArrayPointer<iovec> = allocArray(1)
+    lateinit var vecs: CArrayPointer<iovec>
     var no_buf_select: Int = 0
     var no_iopoll: Int = 0
 
@@ -379,7 +379,7 @@ class IoPoll : NativeFreeablePlacement by nativeHeap {
         if (probe_buf_select().nz)
             return 1
 
-        if (argv.size > 1) {
+        if (argv.size > 0) {
             fname = argv[1]
         } else {
             srand(time(null).toUInt())
@@ -397,10 +397,10 @@ class IoPoll : NativeFreeablePlacement by nativeHeap {
             if (no_buf_select.nz)
                 nr = 8
             for (i in 0 until nr) {
-                val write: Int = if ((i and 1) != 0) 1 else 0
-                val sqthread: Int = if ((i and 2) != 0) 1 else 0
-                val fixed: Int = if ((i and 4) != 0) 1 else 0
-                val buf_select: Int = if ((i and 8) != 0) 1 else 0
+                val write: Int = if ((i and 1) == 0) 1 else 0
+                val sqthread: Int = if ((i and 2) == 0) 1 else 0
+                val fixed: Int = if ((i and 4) == 0) 1 else 0
+                val buf_select: Int = if ((i and 8) == 0) 1 else 0
 
                 ret = test_io(fname, write, sqthread, fixed, buf_select)
                 if (ret.nz) {
@@ -487,6 +487,5 @@ class IoPoll : NativeFreeablePlacement by nativeHeap {
 
 fun main(args: Array<String>) {
     val __FUNCTION__ = "main"
-    val args=if(args.isEmpty()) arrayOf("/etc/sysctl.conf")else args
     exit(IoPoll().main(args))
 }
