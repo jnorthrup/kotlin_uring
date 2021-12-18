@@ -14,6 +14,7 @@ fun main() {
     exit(WebUring().main())
 }
 
+/** all credit to https://github.com/shuveb/io_uring-by-example */
 class WebUring : NativeFreeablePlacement by nativeHeap {
     var ring: io_uring = alloc()
 
@@ -447,8 +448,6 @@ class WebUring : NativeFreeablePlacement by nativeHeap {
                     "<p>Your client is asking for an object that was not found on this server.</p>" +
                     "</body>" +
                     "</html>"
-
-
     }
 }
 
