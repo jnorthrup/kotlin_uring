@@ -27,7 +27,6 @@ fun test_single_hardlink(ring: CPointer<io_uring>): Int = nativeHeap.run {
     val ts: __kernel_timespec = alloc()
     val cqe1: CValuesRef<CPointerVar<io_uring_cqe>> = cValue()
     var ret: Int
-    var i: Int
 
     var sqe = io_uring_get_sqe(ring)
     HasPosixErr.posixFailOn(sqe?.let { false } ?: true) {
@@ -90,7 +89,7 @@ fun test_single_hardlink(ring: CPointer<io_uring>): Int = nativeHeap.run {
 fun test_double_hardlink(ring: CPointer<io_uring>): Int = nativeHeap.run {
 
     var ts1 = alloc<__kernel_timespec>()
-    var ts2 = alloc<__kernel_timespec>()
+//    var ts2 = alloc<__kernel_timespec>()
     var ret: Int
 
     if (0 != no_hardlink)
@@ -263,7 +262,7 @@ fun test_single_link(ring: CPointer<io_uring>): Int = nativeHeap.run {
         linux_uringPrintf("sqe submit failed: %d\n", ret)
     }
     memScoped {
-        repeat(2) { i ->
+        repeat(2) {
             val cqe1: CValuesRef<CPointerVar<io_uring_cqe>> = cValue()
             ret = io_uring_wait_cqe(ring, cqe1)
             HasPosixErr.posixFailOn(ret < 0) {

@@ -86,7 +86,7 @@ class OpathApp : NativeFreeablePlacement by nativeHeap {
         oflgs_t(__O_PATH, "O_PATH")
     )
 
-    fun main(args: Array<String>): Int {
+    fun main(): Int {
         val fname: String = "."
         val ring: io_uring = alloc()
 
@@ -121,5 +121,5 @@ class OpathApp : NativeFreeablePlacement by nativeHeap {
 
 fun main(args: Array<String>) {
 
-    exit(OpathApp().main(args.takeIf { it.isNotEmpty() } ?: arrayOf("/etc/sysctl.conf")))
+    exit(OpathApp().main())
 }

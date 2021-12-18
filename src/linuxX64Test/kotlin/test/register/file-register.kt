@@ -75,7 +75,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
             }
 
             var off = 0U
-            do {
+            while (true) {
                 val fd: IntVar = alloc { value = -1 }
                 ret = io_uring_register_files_update(ring, off, fd.ptr, 1)
                 if (ret != 1) {
@@ -85,7 +85,7 @@ class FileRegister : NativeFreeablePlacement by nativeHeap {
                     break
                 }
                 off++
-            } while (1.nz)
+            }
 
             ret = io_uring_unregister_files(ring)
             if (ret.nz) {

@@ -2,9 +2,9 @@ package test.lfsopenat
 
 import kotlinx.cinterop.*
 import linux_uring.*
-import platform.posix.*
 import platform.posix.O_RDWR
 import platform.posix.S_IRUSR
+import platform.posix.fprintf
 import platform.posix.iovec
 import simple.CZero.z
 import simple.HasPosixErr
@@ -43,7 +43,7 @@ const val _FILE_OFFSET_BITS = 64
 const val RSIZE: Int = 2
 const val OPEN_FLAGS: Int = O_RDWR or platform.posix.O_CREAT
 val OPEN_MODE: platform.posix.mode_t = (S_IRUSR or platform.posix.S_IWUSR).toUInt()
-public fun main(): Unit = memScoped { // val argc=argv.size
+fun main(): Unit = memScoped { // val argc=argv.size
     var fn: String = "io_uring_openat_test"
     var ring: io_uring = alloc()
     var ret: Int
@@ -209,7 +209,7 @@ fun test_drained_files(dfd: Int, fn: String, linked: Boolean, prepend: Boolean):
     var to_cancel: Int = 0
     val fds = IntArray(2)
 
-    ret = io_uring_queue_init(10, ring.ptr, 0)!!
+    ret = io_uring_queue_init(10, ring.ptr, 0)
     HasPosixErr.posixRequires(!(ret < 0)) { "failed to init io_uring: " + posix_strerror1(-ret) }
 
     HasPosixErr.posixRequires((posixPipe(fds.refTo(0)).z)) {

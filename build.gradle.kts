@@ -27,8 +27,12 @@ kotlin {
     linuxX64 {
         binaries {
             test_bins.values().forEach {
-                executable(it.name, listOf(DEBUG/*, RELEASE*/)) {
-                    baseName = it.name;entryPoint = "test.$it.main"
+                executable(it.name,
+                    listOf(DEBUG/*, RELEASE*/)) {     // Build a binary on the basis of the test compilation.
+                    compilation = compilations["test"]
+                    baseName = it.name
+                    this.debuggable = true
+                    entryPoint = "test.$it.main"
                 }
             }
         }
@@ -45,11 +49,19 @@ kotlin {
         val main by compilations.getting {
             kotlinOptions.freeCompilerArgs += listOf("-Xopt-in=kotlin.RequiresOptIn")
         }
+        val test by compilations.getting {
+            kotlinOptions.freeCompilerArgs += listOf("-Xopt-in=kotlin.RequiresOptIn")
+        }
         binaries.all {
             binaryOptions["memoryModel"] = "experimental"
             freeCompilerArgs += "-Xruntime-logs=gc=info"
             binaryOptions["freezing"] = "disabled"
         }
+        println("${
+            binaries.mapNotNull {
+                it.linkTaskName to it.baseName
+            }
+        }")
     }
 
 /*
@@ -66,7 +78,6 @@ kotlin {
             for (compilation in compilations) {
                 if (compilation.name == "nativeMain") {
                     compilation.kotlinOptions.freeCompilerArgs = listOf("-Xopt-in=kotlin.RequiresOptIn")
-
                 }
             }
         }
