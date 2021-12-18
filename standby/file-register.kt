@@ -17,12 +17,22 @@
 static no_update:Int = 0;
 
 fun close_files(files:CPointer<Int>, nr_files:Int, add:Int):Unit{
-	val __FUNCTION__="close_files"
+    val __FUNCTION__ = "close_files"
 
-    char fname[32];
+    val __FUNCTION__ = "close_files"
+
+    val __FUNCTION__ = "close_files"
+
+    val __FUNCTION__ = "close_files"
+
+    val __FUNCTION__ = "close_files"
+
+    val __FUNCTION__ = "close_files"
+
+    char fname [32];
     i:Int;
 
-    for (i in 0 until  nr_files) {
+    for (i in 0 until nr_files) {
         if (files)
             close(files[i]);
         if (!add)
@@ -35,16 +45,26 @@ fun close_files(files:CPointer<Int>, nr_files:Int, add:Int):Unit{
         free(files);
 }
 
-fun open_files(nr_files:Int, extra:Int, add:Int):CPointer<Int>{
-	val __FUNCTION__="open_files"
+fun open_files(nr_files:Int, extra:Int, add:Int):CPointer<Int> {
+    val __FUNCTION__ = "open_files"
 
-    char fname[32];
+    val __FUNCTION__ = "open_files"
+
+    val __FUNCTION__ = "open_files"
+
+    val __FUNCTION__ = "open_files"
+
+    val __FUNCTION__ = "open_files"
+
+    val __FUNCTION__ = "open_files"
+
+    char fname [32];
     files:CPointer<Int>;
     i:Int;
 
     files = t_calloc(nr_files + extra, sizeof(int));
 
-    for (i in 0 until  nr_files) {
+    for (i in 0 until nr_files) {
         if (!add)
             sprintf(fname, ".reg.%d", i);
         else
@@ -65,8 +85,18 @@ fun open_files(nr_files:Int, extra:Int, add:Int):CPointer<Int>{
     return files;
 }
 
-fun test_shrink(ring:CPointer<io_uring>):Int{
-	val __FUNCTION__="test_shrink"
+fun test_shrink(ring:CPointer<io_uring>):Int {
+    val __FUNCTION__ = "test_shrink"
+
+    val __FUNCTION__ = "test_shrink"
+
+    val __FUNCTION__ = "test_shrink"
+
+    val __FUNCTION__ = "test_shrink"
+
+    val __FUNCTION__ = "test_shrink"
+
+    val __FUNCTION__ = "test_shrink"
 
     ret:Int, off, fd;
     files:CPointer<Int>;
@@ -105,8 +135,18 @@ fun test_shrink(ring:CPointer<io_uring>):Int{
 }
 
 
-fun test_grow(ring:CPointer<io_uring>):Int{
-	val __FUNCTION__="test_grow"
+fun test_grow(ring:CPointer<io_uring>):Int {
+    val __FUNCTION__ = "test_grow"
+
+    val __FUNCTION__ = "test_grow"
+
+    val __FUNCTION__ = "test_grow"
+
+    val __FUNCTION__ = "test_grow"
+
+    val __FUNCTION__ = "test_grow"
+
+    val __FUNCTION__ = "test_grow"
 
     ret:Int, off;
     files:CPointer<Int>, *fds = NULL;
@@ -150,8 +190,18 @@ fun test_grow(ring:CPointer<io_uring>):Int{
     return 1;
 }
 
-fun test_replace_all(ring:CPointer<io_uring>):Int{
-	val __FUNCTION__="test_replace_all"
+fun test_replace_all(ring:CPointer<io_uring>):Int {
+    val __FUNCTION__ = "test_replace_all"
+
+    val __FUNCTION__ = "test_replace_all"
+
+    val __FUNCTION__ = "test_replace_all"
+
+    val __FUNCTION__ = "test_replace_all"
+
+    val __FUNCTION__ = "test_replace_all"
+
+    val __FUNCTION__ = "test_replace_all"
 
     files:CPointer<Int>, *fds = NULL;
     ret:Int, i;
@@ -190,8 +240,18 @@ fun test_replace_all(ring:CPointer<io_uring>):Int{
     return 1;
 }
 
-fun test_replace(ring:CPointer<io_uring>):Int{
-	val __FUNCTION__="test_replace"
+fun test_replace(ring:CPointer<io_uring>):Int {
+    val __FUNCTION__ = "test_replace"
+
+    val __FUNCTION__ = "test_replace"
+
+    val __FUNCTION__ = "test_replace"
+
+    val __FUNCTION__ = "test_replace"
+
+    val __FUNCTION__ = "test_replace"
+
+    val __FUNCTION__ = "test_replace"
 
     files:CPointer<Int>, *fds = NULL;
     ret:Int;
@@ -227,8 +287,18 @@ fun test_replace(ring:CPointer<io_uring>):Int{
     return 1;
 }
 
-fun test_removals(ring:CPointer<io_uring>):Int{
-	val __FUNCTION__="test_removals"
+fun test_removals(ring:CPointer<io_uring>):Int {
+    val __FUNCTION__ = "test_removals"
+
+    val __FUNCTION__ = "test_removals"
+
+    val __FUNCTION__ = "test_removals"
+
+    val __FUNCTION__ = "test_removals"
+
+    val __FUNCTION__ = "test_removals"
+
+    val __FUNCTION__ = "test_removals"
 
     files:CPointer<Int>, *fds = NULL;
     ret:Int, i;
@@ -267,8 +337,18 @@ fun test_removals(ring:CPointer<io_uring>):Int{
     return 1;
 }
 
-fun test_additions(ring:CPointer<io_uring>):Int{
-	val __FUNCTION__="test_additions"
+fun test_additions(ring:CPointer<io_uring>):Int {
+    val __FUNCTION__ = "test_additions"
+
+    val __FUNCTION__ = "test_additions"
+
+    val __FUNCTION__ = "test_additions"
+
+    val __FUNCTION__ = "test_additions"
+
+    val __FUNCTION__ = "test_additions"
+
+    val __FUNCTION__ = "test_additions"
 
     files:CPointer<Int>, *fds = NULL;
     ret:Int;
@@ -304,8 +384,18 @@ fun test_additions(ring:CPointer<io_uring>):Int{
     return 1;
 }
 
-fun test_sparse(ring:CPointer<io_uring>):Int{
-	val __FUNCTION__="test_sparse"
+fun test_sparse(ring:CPointer<io_uring>):Int {
+    val __FUNCTION__ = "test_sparse"
+
+    val __FUNCTION__ = "test_sparse"
+
+    val __FUNCTION__ = "test_sparse"
+
+    val __FUNCTION__ = "test_sparse"
+
+    val __FUNCTION__ = "test_sparse"
+
+    val __FUNCTION__ = "test_sparse"
 
     files:CPointer<Int>;
     ret:Int;
@@ -334,8 +424,18 @@ fun test_sparse(ring:CPointer<io_uring>):Int{
     return 1;
 }
 
-fun test_basic_many(ring:CPointer<io_uring>):Int{
-	val __FUNCTION__="test_basic_many"
+fun test_basic_many(ring:CPointer<io_uring>):Int {
+    val __FUNCTION__ = "test_basic_many"
+
+    val __FUNCTION__ = "test_basic_many"
+
+    val __FUNCTION__ = "test_basic_many"
+
+    val __FUNCTION__ = "test_basic_many"
+
+    val __FUNCTION__ = "test_basic_many"
+
+    val __FUNCTION__ = "test_basic_many"
 
     files:CPointer<Int>;
     ret:Int;
@@ -358,8 +458,18 @@ fun test_basic_many(ring:CPointer<io_uring>):Int{
     return 1;
 }
 
-fun test_basic(ring:CPointer<io_uring>, fail:Int):Int{
-	val __FUNCTION__="test_basic"
+fun test_basic(ring:CPointer<io_uring>, fail:Int):Int {
+    val __FUNCTION__ = "test_basic"
+
+    val __FUNCTION__ = "test_basic"
+
+    val __FUNCTION__ = "test_basic"
+
+    val __FUNCTION__ = "test_basic"
+
+    val __FUNCTION__ = "test_basic"
+
+    val __FUNCTION__ = "test_basic"
 
     files:CPointer<Int>;
     ret:Int;
@@ -394,8 +504,18 @@ fun test_basic(ring:CPointer<io_uring>, fail:Int):Int{
 /*
  * Register 0 files, but reserve space for 10.  Then add one file.
  */
-fun test_zero(ring:CPointer<io_uring>):Int{
-	val __FUNCTION__="test_zero"
+fun test_zero(ring:CPointer<io_uring>):Int {
+    val __FUNCTION__ = "test_zero"
+
+    val __FUNCTION__ = "test_zero"
+
+    val __FUNCTION__ = "test_zero"
+
+    val __FUNCTION__ = "test_zero"
+
+    val __FUNCTION__ = "test_zero"
+
+    val __FUNCTION__ = "test_zero"
 
     files:CPointer<Int>, *fds = NULL;
     ret:Int;
@@ -431,8 +551,18 @@ fun test_zero(ring:CPointer<io_uring>):Int{
     return 1;
 }
 
-fun test_fixed_read_write(ring:CPointer<io_uring>, index:Int):Int{
-	val __FUNCTION__="test_fixed_read_write"
+fun test_fixed_read_write(ring:CPointer<io_uring>, index:Int):Int {
+    val __FUNCTION__ = "test_fixed_read_write"
+
+    val __FUNCTION__ = "test_fixed_read_write"
+
+    val __FUNCTION__ = "test_fixed_read_write"
+
+    val __FUNCTION__ = "test_fixed_read_write"
+
+    val __FUNCTION__ = "test_fixed_read_write"
+
+    val __FUNCTION__ = "test_fixed_read_write"
 
     sqe:CPointer<io_uring_sqe>;
     cqe:CPointer<io_uring_cqe>;
@@ -508,8 +638,18 @@ fun test_fixed_read_write(ring:CPointer<io_uring>, index:Int):Int{
     return 0;
 }
 
-fun adjust_nfiles(want_files:Int):Unit{
-	val __FUNCTION__="adjust_nfiles"
+fun adjust_nfiles(want_files:Int):Unit {
+    val __FUNCTION__ = "adjust_nfiles"
+
+    val __FUNCTION__ = "adjust_nfiles"
+
+    val __FUNCTION__ = "adjust_nfiles"
+
+    val __FUNCTION__ = "adjust_nfiles"
+
+    val __FUNCTION__ = "adjust_nfiles"
+
+    val __FUNCTION__ = "adjust_nfiles"
 
     rlim:rlimit;
 
@@ -525,8 +665,18 @@ fun adjust_nfiles(want_files:Int):Unit{
  * Register 8K of sparse files, update one at a random spot, then do some
  * file IO to verify it works.
  */
-fun test_huge(ring:CPointer<io_uring>):Int{
-	val __FUNCTION__="test_huge"
+fun test_huge(ring:CPointer<io_uring>):Int {
+    val __FUNCTION__ = "test_huge"
+
+    val __FUNCTION__ = "test_huge"
+
+    val __FUNCTION__ = "test_huge"
+
+    val __FUNCTION__ = "test_huge"
+
+    val __FUNCTION__ = "test_huge"
+
+    val __FUNCTION__ = "test_huge"
 
     files:CPointer<Int>;
     ret:Int;
@@ -582,8 +732,18 @@ fun test_huge(ring:CPointer<io_uring>):Int{
     return 1;
 }
 
-fun test_skip(ring:CPointer<io_uring>):Int{
-	val __FUNCTION__="test_skip"
+fun test_skip(ring:CPointer<io_uring>):Int {
+    val __FUNCTION__ = "test_skip"
+
+    val __FUNCTION__ = "test_skip"
+
+    val __FUNCTION__ = "test_skip"
+
+    val __FUNCTION__ = "test_skip"
+
+    val __FUNCTION__ = "test_skip"
+
+    val __FUNCTION__ = "test_skip"
 
     files:CPointer<Int>;
     ret:Int;
@@ -624,8 +784,18 @@ fun test_skip(ring:CPointer<io_uring>):Int{
     return 1;
 }
 
-fun test_sparse_updates(void):Int{
-	val __FUNCTION__="test_sparse_updates"
+fun test_sparse_updates(void):Int {
+    val __FUNCTION__ = "test_sparse_updates"
+
+    val __FUNCTION__ = "test_sparse_updates"
+
+    val __FUNCTION__ = "test_sparse_updates"
+
+    val __FUNCTION__ = "test_sparse_updates"
+
+    val __FUNCTION__ = "test_sparse_updates"
+
+    val __FUNCTION__ = "test_sparse_updates"
 
     ring:io_uring;
     ret:Int, i, *fds, newfd;
@@ -679,10 +849,20 @@ fun test_sparse_updates(void):Int{
     return 0;
 }
 
-fun test_fixed_removal_ordering(void):Int{
-	val __FUNCTION__="test_fixed_removal_ordering"
+fun test_fixed_removal_ordering(void):Int {
+    val __FUNCTION__ = "test_fixed_removal_ordering"
 
-    char buffer[128];
+    val __FUNCTION__ = "test_fixed_removal_ordering"
+
+    val __FUNCTION__ = "test_fixed_removal_ordering"
+
+    val __FUNCTION__ = "test_fixed_removal_ordering"
+
+    val __FUNCTION__ = "test_fixed_removal_ordering"
+
+    val __FUNCTION__ = "test_fixed_removal_ordering"
+
+    char buffer [128];
     ring:io_uring;
     sqe:CPointer<io_uring_sqe>;
     cqe:CPointer<io_uring_cqe>;
@@ -764,8 +944,18 @@ fun test_fixed_removal_ordering(void):Int{
 }
 
 
-fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
-	val __FUNCTION__="main"
+fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int {
+    val __FUNCTION__ = "main"
+
+    val __FUNCTION__ = "main"
+
+    val __FUNCTION__ = "main"
+
+    val __FUNCTION__ = "main"
+
+    val __FUNCTION__ = "main"
+
+    val __FUNCTION__ = "main"
 
     ring:io_uring;
     ret:Int;

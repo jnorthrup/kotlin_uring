@@ -26,18 +26,6 @@ import simple.CZero.nz
 import simple.alloc
 import test.cat.io_uring_enter
 
-/* SPDX-License-Identifier: MIT */
-//include <liburing.h>
-//include <netdb.h>
-//include <string.h>
-//include <sys/socket.h>
-//include <sys/types.h>
-//include <unistd.h>
-//include <stdio.h>
-//include <errno.h>
-//include "liburing.h"
-//include "../src/syscall.h"
-
 class AcceptReuse : NativeFreeablePlacement by nativeHeap {
     var io_uring: io_uring = alloc()
 
@@ -58,7 +46,6 @@ class AcceptReuse : NativeFreeablePlacement by nativeHeap {
         val __FUNCTION__ = "main"
 
         val addr_info_list = allocPointerTo<addrinfo>()
-
         val params: io_uring_params = alloc()
         val hints: addrinfo = alloc()
         val v = sizeOf<sockaddr>().toUInt()

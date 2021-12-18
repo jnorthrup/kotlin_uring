@@ -39,7 +39,6 @@ kotlin {
         println("compilations: ${compilations}")
         compilations.first().cinterops {
             println("compilation: $this")
-
             create(name) {
                 defFile = project.file("src/nativeInterop/cinterop/linux_uring.def")
             }
@@ -182,6 +181,7 @@ enum class test_bins {
     accept_reuse,
     cat,
     cq_overflow,
+    eventfd,
     fixedlink,
     iopoll,
     lfsopenat,

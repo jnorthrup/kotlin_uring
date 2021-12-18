@@ -3,16 +3,6 @@
  * Description: run various nop tests
  *
  */
-//include <errno.h>
-//include <stdio.h>
-//include <unistd.h>
-//include <stdlib.h>
-//include <string.h>
-//include <fcntl.h>
-//include <sys/poll.h>
-//include <sys/eventfd.h>
-
-//include "liburing.h"
 
 fun main(argc:Int, argv:CPointerVarOf<CPointer<ByteVar>>):Int{
 	val __FUNCTION__="main"
