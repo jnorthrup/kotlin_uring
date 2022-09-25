@@ -1,10 +1,10 @@
 # Kotlin liburing
 
-this is a holding buffer for abstracting network patterns leveraging io-uring native API
+kotlin native io_uring adaptation 
 
-the goals of this project are specific to linux kernels 5.15+ and whatever may happen to work below that.
+progress to date includes most (interesting) io_uring tests ported to KN.
 
-https://github.com/shuveb/io_uring-by-example provides a straw man from which a webserver in test.web_uring
+
 
 ## adjacent goals
 
