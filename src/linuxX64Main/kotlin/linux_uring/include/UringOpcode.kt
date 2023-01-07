@@ -1,7 +1,6 @@
 @file:Suppress("EnumEntryName")
 
 package linux_uring.include
-
 import cnames.structs.statx
 import linux_uring.*
 import simple.CZero.nz
@@ -118,7 +117,7 @@ enum class UringOpcode(val opConstant: UInt) {
 
     /**    Do not perform any I/O. This is useful for testing the performance of
      * the io_uring implementation itself. */
-    Op_Nop(IORING_OP_NOP),
+    Op_Nop( IORING_OP_NOP ),
 
     /**
      * Vectored read similar to preadv2(2) and pwritev2(2).  If the file is not seekable,off must be set to zero. */
